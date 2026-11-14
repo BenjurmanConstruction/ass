@@ -1,15 +1,21 @@
 package app.easywake;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -48,7 +54,7 @@ public class SlotActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Random rnd = new Random();
-    private final TextView[] reels = new TextView[3];
+    private final ReelView[] reels = new ReelView[3];
     private final TextView[] pots = new TextView[3];
     private TextView balance;
     private TextView message;
@@ -121,11 +127,9 @@ public class SlotActivity extends Activity {
         frame.setBackground(fg);
         frame.setPadding(Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14));
         for (int i = 0; i < 3; i++) {
-            TextView r = Ui.text(this, ALL[rnd.nextInt(ALL.length)], 54, Ui.ACCENT);
-            r.setGravity(Gravity.CENTER);
-            r.setTypeface(Ui.medium());
+            ReelView r = new ReelView(this);
             r.setBackground(Ui.round(this, 0x33000000, 16));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, Ui.dp(this, 120),
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, Ui.dp(this, 210),
                     1f);
             int g = Ui.dp(this, 5);
             rp.setMargins(g, 0, g, 0);
@@ -287,30 +291,18 @@ public class SlotActivity extends Activity {
         message.setText("");
         paint();
 
+        // Each reel scrolls and slows to a stop, left to right.
         final int mine = ++token;
-        final long start = android.os.SystemClock.uptimeMillis();
-        final long[] stopAt = {650, 1150, 1750};
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mine != token) return;
-                long t = android.os.SystemClock.uptimeMillis() - start;
-                boolean all = true;
-                for (int i = 0; i < 3; i++) {
-                    if (t >= stopAt[i]) {
-                        reels[i].setText(res.show[i]);
-                    } else {
-                        reels[i].setText(ALL[rnd.nextInt(ALL.length)]);
-                        all = false;
-                    }
+        long[] durations = {1100, 1700, 2400};
+        for (int i = 0; i < 3; i++) {
+            final boolean last = i == 2;
+            reels[i].spinTo(res.show[i], durations[i], new Runnable() {
+                @Override
+                public void run() {
+                    if (last && mine == token) settle(res, bet);
                 }
-                if (all) {
-                    settle(res, bet);
-                } else {
-                    handler.postDelayed(this, 70);
-                }
-            }
-        });
+            });
+        }
     }
 
     private void settle(Result res, int bet) {
@@ -423,5 +415,109 @@ public class SlotActivity extends Activity {
                 .setMessage(t)
                 .setPositiveButton("Close", (DialogInterface.OnClickListener) null)
                 .show();
+    }
+
+    /** One reel: a strip of symbols that scrolls downward and eases onto its result. */
+    static final class ReelView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Random rnd = new Random();
+        private String[] strip;
+        /** Which strip position sits on the pay line; fractions are mid-scroll. */
+        private float pos = 1f;
+        private ValueAnimator anim;
+
+        ReelView(android.content.Context c) {
+            super(c);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setColor(Ui.ACCENT);
+            paint.setTypeface(Ui.medium());
+            line.setColor((Ui.ACCENT & 0x00FFFFFF) | 0x55000000);
+            line.setStrokeWidth(Ui.dp(c, 2));
+            strip = new String[]{pick(), pick(), pick()};
+        }
+
+        private String pick() {
+            return ALL[rnd.nextInt(ALL.length)];
+        }
+
+        /** Scrolls to show {@code target} on the pay line, then calls {@code done}. */
+        void spinTo(String target, long duration, final Runnable done) {
+            if (anim != null) anim.cancel();
+            // Keep what is showing now at the start of the new strip so nothing jumps.
+            int at = Math.round(pos);
+            String above = get(at + 1);
+            String center = get(at);
+            String below = get(at - 1);
+            int length = 22 + (int) (duration / 100);
+            String[] next = new String[length];
+            for (int i = 0; i < length; i++) next[i] = pick();
+            next[0] = below;
+            next[1] = center;
+            next[2] = above;
+            next[length - 2] = target;
+            strip = next;
+            pos = 1f;
+            anim = ValueAnimator.ofFloat(1f, length - 2);
+            anim.setDuration(duration);
+            anim.setInterpolator(new DecelerateInterpolator(1.6f));
+            anim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator a) {
+                    pos = (Float) a.getAnimatedValue();
+                    invalidate();
+                }
+            });
+            anim.addListener(new AnimatorListenerAdapter() {
+                private boolean cancelled;
+
+                @Override
+                public void onAnimationCancel(Animator a) {
+                    cancelled = true;
+                }
+
+                @Override
+                public void onAnimationEnd(Animator a) {
+                    if (!cancelled && done != null) done.run();
+                }
+            });
+            anim.start();
+        }
+
+        private String get(int i) {
+            if (strip.length == 0) return "";
+            return strip[((i % strip.length) + strip.length) % strip.length];
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            if (anim != null) anim.cancel();
+            super.onDetachedFromWindow();
+        }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            float w = getWidth();
+            float h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            float cell = h / 3f;
+            paint.setTextSize(Math.min(cell * 0.62f, w * 0.6f));
+            float mid = h / 2f;
+            float lift = (paint.ascent() + paint.descent()) / 2f;
+            int base = (int) Math.floor(pos);
+            cv.save();
+            cv.clipRect(0, 0, w, h);
+            for (int i = base - 2; i <= base + 3; i++) {
+                // Higher strip positions enter from the top and travel down.
+                float y = mid - (i - pos) * cell;
+                float away = Math.min(1f, Math.abs(y - mid) / cell);
+                paint.setAlpha((int) (255 - 150 * away));
+                cv.drawText(get(i), w / 2f, y - lift, paint);
+            }
+            cv.restore();
+            // Pay line markers on either side of the middle row.
+            cv.drawLine(0, mid - cell / 2f, w, mid - cell / 2f, line);
+            cv.drawLine(0, mid + cell / 2f, w, mid + cell / 2f, line);
+        }
     }
 }

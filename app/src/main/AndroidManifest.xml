@@ -59,6 +59,18 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".PortfolioActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".PaperActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".NewsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".TreeActivity"
             android:exported="false" />
 

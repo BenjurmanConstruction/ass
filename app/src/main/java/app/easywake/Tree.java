@@ -17,7 +17,7 @@ final class Tree {
             "Learn to read charts and think about risk. Education only, not advice.",
             "Make your savings work harder.",
             "Everyday tools. Arriving in the next updates.",
-            "Upgrades for the built-in helper. Arriving in the next updates."
+            "Upgrades for the built-in helper."
     };
 
     static final class Node {
@@ -140,13 +140,16 @@ final class Tree {
                             + "the whole market falls, an index fund falls with it. It "
                             + "removes the risk of being wrong about one company. This is "
                             + "general education, not a recommendation for you."),
-            new Node("m_portfolio", 1, SOON, "Portfolio tracker",
-                    "Enter your real positions and cost basis; see value and gain.", 0, 0,
+            new Node("m_portfolio", 1, FEATURE, "Portfolio tracker",
+                    "Enter your real positions and cost basis; see value and gain.", 40, 3,
                     null, null),
-            new Node("m_paper", 1, SOON, "Paper trading",
-                    "Practice with fake cash at live-ish prices.", 0, 0, null, null),
-            new Node("m_news", 1, SOON, "News feed and alerts",
-                    "Headlines, price alerts and an economic calendar.", 0, 0, null, null),
+            new Node("m_news", 1, FEATURE, "Market news",
+                    "Headlines from CNBC, MarketWatch and Yahoo Finance.", 40, 3, null, null),
+            new Node("m_paper", 1, FEATURE, "Paper trading",
+                    "Practice with $10,000 of pretend cash. Add more with Knowledge Points.",
+                    60, 4, "m_risk", null),
+            new Node("m_alerts", 1, SOON, "Alerts and economic calendar",
+                    "Price alerts and the dates of big economic reports.", 0, 0, null, null),
 
             // ----- Wealth -----
             new Node("w_rate", 2, PERK, "Better exchange rate",
@@ -165,8 +168,9 @@ final class Tree {
             // ----- Helper -----
             new Node("h_lookup", 4, SOON, "Safe lookups",
                     "The helper fetches text answers from trusted sources.", 0, 0, null, null),
-            new Node("h_market", 4, SOON, "Market Q&A",
-                    "Ask the helper chart and investing questions.", 0, 0, null, null),
+            new Node("h_market", 4, PERK, "Market Q&A",
+                    "Ask the helper things like 'how do I find support and resistance?'",
+                    30, 2, null, null),
     };
 
     private Tree() {}
@@ -175,6 +179,15 @@ final class Tree {
         for (Node n : NODES) {
             if (n.id.equals(id)) return n;
         }
+        return null;
+    }
+
+    /** The screen a FEATURE node opens, or null. */
+    static Class<?> screen(String id) {
+        if ("slot".equals(id)) return SlotActivity.class;
+        if ("m_portfolio".equals(id)) return PortfolioActivity.class;
+        if ("m_paper".equals(id)) return PaperActivity.class;
+        if ("m_news".equals(id)) return NewsActivity.class;
         return null;
     }
 

@@ -51,6 +51,7 @@ public class MarketActivity extends Activity {
     private ScrollView scroll;
     private TextView footer;
     private int range;
+    private int unlockStamp = -1;
     private int generation;
     private int pending;
     private int okCount;
@@ -137,12 +138,21 @@ public class MarketActivity extends Activity {
         rebuild();
     }
 
+    private int unlockCount() {
+        return MarketData.list(this, "treeOwned", "").size();
+    }
+
     /** Rebuilds the list of cards from the saved choices. */
     private void rebuild() {
         body.removeAllViews();
         cards.clear();
 
-        body.addView(Ui.heading(this, "Indexes"), Ui.full(this, 18));
+        body.addView(Ui.heading(this, "Tools"), Ui.full(this, 18));
+        body.addView(tool("My portfolio", "m_portfolio"), Ui.full(this, 10));
+        body.addView(tool("Paper trading", "m_paper"), Ui.full(this, 10));
+        body.addView(tool("Market news", "m_news"), Ui.full(this, 10));
+
+        body.addView(Ui.heading(this, "Indexes"), Ui.full(this, 24));
         for (MarketData.Sym s : MarketData.INDEXES) addCard(s, true, false);
 
         body.addView(Ui.heading(this, "More markets"), Ui.full(this, 24));
@@ -183,6 +193,27 @@ public class MarketActivity extends Activity {
         body.addView(Ui.heading(this, "Show the three indexes"), Ui.full(this, 24));
         body.addView(toggle("On the home screen", "marketHome"), Ui.full(this, 10));
         body.addView(toggle("On the alarm screen", "marketRing"), Ui.full(this, 10));
+    }
+
+    /** A row that opens an unlockable tool, or points to the skill tree if it's locked. */
+    private View tool(String title, final String nodeId) {
+        final boolean owned = Tree.owned(this, nodeId);
+        Ui.Row row = Ui.row(this, title, owned ? "Open" : "Locked");
+        row.view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (Tree.owned(MarketActivity.this, nodeId)) {
+                    startActivity(new android.content.Intent(MarketActivity.this,
+                            Tree.screen(nodeId)));
+                } else {
+                    Toast.makeText(MarketActivity.this, "Unlock this on the Market branch "
+                            + "of the skill tree.", Toast.LENGTH_LONG).show();
+                    startActivity(new android.content.Intent(MarketActivity.this,
+                            TreeActivity.class));
+                }
+            }
+        });
+        return row.view;
     }
 
     private View toggle(String title, final String key) {
@@ -348,7 +379,11 @@ public class MarketActivity extends Activity {
     protected void onResume() {
         super.onResume();
         visible = true;
-        // Coming back from a chart screen: pick up any line color change.
+        // Coming back from another screen: pick up unlocks and line color changes.
+        if (body != null && unlockStamp != unlockCount()) {
+            unlockStamp = unlockCount();
+            rebuild();
+        }
         handler.removeCallbacks(autoRefresh);
         handler.post(autoRefresh);
     }

@@ -225,6 +225,45 @@ public class AssistantActivity extends Activity {
             return sb.toString();
         }
 
+        // ----- market questions (needs the Market Q&A unlock) -----
+        boolean asking = has(q, "what", "how", "why", "explain", "mean", "define", "tell me",
+                "difference", "find", " is a ", " are ") || raw.trim().endsWith("?");
+        boolean aboutApp = has(q, "alarm", "sound", "fan", "noise", "loud", "background",
+                "memo", "app ");
+        if (asking && !aboutApp) {
+            String kb = MarketKB.answer(raw);
+            if (kb != null) {
+                if (Tree.owned(this, "h_market")) return kb;
+                return "I can answer market questions like that once you unlock Market Q&A "
+                        + "on the Helper branch of the skill tree (30 Knowledge Points, "
+                        + "level 2).";
+            }
+        }
+        if (has(q, "portfolio", "my positions", "my stocks")) {
+            if (Tree.owned(this, "m_portfolio")) {
+                open(PortfolioActivity.class);
+                return "Opening your portfolio.";
+            }
+            return "The portfolio tracker is locked. It's on the Market branch of the skill "
+                    + "tree (40 Knowledge Points, level 3).";
+        }
+        if (has(q, "paper trad", "practice trad", "fake money", "pretend money")) {
+            if (Tree.owned(this, "m_paper")) {
+                open(PaperActivity.class);
+                return "Opening paper trading.";
+            }
+            return "Paper trading is locked. Unlock the \"Risk and position sizing\" lesson "
+                    + "first, then Paper trading (60 Knowledge Points, level 4).";
+        }
+        if (has(q, "news", "headline")) {
+            if (Tree.owned(this, "m_news")) {
+                open(NewsActivity.class);
+                return "Opening market news.";
+            }
+            return "Market news is locked. It's on the Market branch of the skill tree (40 "
+                    + "Knowledge Points, level 3).";
+        }
+
         // ----- market -----
         Matcher quote = Pattern.compile("(?i)(?:price of|quote for|quote|price|chart of|"
                 + "chart for|chart|look up|lookup)\\s+\\$?([A-Za-z0-9.^=\\-]{1,12})\\s*$")
@@ -387,6 +426,7 @@ public class AssistantActivity extends Activity {
                 + "• \"Memo call the bank\" or \"Remind me to bring lunch\"\n"
                 + "• \"Show my memos\"\n"
                 + "• \"How's the market?\" or \"Price of AAPL\"\n"
+                + "• \"How do I find support and resistance?\" (needs Market Q&A)\n"
                 + "• \"Play the fan\", \"Play white noise\", \"Stop the fan\"\n"
                 + "• \"Tell me a joke\", \"Crazy fact\"\n"
                 + "• \"My points\", \"Daily challenge\"\n"

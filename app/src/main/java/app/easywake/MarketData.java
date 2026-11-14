@@ -364,7 +364,7 @@ final class MarketData {
         return out;
     }
 
-    private static String http(String url) throws Exception {
+    static String http(String url) throws Exception {
         if (netOff) throw new Exception("internet is switched off in Settings");
         HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
         try {

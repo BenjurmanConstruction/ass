@@ -39,6 +39,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".LearnActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".BrainActivity"
             android:exported="false" />
 

@@ -1,27 +1,23 @@
 package app.easywake;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** Brain gym: a crazy fact, plus quick tests with your best scores. */
-public class BrainActivity extends Activity {
-    private static final String[] TITLES = {
-            "Reaction time", "Speed math", "Number memory", "Color focus"
-    };
-    private static final String[] HINTS = {
-            "Tap the moment the panel turns green. Five tries.",
-            "Solve as many sums as you can in 60 seconds.",
-            "Memorize a number, then type it back. It gets longer each round.",
-            "Tap the color the word is printed in, not what the word says. 20 rounds."
-    };
+import java.util.List;
 
-    private final TextView[] bests = new TextView[TITLES.length];
+/** Brain gym: points, a crazy fact, the tests and their high scores. */
+public class BrainActivity extends Activity {
+    private final TextView[] bests = new TextView[GameActivity.TITLES.length];
     private TextView fact;
+    private TextView points;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -38,7 +34,28 @@ public class BrainActivity extends Activity {
 
         root.addView(Ui.topBar(this, "Brain gym"), Ui.full(this, 0));
 
-        root.addView(Ui.heading(this, "Crazy fact"), Ui.full(this, 18));
+        // Points and where to spend them.
+        LinearLayout bank = new LinearLayout(this);
+        bank.setOrientation(LinearLayout.VERTICAL);
+        bank.setBackground(Ui.card(this, 22));
+        bank.setPadding(Ui.dp(this, 20), Ui.dp(this, 16), Ui.dp(this, 20), Ui.dp(this, 16));
+        bank.addView(Ui.heading(this, "Your points"));
+        points = Ui.text(this, "0", 40, Ui.ACCENT);
+        points.setTypeface(Ui.light());
+        bank.addView(points);
+        bank.addView(Ui.text(this, "Every test earns points. A new #1 earns a bonus. Spend "
+                + "them on vault facts and lessons.", 13, Ui.SUB));
+        Button spend = Ui.button(this, "Cash in: vault facts and lessons", true);
+        spend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(BrainActivity.this, LearnActivity.class));
+            }
+        });
+        bank.addView(spend, Ui.full(this, 12));
+        root.addView(bank, Ui.full(this, 14));
+
+        root.addView(Ui.heading(this, "Crazy fact"), Ui.full(this, 24));
         LinearLayout factCard = new LinearLayout(this);
         factCard.setOrientation(LinearLayout.VERTICAL);
         factCard.setBackground(Ui.ripple(this, Ui.card(this, 22), 22));
@@ -56,18 +73,37 @@ public class BrainActivity extends Activity {
         root.addView(factCard, Ui.full(this, 10));
 
         root.addView(Ui.heading(this, "Tests"), Ui.full(this, 26));
-        for (int i = 0; i < TITLES.length; i++) {
+        for (int i = 0; i < GameActivity.TITLES.length; i++) {
             final int mode = i;
             LinearLayout card = new LinearLayout(this);
-            card.setOrientation(LinearLayout.VERTICAL);
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
             card.setBackground(Ui.ripple(this, Ui.card(this, 20), 20));
-            card.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
-            TextView t = Ui.text(this, TITLES[i], 18, Ui.TEXT);
+            card.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14));
+
+            LinearLayout left = new LinearLayout(this);
+            left.setOrientation(LinearLayout.VERTICAL);
+            TextView t = Ui.text(this, GameActivity.TITLES[i], 18, Ui.TEXT);
             t.setTypeface(Ui.medium());
-            card.addView(t);
-            card.addView(Ui.text(this, HINTS[i], 14, Ui.SUB));
+            left.addView(t);
+            left.addView(Ui.text(this, GameActivity.HINTS[i], 14, Ui.SUB));
             bests[i] = Ui.text(this, "", 13, Ui.ACCENT);
-            card.addView(bests[i], Ui.full(this, 6));
+            left.addView(bests[i], Ui.full(this, 6));
+            card.addView(left, new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView board = Ui.text(this, "Top 10", 13, Ui.TEXT);
+            board.setGravity(Gravity.CENTER);
+            board.setBackground(Ui.ripple(this, Ui.card(this, 16), 16));
+            board.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+            board.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showBoard(mode);
+                }
+            });
+            card.addView(board);
+
             card.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -86,18 +122,31 @@ public class BrainActivity extends Activity {
         Bg.apply(this, scroll);
     }
 
+    private void showBoard(int mode) {
+        List<Scores.Entry> list = Scores.load(this, mode);
+        StringBuilder sb = new StringBuilder();
+        if (list.isEmpty()) {
+            sb.append("No scores yet. Play it to get on the board.");
+        } else {
+            for (int i = 0; i < list.size(); i++) {
+                Scores.Entry e = list.get(i);
+                sb.append(i + 1).append(".  ").append(e.name).append("  —  ")
+                        .append(e.text).append("\n");
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(GameActivity.TITLES[mode] + ": high scores")
+                .setMessage(sb.toString().trim())
+                .setPositiveButton("Close", null)
+                .show();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
-        int r = Prefs.getInt(this, "bestReaction", 0);
-        bests[0].setText(r > 0 ? "Best: " + r + " ms" : "Not tried yet");
-        int m = Prefs.getInt(this, "bestMath", -1);
-        bests[1].setText(m >= 0 ? "Best: " + m + " correct" : "Not tried yet");
-        int d = Prefs.getInt(this, "bestDigits", 0);
-        bests[2].setText(d > 0 ? "Best: " + d + " digits" : "Not tried yet");
-        int sc = Prefs.getInt(this, "bestStroop", -1);
-        int sm = Prefs.getInt(this, "bestStroopMs", 0);
-        bests[3].setText(sc >= 0 ? "Best: " + sc + " of 20, " + GameActivity.secs(sm)
-                + " each" : "Not tried yet");
+        points.setText(String.valueOf(Scores.points(this)));
+        for (int i = 0; i < bests.length; i++) {
+            bests[i].setText(Scores.bestText(this, i));
+        }
     }
 }

@@ -2,6 +2,7 @@ package app.easywake;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,6 +16,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -29,10 +31,26 @@ public class GameActivity extends Activity {
     static final int MATH = 1;
     static final int DIGITS = 2;
     static final int STROOP = 3;
+    static final int SEQUENCE = 4;
+    static final int CHIMP = 5;
+    static final int SERIES = 6;
+    static final int AIM = 7;
 
-    private static final String[] TITLES = {
-            "Reaction time", "Speed math", "Number memory", "Color focus"
+    static final String[] TITLES = {
+            "Reaction time", "Speed math", "Number memory", "Color focus",
+            "Sequence memory", "Chimp test", "Number patterns", "Aim trainer"
     };
+    static final String[] HINTS = {
+            "Tap the moment the panel turns green. Five tries.",
+            "Solve as many sums as you can in 60 seconds.",
+            "Memorize a number, then type it back. It gets longer each round.",
+            "Tap the color the word is printed in, not what the word says. 20 rounds.",
+            "Watch the tiles light up, then repeat the pattern. One more tile each level.",
+            "Numbers appear, then hide when you tap 1. Tap the rest in order from memory.",
+            "Work out what number comes next. Ten questions.",
+            "Tap 20 targets as fast as you can."
+    };
+
     private static final String[] COLOR_NAMES = {"RED", "BLUE", "GREEN", "YELLOW"};
     private static final int[] COLOR_VALUES = {0xFFFF5A5A, 0xFF5AA0FF, 0xFF5FD38A, 0xFFFFD84D};
 
@@ -80,10 +98,32 @@ public class GameActivity extends Activity {
     private void start() {
         token++;
         handler.removeCallbacksAndMessages(null);
-        if (mode == MATH) startMath();
-        else if (mode == DIGITS) startDigits();
-        else if (mode == STROOP) startStroop();
-        else startReaction();
+        switch (mode) {
+            case MATH:
+                startMath();
+                break;
+            case DIGITS:
+                startDigits();
+                break;
+            case STROOP:
+                startStroop();
+                break;
+            case SEQUENCE:
+                startSequence();
+                break;
+            case CHIMP:
+                startChimp();
+                break;
+            case SERIES:
+                startSeries();
+                break;
+            case AIM:
+                startAim();
+                break;
+            default:
+                startReaction();
+                break;
+        }
     }
 
     // ---------- shared pieces ----------
@@ -105,6 +145,12 @@ public class GameActivity extends Activity {
         return t;
     }
 
+    private TextView note(String s) {
+        TextView t = Ui.text(this, s, 15, Ui.ACCENT);
+        t.setGravity(Gravity.CENTER);
+        return t;
+    }
+
     private View spacer() {
         return new View(this);
     }
@@ -113,23 +159,92 @@ public class GameActivity extends Activity {
         return new LinearLayout.LayoutParams(1, 0, 1f);
     }
 
-    private void showResult(String headline, String detail, boolean newBest) {
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(
+                Context.INPUT_METHOD_SERVICE);
+        if (imm != null && stage != null) {
+            imm.hideSoftInputFromWindow(stage.getWindowToken(), 0);
+        }
+    }
+
+    /**
+     * Ends the test: awards points, offers a spot on the high score list, shows the board.
+     *
+     * @param rank   higher is better
+     * @param result what goes on the board, for example "245 ms"
+     */
+    private void end(final int rank, final String result, String detail, int points) {
         token++;
         handler.removeCallbacksAndMessages(null);
         hideKeyboard();
-        LinearLayout col = column();
-        col.addView(spacer(), grow());
-        col.addView(big(headline, 40), Ui.full(this, 0));
-        TextView d = Ui.text(this, detail, 16, Ui.SUB);
+
+        boolean newBest = Scores.isBest(this, mode, rank);
+        final boolean makesBoard = Scores.qualifies(this, mode, rank);
+        int earned = Math.max(1, points) + (newBest ? 15 : 0);
+        Scores.addPoints(this, earned);
+
+        stage.removeAllViews();
+        ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(col, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+        stage.addView(scroll, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        col.addView(big(result, 40), Ui.full(this, 10));
+        TextView d = Ui.text(this, detail, 15, Ui.SUB);
         d.setGravity(Gravity.CENTER);
-        col.addView(d, Ui.full(this, 10));
-        if (newBest) {
-            TextView best = Ui.text(this, "New personal best!", 17, Ui.ACCENT);
-            best.setTypeface(Ui.medium());
-            best.setGravity(Gravity.CENTER);
-            col.addView(best, Ui.full(this, 14));
+        col.addView(d, Ui.full(this, 8));
+
+        TextView pts = Ui.text(this, "+" + earned + " points" + (newBest ? "  (new #1 bonus!)"
+                : "") + "   •   You have " + Scores.points(this), 15, Ui.ACCENT);
+        pts.setTypeface(Ui.medium());
+        pts.setGravity(Gravity.CENTER);
+        col.addView(pts, Ui.full(this, 12));
+
+        final LinearLayout board = new LinearLayout(this);
+        board.setOrientation(LinearLayout.VERTICAL);
+
+        if (makesBoard) {
+            final LinearLayout entry = new LinearLayout(this);
+            entry.setOrientation(LinearLayout.VERTICAL);
+            entry.setBackground(Ui.card(this, 18));
+            entry.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 14));
+            entry.addView(Ui.text(this, "You made the top 10! Name for the board:", 15,
+                    Ui.TEXT));
+            final EditText name = new EditText(this);
+            name.setSingleLine(true);
+            name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+            name.setTextColor(Ui.TEXT);
+            name.setHintTextColor(Ui.SUB);
+            name.setHint("Your name");
+            String lastName = Prefs.getString(this, "playerName");
+            if (lastName != null) name.setText(lastName);
+            entry.addView(name, Ui.full(this, 4));
+            Button save = Ui.button(this, "Save score", true);
+            save.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    String n = name.getText().toString().trim();
+                    if (n.length() > 16) n = n.substring(0, 16);
+                    if (n.isEmpty()) n = "Player";
+                    Prefs.putString(GameActivity.this, "playerName", n);
+                    int pos = Scores.add(GameActivity.this, mode, n, rank, result);
+                    hideKeyboard();
+                    entry.setVisibility(View.GONE);
+                    fillBoard(board, pos);
+                }
+            });
+            entry.addView(save, Ui.full(this, 8));
+            col.addView(entry, Ui.full(this, 16));
         }
-        col.addView(spacer(), grow());
+
+        col.addView(Ui.heading(this, "High scores"), Ui.full(this, 22));
+        col.addView(board, Ui.full(this, 8));
+        fillBoard(board, -1);
+
         Button again = Ui.button(this, "Play again", true);
         again.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -137,7 +252,7 @@ public class GameActivity extends Activity {
                 start();
             }
         });
-        col.addView(again, Ui.full(this, 0));
+        col.addView(again, Ui.full(this, 20));
         Button done = Ui.button(this, "Done", false);
         done.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -148,12 +263,45 @@ public class GameActivity extends Activity {
         col.addView(done, Ui.full(this, 10));
     }
 
-    private void hideKeyboard() {
-        InputMethodManager imm = (InputMethodManager) getSystemService(
-                Context.INPUT_METHOD_SERVICE);
-        if (imm != null && stage != null) {
-            imm.hideSoftInputFromWindow(stage.getWindowToken(), 0);
+    private void fillBoard(LinearLayout board, int highlight) {
+        board.removeAllViews();
+        List<Scores.Entry> list = Scores.load(this, mode);
+        if (list.isEmpty()) {
+            board.addView(Ui.text(this, "No scores saved yet.", 14, Ui.SUB));
+            return;
         }
+        for (int i = 0; i < list.size(); i++) {
+            Scores.Entry e = list.get(i);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            GradientDrawable bg = Ui.card(this, 14);
+            if (i == highlight) bg.setStroke(Ui.dp(this, 2), Ui.ACCENT);
+            row.setBackground(bg);
+            row.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+            TextView place = Ui.text(this, (i + 1) + ".", 15, i == 0 ? Ui.ACCENT : Ui.SUB);
+            place.setTypeface(Ui.medium());
+            row.addView(place, new LinearLayout.LayoutParams(Ui.dp(this, 32),
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            row.addView(Ui.text(this, e.name, 16, Ui.TEXT), new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(Ui.text(this, e.text, 15, i == 0 ? Ui.ACCENT : Ui.TEXT));
+            board.addView(row, Ui.full(this, 6));
+        }
+    }
+
+    private Button answerButton(String label, float sp) {
+        Button bt = Ui.button(this, label, false);
+        bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        return bt;
+    }
+
+    private LinearLayout.LayoutParams cell(int heightDp) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, Ui.dp(this, heightDp),
+                1f);
+        int m = Ui.dp(this, 5);
+        p.setMargins(m, m, m, m);
+        return p;
     }
 
     // ---------- reaction time ----------
@@ -222,11 +370,8 @@ public class GameActivity extends Activity {
             reactState = 0;
             if (reactRound >= 5) {
                 int avg = reactTotal / 5;
-                int best = Prefs.getInt(this, "bestReaction", 0);
-                boolean isBest = best == 0 || avg < best;
-                if (isBest) Prefs.putInt(this, "bestReaction", avg);
-                showResult(avg + " ms", "Average of five tries. Most people land between "
-                        + "250 and 400 ms on a phone.", isBest);
+                end(-avg, avg + " ms", "Average of five tries. Most people land between 250 "
+                        + "and 400 ms on a phone.", Math.max(5, Math.min(40, (600 - avg) / 10)));
             } else {
                 reactPanel.setText(ms + " ms\nTap for try " + (reactRound + 1) + " of 5");
                 reactPanel.setTextColor(Ui.TEXT);
@@ -248,8 +393,7 @@ public class GameActivity extends Activity {
         mathScore = 0;
         mathEndAt = SystemClock.uptimeMillis() + 60000;
         LinearLayout col = column();
-        mathTimer = Ui.text(this, "", 16, Ui.ACCENT);
-        mathTimer.setGravity(Gravity.CENTER);
+        mathTimer = note("");
         col.addView(mathTimer, Ui.full(this, 0));
         col.addView(spacer(), grow());
         mathProblem = big("", 54);
@@ -260,19 +404,16 @@ public class GameActivity extends Activity {
             row.setOrientation(LinearLayout.HORIZONTAL);
             for (int c = 0; c < 2; c++) {
                 final int idx = r * 2 + c;
-                Button bt = Ui.button(this, "", false);
-                bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+                Button bt = answerButton("", 26);
                 bt.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        mathPick(idx);
+                        Object tag = mathBtns[idx].getTag();
+                        if (tag instanceof Integer && (Integer) tag == mathAnswer) mathScore++;
+                        mathNext();
                     }
                 });
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,
-                        Ui.dp(this, 76), 1f);
-                int m = Ui.dp(this, 5);
-                p.setMargins(m, m, m, m);
-                row.addView(bt, p);
+                row.addView(bt, cell(76));
                 mathBtns[idx] = bt;
             }
             col.addView(row, Ui.full(this, 0));
@@ -285,10 +426,7 @@ public class GameActivity extends Activity {
                 if (mine != token) return;
                 long left = mathEndAt - SystemClock.uptimeMillis();
                 if (left <= 0) {
-                    int best = Prefs.getInt(GameActivity.this, "bestMath", -1);
-                    boolean isBest = mathScore > best;
-                    if (isBest) Prefs.putInt(GameActivity.this, "bestMath", mathScore);
-                    showResult(mathScore + " correct", "In 60 seconds.", isBest);
+                    end(mathScore, mathScore + " correct", "In 60 seconds.", 5 + mathScore);
                     return;
                 }
                 mathTimer.setText((left / 1000 + 1) + " s left   •   " + mathScore
@@ -321,27 +459,25 @@ public class GameActivity extends Activity {
             text = a + " × " + b2;
         }
         mathProblem.setText(text);
-
-        List<Integer> options = new ArrayList<>();
-        options.add(mathAnswer);
-        int guard = 0;
-        while (options.size() < 4 && guard++ < 100) {
-            int off = 1 + rnd.nextInt(kind == 2 ? 10 : 6);
-            int cand = mathAnswer + (rnd.nextBoolean() ? off : -off);
-            if (cand >= 0 && !options.contains(cand)) options.add(cand);
-        }
-        while (options.size() < 4) options.add(mathAnswer + options.size() * 11);
-        Collections.shuffle(options, rnd);
-        for (int i = 0; i < 4; i++) {
-            mathBtns[i].setText(String.valueOf(options.get(i)));
-            mathBtns[i].setTag(options.get(i));
-        }
+        fillOptions(mathBtns, mathAnswer, kind == 2 ? 10 : 6);
     }
 
-    private void mathPick(int idx) {
-        Object tag = mathBtns[idx].getTag();
-        if (tag instanceof Integer && (Integer) tag == mathAnswer) mathScore++;
-        mathNext();
+    /** Puts the right answer and three near-misses on four buttons, shuffled. */
+    private void fillOptions(Button[] btns, int answer, int spread) {
+        List<Integer> options = new ArrayList<>();
+        options.add(answer);
+        int guard = 0;
+        while (options.size() < 4 && guard++ < 200) {
+            int off = 1 + rnd.nextInt(Math.max(2, spread));
+            int cand = answer + (rnd.nextBoolean() ? off : -off);
+            if (!options.contains(cand)) options.add(cand);
+        }
+        while (options.size() < 4) options.add(answer + options.size() * 11);
+        Collections.shuffle(options, rnd);
+        for (int i = 0; i < 4; i++) {
+            btns[i].setText(String.valueOf(options.get(i)));
+            btns[i].setTag(options.get(i));
+        }
     }
 
     // ---------- number memory ----------
@@ -363,9 +499,7 @@ public class GameActivity extends Activity {
         digitTarget = sb.toString();
 
         LinearLayout col = column();
-        TextView level = Ui.text(this, digitLen + " digits. Memorize it.", 16, Ui.ACCENT);
-        level.setGravity(Gravity.CENTER);
-        col.addView(level, Ui.full(this, 0));
+        col.addView(note(digitLen + " digits. Memorize it."), Ui.full(this, 0));
         col.addView(spacer(), grow());
         TextView num = big(digitTarget, digitLen > 9 ? 34 : 46);
         num.setLetterSpacing(0.12f);
@@ -405,13 +539,11 @@ public class GameActivity extends Activity {
                     digitsShow();
                 } else {
                     int reached = digitLen - 1;
-                    int best = Prefs.getInt(GameActivity.this, "bestDigits", 0);
-                    boolean isBest = reached > best && reached >= 3;
-                    if (isBest) Prefs.putInt(GameActivity.this, "bestDigits", reached);
-                    showResult(reached >= 3 ? reached + " digits" : "Missed it",
+                    end(reached, reached >= 3 ? reached + " digits" : "0 digits",
                             "The number was " + digitTarget + ". You typed "
                                     + (typed.isEmpty() ? "nothing" : typed)
-                                    + ". Most adults hold about seven.", isBest);
+                                    + ". Most adults hold about seven.",
+                            Math.max(2, reached * 4));
                 }
             }
         });
@@ -443,8 +575,7 @@ public class GameActivity extends Activity {
         stroopRound = 0;
         stroopCorrect = 0;
         LinearLayout col = column();
-        stroopCount = Ui.text(this, "", 16, Ui.ACCENT);
-        stroopCount.setGravity(Gravity.CENTER);
+        stroopCount = note("");
         col.addView(stroopCount, Ui.full(this, 0));
         TextView hint = Ui.text(this, "Tap the color of the ink, not the word.", 14, Ui.SUB);
         hint.setGravity(Gravity.CENTER);
@@ -459,19 +590,14 @@ public class GameActivity extends Activity {
             row.setOrientation(LinearLayout.HORIZONTAL);
             for (int c = 0; c < 2; c++) {
                 final int idx = r * 2 + c;
-                Button bt = Ui.button(this, COLOR_NAMES[idx], false);
-                bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+                Button bt = answerButton(COLOR_NAMES[idx], 20);
                 bt.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         stroopPick(idx);
                     }
                 });
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,
-                        Ui.dp(this, 76), 1f);
-                int m = Ui.dp(this, 5);
-                p.setMargins(m, m, m, m);
-                row.addView(bt, p);
+                row.addView(bt, cell(76));
             }
             col.addView(row, Ui.full(this, 0));
         }
@@ -493,17 +619,402 @@ public class GameActivity extends Activity {
         stroopRound++;
         if (stroopRound >= 20) {
             int avg = (int) ((SystemClock.uptimeMillis() - stroopStart) / 20);
-            int best = Prefs.getInt(this, "bestStroop", -1);
-            int bestMs = Prefs.getInt(this, "bestStroopMs", 0);
-            boolean isBest = stroopCorrect > best
-                    || (stroopCorrect == best && (bestMs == 0 || avg < bestMs));
-            if (isBest) {
-                Prefs.putInt(this, "bestStroop", stroopCorrect);
-                Prefs.putInt(this, "bestStroopMs", avg);
-            }
-            showResult(stroopCorrect + " of 20", secs(avg) + " per answer.", isBest);
+            end(stroopCorrect * 100000 - Math.min(avg, 99999),
+                    stroopCorrect + "/20, " + secs(avg),
+                    "Correct answers, and average time per answer.",
+                    stroopCorrect + (avg < 1000 ? 10 : 0));
         } else {
             stroopNext();
         }
+    }
+
+    // ---------- sequence memory ----------
+
+    private final View[] seqCells = new View[9];
+    private final List<Integer> seq = new ArrayList<>();
+    private int seqPos;
+    private boolean seqInput;
+    private TextView seqInfo;
+
+    private void startSequence() {
+        seq.clear();
+        LinearLayout col = column();
+        seqInfo = note("");
+        col.addView(seqInfo, Ui.full(this, 0));
+        col.addView(spacer(), grow());
+        for (int r = 0; r < 3; r++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int c = 0; c < 3; c++) {
+                final int idx = r * 3 + c;
+                View tile = new View(this);
+                tile.setBackground(Ui.card(this, 18));
+                tile.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        seqTap(idx);
+                    }
+                });
+                row.addView(tile, cell(100));
+                seqCells[idx] = tile;
+            }
+            col.addView(row, Ui.full(this, 0));
+        }
+        col.addView(spacer(), grow());
+        seqNextLevel();
+    }
+
+    private void seqLight(final int idx, int ms) {
+        seqCells[idx].setBackground(Ui.gold(this, 18));
+        final int mine = token;
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mine == token) seqCells[idx].setBackground(Ui.card(GameActivity.this, 18));
+            }
+        }, ms);
+    }
+
+    private void seqNextLevel() {
+        seqInput = false;
+        seq.add(rnd.nextInt(9));
+        seqInfo.setText("Level " + seq.size() + ". Watch...");
+        final int mine = ++token;
+        for (int k = 0; k < seq.size(); k++) {
+            final int idx = seq.get(k);
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mine == token) seqLight(idx, 380);
+                }
+            }, 700 + k * 620L);
+        }
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mine != token) return;
+                seqInput = true;
+                seqPos = 0;
+                seqInfo.setText("Level " + seq.size() + ". Your turn.");
+            }
+        }, 700 + seq.size() * 620L);
+    }
+
+    private void seqTap(int idx) {
+        if (!seqInput) return;
+        if (idx == seq.get(seqPos)) {
+            seqLight(idx, 160);
+            seqPos++;
+            if (seqPos >= seq.size()) {
+                seqInput = false;
+                seqInfo.setText("Nice.");
+                final int mine = token;
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mine == token) seqNextLevel();
+                    }
+                }, 500);
+            }
+        } else {
+            int done = seq.size() - 1;
+            end(done, "Level " + done, "Longest pattern you repeated correctly.",
+                    Math.max(2, done * 4));
+        }
+    }
+
+    // ---------- chimp test ----------
+
+    private static final int CHIMP_COLS = 5;
+    private static final int CHIMP_ROWS = 6;
+    private final TextView[] chimpCells = new TextView[CHIMP_COLS * CHIMP_ROWS];
+    private final int[] chimpNumbers = new int[CHIMP_COLS * CHIMP_ROWS];
+    private int chimpCount;
+    private int chimpNext;
+    private int chimpBest;
+    private int chimpStrikes;
+    private boolean chimpLocked;
+    private TextView chimpInfo;
+
+    private void startChimp() {
+        chimpCount = 4;
+        chimpBest = 0;
+        chimpStrikes = 0;
+        LinearLayout col = column();
+        chimpInfo = note("");
+        col.addView(chimpInfo, Ui.full(this, 0));
+        col.addView(spacer(), grow());
+        for (int r = 0; r < CHIMP_ROWS; r++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int c = 0; c < CHIMP_COLS; c++) {
+                final int idx = r * CHIMP_COLS + c;
+                TextView t = Ui.text(this, "", 22, Ui.ON_ACCENT);
+                t.setTypeface(Ui.medium());
+                t.setGravity(Gravity.CENTER);
+                t.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        chimpTap(idx);
+                    }
+                });
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,
+                        Ui.dp(this, 58), 1f);
+                int m = Ui.dp(this, 4);
+                p.setMargins(m, m, m, m);
+                row.addView(t, p);
+                chimpCells[idx] = t;
+            }
+            col.addView(row, Ui.full(this, 0));
+        }
+        col.addView(spacer(), grow());
+        chimpRound();
+    }
+
+    private void chimpRound() {
+        chimpLocked = false;
+        chimpNext = 1;
+        List<Integer> spots = new ArrayList<>();
+        for (int i = 0; i < chimpCells.length; i++) spots.add(i);
+        Collections.shuffle(spots, rnd);
+        for (int i = 0; i < chimpCells.length; i++) {
+            chimpNumbers[i] = 0;
+            chimpCells[i].setVisibility(View.INVISIBLE);
+        }
+        int count = Math.min(chimpCount, chimpCells.length);
+        for (int n = 1; n <= count; n++) {
+            int spot = spots.get(n - 1);
+            chimpNumbers[spot] = n;
+            chimpCells[spot].setText(String.valueOf(n));
+            chimpCells[spot].setBackground(Ui.gold(this, 12));
+            chimpCells[spot].setVisibility(View.VISIBLE);
+        }
+        chimpInfo.setText(chimpCount + " numbers   •   Strikes " + chimpStrikes + " of 3");
+    }
+
+    private void chimpTap(int idx) {
+        if (chimpLocked) return;
+        int n = chimpNumbers[idx];
+        if (n == 0) return;
+        if (n == chimpNext) {
+            if (n == 1) {
+                // From here on the numbers are hidden.
+                for (int i = 0; i < chimpCells.length; i++) {
+                    if (chimpNumbers[i] != 0) chimpCells[i].setText("");
+                }
+            }
+            chimpNumbers[idx] = 0;
+            chimpCells[idx].setVisibility(View.INVISIBLE);
+            chimpNext++;
+            if (chimpNext > Math.min(chimpCount, chimpCells.length)) {
+                chimpBest = chimpCount;
+                chimpCount++;
+                chimpAgain(450);
+            }
+        } else {
+            chimpStrikes++;
+            // Show where everything was.
+            for (int i = 0; i < chimpCells.length; i++) {
+                if (chimpNumbers[i] != 0) {
+                    chimpCells[i].setText(String.valueOf(chimpNumbers[i]));
+                }
+            }
+            if (chimpStrikes >= 3) {
+                chimpLocked = true;
+                final int mine = ++token;
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mine != token) return;
+                        end(chimpBest, chimpBest + " numbers",
+                                "Most numbers you cleared in order. Chimps famously beat "
+                                        + "most people at this.", Math.max(2, chimpBest * 4));
+                    }
+                }, 1100);
+            } else {
+                chimpInfo.setText("Missed. Strike " + chimpStrikes + " of 3");
+                chimpAgain(1100);
+            }
+        }
+    }
+
+    private void chimpAgain(int delay) {
+        chimpLocked = true;
+        final int mine = ++token;
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mine == token) chimpRound();
+            }
+        }, delay);
+    }
+
+    // ---------- number patterns ----------
+
+    private int seriesRound;
+    private int seriesCorrect;
+    private int seriesAnswer;
+    private long seriesStart;
+    private TextView seriesInfo;
+    private TextView seriesText;
+    private final Button[] seriesBtns = new Button[4];
+
+    private void startSeries() {
+        seriesRound = 0;
+        seriesCorrect = 0;
+        LinearLayout col = column();
+        seriesInfo = note("");
+        col.addView(seriesInfo, Ui.full(this, 0));
+        TextView hint = Ui.text(this, "What number comes next?", 14, Ui.SUB);
+        hint.setGravity(Gravity.CENTER);
+        col.addView(hint, Ui.full(this, 6));
+        col.addView(spacer(), grow());
+        seriesText = big("", 32);
+        col.addView(seriesText, Ui.full(this, 0));
+        col.addView(spacer(), grow());
+        for (int r = 0; r < 2; r++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int c = 0; c < 2; c++) {
+                final int idx = r * 2 + c;
+                Button bt = answerButton("", 24);
+                bt.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        Object tag = seriesBtns[idx].getTag();
+                        if (tag instanceof Integer && (Integer) tag == seriesAnswer) {
+                            seriesCorrect++;
+                        }
+                        seriesRound++;
+                        if (seriesRound >= 10) {
+                            int s = (int) ((SystemClock.uptimeMillis() - seriesStart) / 1000);
+                            end(seriesCorrect * 1000 - Math.min(s, 999),
+                                    seriesCorrect + "/10 in " + s + " s",
+                                    "Correct answers first, then speed.",
+                                    seriesCorrect * 3 + 2);
+                        } else {
+                            seriesNext();
+                        }
+                    }
+                });
+                row.addView(bt, cell(76));
+                seriesBtns[idx] = bt;
+            }
+            col.addView(row, Ui.full(this, 0));
+        }
+        seriesStart = SystemClock.uptimeMillis();
+        seriesNext();
+    }
+
+    private void seriesNext() {
+        int[] t = new int[6];
+        int kind = rnd.nextInt(6);
+        int hard = seriesRound / 3;
+        if (kind == 0) {
+            // Add the same amount each time.
+            int a = 1 + rnd.nextInt(20);
+            int step = 2 + rnd.nextInt(7 + hard * 4);
+            for (int i = 0; i < 6; i++) t[i] = a + i * step;
+        } else if (kind == 1) {
+            // Multiply each time.
+            int a = 1 + rnd.nextInt(4);
+            int r = 2 + rnd.nextInt(2);
+            t[0] = a;
+            for (int i = 1; i < 6; i++) t[i] = t[i - 1] * r;
+        } else if (kind == 2) {
+            // Squares, shifted.
+            int shift = rnd.nextInt(6);
+            int from = 1 + rnd.nextInt(3);
+            for (int i = 0; i < 6; i++) t[i] = (from + i) * (from + i) + shift;
+        } else if (kind == 3) {
+            // The gap grows by one each time.
+            int a = 1 + rnd.nextInt(10);
+            int gap = 1 + rnd.nextInt(4);
+            t[0] = a;
+            for (int i = 1; i < 6; i++) t[i] = t[i - 1] + gap + (i - 1);
+        } else if (kind == 4) {
+            // Each number is the sum of the two before it.
+            t[0] = 1 + rnd.nextInt(5);
+            t[1] = 1 + rnd.nextInt(6);
+            for (int i = 2; i < 6; i++) t[i] = t[i - 1] + t[i - 2];
+        } else {
+            // Two gaps taking turns.
+            int a = 2 + rnd.nextInt(10);
+            int g1 = 1 + rnd.nextInt(5);
+            int g2 = 6 + rnd.nextInt(6);
+            t[0] = a;
+            for (int i = 1; i < 6; i++) t[i] = t[i - 1] + (i % 2 == 1 ? g1 : g2);
+        }
+        seriesAnswer = t[5];
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 5; i++) sb.append(t[i]).append(",  ");
+        sb.append("?");
+        seriesText.setText(sb.toString());
+        seriesInfo.setText("Question " + (seriesRound + 1) + " of 10");
+        fillOptions(seriesBtns, seriesAnswer, Math.max(4, Math.abs(t[5] - t[4])));
+    }
+
+    // ---------- aim trainer ----------
+
+    private int aimCount;
+    private long aimStart;
+    private FrameLayout aimArena;
+    private View aimTarget;
+    private TextView aimInfo;
+
+    private void startAim() {
+        aimCount = 0;
+        LinearLayout col = column();
+        aimInfo = note("Tap the target");
+        col.addView(aimInfo, Ui.full(this, 0));
+        aimArena = new FrameLayout(this);
+        aimArena.setBackground(Ui.card(this, 22));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        ap.topMargin = Ui.dp(this, 10);
+        col.addView(aimArena, ap);
+
+        aimTarget = new View(this);
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Ui.ACCENT_HI, Ui.ACCENT_LO});
+        g.setShape(GradientDrawable.OVAL);
+        aimTarget.setBackground(g);
+        aimTarget.setVisibility(View.INVISIBLE);
+        aimTarget.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                aimCount++;
+                if (aimCount >= 20) {
+                    int avg = (int) ((SystemClock.uptimeMillis() - aimStart) / 20);
+                    end(-avg, avg + " ms", "Average time per target over 20 targets.",
+                            Math.max(5, Math.min(40, (900 - avg) / 15)));
+                } else {
+                    aimPlace();
+                }
+            }
+        });
+        int size = Ui.dp(this, 68);
+        aimArena.addView(aimTarget, new FrameLayout.LayoutParams(size, size));
+        final int mine = token;
+        aimArena.post(new Runnable() {
+            @Override
+            public void run() {
+                if (mine != token) return;
+                aimStart = SystemClock.uptimeMillis();
+                aimPlace();
+            }
+        });
+    }
+
+    private void aimPlace() {
+        int size = Ui.dp(this, 68);
+        int w = Math.max(1, aimArena.getWidth() - size);
+        int h = Math.max(1, aimArena.getHeight() - size);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) aimTarget.getLayoutParams();
+        lp.leftMargin = rnd.nextInt(w);
+        lp.topMargin = rnd.nextInt(h);
+        aimTarget.setLayoutParams(lp);
+        aimTarget.setVisibility(View.VISIBLE);
+        aimInfo.setText("Target " + (aimCount + 1) + " of 20");
     }
 }

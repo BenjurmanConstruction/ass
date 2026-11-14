@@ -109,6 +109,9 @@ final class MarketData {
         /** True when from the live source; false when it is daily closes from the Fed. */
         boolean live;
         String error = "";
+        /** Start and end of the regular trading session (epoch ms), or 0 if unknown. */
+        long regStart;
+        long regEnd;
 
         boolean ok() {
             return values.length >= 2 && !Double.isNaN(last);
@@ -172,8 +175,13 @@ final class MarketData {
     }
 
     static Series fetch(Sym sym, int range) {
+        return fetch(sym, range, false);
+    }
+
+    /** @param extended include pre-market and after-hours trades (1D and 5D only) */
+    static Series fetch(Sym sym, int range, boolean extended) {
         if (range < 0 || range >= RANGE_Q.length) range = 0;
-        Series s = fetchYahoo(sym, range);
+        Series s = fetchYahoo(sym, range, extended && range <= 1);
         if (s.ok() || sym.fred == null) return s;
         Series f = fetchFred(sym, range);
         if (f.ok()) return f;
@@ -196,14 +204,15 @@ final class MarketData {
         s.low = lo;
     }
 
-    private static Series fetchYahoo(Sym sym, int r) {
+    private static Series fetchYahoo(Sym sym, int r, boolean extended) {
         Series s = new Series();
         s.live = true;
         String[] hosts = {"query1.finance.yahoo.com", "query2.finance.yahoo.com"};
         for (String host : hosts) {
             try {
                 String body = http("https://" + host + "/v8/finance/chart/"
-                        + URLEncoder.encode(sym.symbol, "UTF-8") + "?" + RANGE_Q[r]);
+                        + URLEncoder.encode(sym.symbol, "UTF-8") + "?" + RANGE_Q[r]
+                        + (extended ? "&includePrePost=true" : ""));
                 JSONObject res = new JSONObject(body).getJSONObject("chart")
                         .getJSONArray("result").getJSONObject(0);
                 JSONObject meta = res.getJSONObject("meta");
@@ -250,6 +259,12 @@ final class MarketData {
                 s.prev = meta.optDouble("chartPreviousClose",
                         meta.optDouble("previousClose", Double.NaN));
                 if (r != 0 || Double.isNaN(s.prev)) s.prev = s.values[0];
+                JSONObject period = meta.optJSONObject("currentTradingPeriod");
+                JSONObject regular = period == null ? null : period.optJSONObject("regular");
+                if (regular != null) {
+                    s.regStart = regular.optLong("start", 0) * 1000L;
+                    s.regEnd = regular.optLong("end", 0) * 1000L;
+                }
                 finish(s);
                 s.error = "";
                 return s;

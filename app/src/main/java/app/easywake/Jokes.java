@@ -185,7 +185,77 @@ final class Jokes {
             "Alarm clocks: because every morning should begin with a small heart attack.",
             "I'm at the age where my back goes out more than I do.",
             "Dark humor is like food. Not everybody gets it.",
-            "What's worse than finding a worm in your apple? Finding half a worm."
+            "What's worse than finding a worm in your apple? Finding half a worm.",
+
+            // Even darker.
+            "I just got my doctor's test results and I'm really upset. Turns out I'm "
+                    + "not going to be a doctor.",
+            "My wife left a note on the fridge: 'This isn't working.' I opened it. "
+                    + "Works fine.",
+            "When I die, I want my ex to lower me into the grave so she can let me "
+                    + "down one last time.",
+            "I told the funeral director I wanted something cheap. He said, 'How "
+                    + "about you do the digging?'",
+            "My boss said I intimidate my coworkers. I stared at him until he apologized.",
+            "The last thing my grandmother said before she died was, 'Are you still "
+                    + "holding that ladder?'",
+            "I was digging in the garden and found a chest full of gold. I ran to "
+                    + "tell my wife, then remembered why I was digging in the garden.",
+            "I asked my date to meet me at the gym. She never showed. Guess the two "
+                    + "of us aren't going to work out.",
+            "My pessimist friend says the glass is half empty. My optimist friend "
+                    + "says half full. The glass has been dead for years.",
+            "I keep my friends close and my enemies in the group chat.",
+            "The doctor said I had six months to live. I couldn't pay the bill, so he "
+                    + "gave me six more.",
+            "My retirement plan is to be found dead at my desk. At least the company "
+                    + "will finally notice me.",
+            "I told my psychiatrist I keep hearing voices. He said, 'That's just me. "
+                    + "Pay attention.'",
+            "My landlord says he wants to talk about my heating bill. I told him my "
+                    + "door is always open.",
+            "What did the man say when he lost his job at the bank? Nothing. Losing "
+                    + "interest came naturally.",
+            "I come from a long line of people who didn't die before having kids. "
+                    + "It's my one real achievement.",
+            "The trouble with being punctual is that nobody's there to appreciate it. "
+                    + "Same with being dead.",
+            "I have a lot of growing up to do. I realized that the other day inside "
+                    + "my blanket fort.",
+            "My life coach quit. Said he couldn't watch anymore.",
+            "They told me I'd never amount to anything because I procrastinate. I "
+                    + "said, 'Just you wait.'",
+            "I named my bed 'the gym' so I can say I spend eight hours a day there.",
+            "A will is a dead giveaway.",
+            "I'd like to thank my legs for supporting me, my arms for being by my "
+                    + "side, and my liver for nothing.",
+            "The older I get, the earlier it gets late.",
+            "My bank account and I have something in common. We're both empty inside.",
+            "I'm not saying I'm old, but my birth certificate is in Roman numerals.",
+            "My wife and I laugh about how competitive we are. I laugh more.",
+            "Sleep is my favorite thing. It's like death without the commitment.",
+            "I've reached the age where 'happy hour' is a nap.",
+            "Experience is what you get right after you needed it.",
+            "I'm great at multitasking. I can waste time, be unproductive and "
+                    + "procrastinate all at once.",
+            "The secret to a long life is to keep breathing. Works every time until "
+                    + "it doesn't.",
+            "I asked the gym trainer which machine to use to impress people. He "
+                    + "pointed at the ATM.",
+            "Some people graduate with honors. I am just honored to graduate.",
+            "My doctor told me to watch my drinking. So now I drink in front of a mirror.",
+            "Whoever said money can't buy happiness simply didn't know where to shop. "
+                    + "Or how broke I am.",
+            "I don't have a carbon footprint. I just drive everywhere.",
+            "Every morning I check the obituaries. If I'm not in them, I get dressed.",
+            "Marriage is finding that one special person you want to annoy for the "
+                    + "rest of your life.",
+            "The good news: the alarm works. The bad news: you're awake for it.",
+            "Rise and shine. Or just rise. Shining is optional and frankly unlikely.",
+            "Nothing ruins a Friday like realizing it's Wednesday.",
+            "I planned to conquer the world today, but the snooze button had other ideas.",
+            "Be the reason someone smiles today. Or the reason they drink. Either "
+                    + "way, be memorable."
     };
 
     private Jokes() {}

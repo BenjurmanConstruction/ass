@@ -28,13 +28,14 @@ public class ChartActivity extends Activity {
     private static final String[] TYPE_NAMES = {"Fine line", "Bold line", "Area", "Candles",
             "Bars"};
     private static final String[] IND_NAMES = {"MA 20", "MA 50", "Bollinger", "RSI", "MACD",
-            "Volume"};
+            "Volume", "VWAP"};
     static final int IND_MA20 = 1;
     static final int IND_MA50 = 2;
     static final int IND_BOLL = 4;
     static final int IND_RSI = 8;
     static final int IND_MACD = 16;
     static final int IND_VOL = 32;
+    static final int IND_VWAP = 64;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private MarketData.Sym sym;
@@ -55,6 +56,8 @@ public class ChartActivity extends Activity {
     private final Button[] typeBtns = new Button[TYPE_NAMES.length];
     private final Button[] indBtns = new Button[IND_NAMES.length];
     private LinearLayout colorRow;
+    private Ui.Row extRow;
+    private boolean extended;
     private int autoColor = Ui.SUB;
 
     private final Runnable autoRefresh = new Runnable() {
@@ -82,6 +85,7 @@ public class ChartActivity extends Activity {
         type = Prefs.getInt(this, "chartType", 0);
         if (type < 0 || type >= TYPE_NAMES.length) type = 0;
         indicators = Prefs.getInt(this, "chartInd", 0);
+        extended = Prefs.getInt(this, "chartExt", 0) == 1;
 
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -126,6 +130,21 @@ public class ChartActivity extends Activity {
         stats = Ui.text(this, "", 13, Ui.SUB);
         root.addView(stats, Ui.full(this, 12));
 
+        extRow = Ui.row(this, "Extended hours (pre / after market)", extended ? "On" : "Off");
+        extRow.view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                extended = !extended;
+                Prefs.putInt(ChartActivity.this, "chartExt", extended ? 1 : 0);
+                extRow.value.setText(extended ? "On" : "Off");
+                load();
+            }
+        });
+        root.addView(extRow.view, Ui.full(this, 14));
+        root.addView(Ui.text(this, "Shows on the 1D and 5D charts for stocks and ETFs. The "
+                + "indexes themselves don't trade outside regular hours; use futures or an "
+                + "ETF such as SPY for that.", 12, Ui.SUB), Ui.full(this, 6));
+
         root.addView(Ui.heading(this, "Chart style"), Ui.full(this, 22));
         root.addView(pills(TYPE_NAMES, typeBtns, new Pick() {
             @Override
@@ -161,7 +180,9 @@ public class ChartActivity extends Activity {
         root.addView(Ui.text(this, "MA = moving average of the last 20 or 50 points on the "
                 + "chart. Bollinger = a band two standard deviations around MA 20. RSI above "
                 + "70 is often called overbought, below 30 oversold. MACD compares a fast and "
-                + "slow average.", 12, Ui.SUB), Ui.full(this, 10));
+                + "slow average. VWAP is today's average price weighted by volume; it shows on the 1D and "
+                + "5D charts for anything that reports volume (stocks, ETFs, futures, "
+                + "crypto), not the indexes.", 12, Ui.SUB), Ui.full(this, 10));
 
         footer = Ui.text(this, "", 12, Ui.SUB);
         root.addView(footer, Ui.full(this, 16));
@@ -290,7 +311,7 @@ public class ChartActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final MarketData.Series s = MarketData.fetch(sym, r);
+                final MarketData.Series s = MarketData.fetch(sym, r, extended);
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
@@ -351,6 +372,7 @@ public class ChartActivity extends Activity {
         if ((indicators & IND_MA50) != 0) add(extra, "MA50", chart.ma50, i);
         if ((indicators & IND_RSI) != 0) add(extra, "RSI", chart.rsi, i);
         if ((indicators & IND_MACD) != 0) add(extra, "MACD", chart.macd, i);
+        if ((indicators & IND_VWAP) != 0) add(extra, "VWAP", chart.vwap, i);
         if (extra.length() > 0) sb.append("\n").append(extra);
         readout.setText(sb.toString());
     }
@@ -375,6 +397,7 @@ public class ChartActivity extends Activity {
         double[] rsi;
         double[] macd;
         double[] macdSignal;
+        double[] vwap;
 
         private MarketData.Series s;
         private int color = Ui.SUB;
@@ -445,7 +468,7 @@ public class ChartActivity extends Activity {
         }
 
         private void compute() {
-            ma20 = ma50 = bollUp = bollDn = rsi = macd = macdSignal = null;
+            ma20 = ma50 = bollUp = bollDn = rsi = macd = macdSignal = vwap = null;
             if (s == null || s.values.length < 2) return;
             double[] v = s.values;
             int n = v.length;
@@ -488,6 +511,32 @@ public class ChartActivity extends Activity {
                     loss = (loss * 13 + l) / 14;
                     rsi[i] = rsiOf(gain, loss);
                 }
+            }
+
+            // VWAP: running (price x volume) / volume, restarting each trading day.
+            if (range <= 1 && s.volume.length == n && s.times.length == n) {
+                boolean ohlc = s.hi.length == n && s.lo.length == n;
+                double[] out = new double[n];
+                double pv = 0;
+                double vol = 0;
+                double total = 0;
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                int lastDay = -1;
+                for (int i = 0; i < n; i++) {
+                    cal.setTimeInMillis(s.times[i]);
+                    int day = cal.get(java.util.Calendar.DAY_OF_YEAR);
+                    if (day != lastDay) {
+                        pv = 0;
+                        vol = 0;
+                        lastDay = day;
+                    }
+                    double typical = ohlc ? (s.hi[i] + s.lo[i] + v[i]) / 3.0 : v[i];
+                    pv += typical * s.volume[i];
+                    vol += s.volume[i];
+                    total += s.volume[i];
+                    out[i] = vol > 0 ? pv / vol : Double.NaN;
+                }
+                if (total > 0) vwap = out;
             }
 
             double[] fast = ema(v, 12);
@@ -665,6 +714,37 @@ public class ChartActivity extends Activity {
                 line(cv, bollUp, mainTop, mainH, min, span, 0xAAB39DDB, d);
                 line(cv, bollDn, mainTop, mainH, min, span, 0xAAB39DDB, d);
             }
+            if ((ind & IND_VWAP) != 0) {
+                line(cv, vwap, mainTop, mainH, min, span, 0xFFFF9F45, 1.5f * d);
+            }
+
+            // Shade pre-market and after-hours so they stand apart from the regular session.
+            if (range == 0 && s.regStart > 0 && s.regEnd > s.regStart && s.times.length == n) {
+                int first = -1;
+                int lastIn = -1;
+                for (int i = 0; i < n; i++) {
+                    if (s.times[i] >= s.regStart && s.times[i] <= s.regEnd) {
+                        if (first < 0) first = i;
+                        lastIn = i;
+                    }
+                }
+                p.setShader(null);
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(0x30000000);
+                txt.setTextAlign(Paint.Align.LEFT);
+                if (first > 0) {
+                    cv.drawRect(left(), mainTop, xAt(first, n), mainTop + mainH, p);
+                    cv.drawText("Pre", left() + 4 * d, mainTop + 12 * d, txt);
+                } else if (first < 0 && s.times[n - 1] < s.regStart) {
+                    cv.drawRect(left(), mainTop, right(), mainTop + mainH, p);
+                    cv.drawText("Pre-market", left() + 4 * d, mainTop + 12 * d, txt);
+                }
+                if (lastIn >= 0 && lastIn < n - 1) {
+                    cv.drawRect(xAt(lastIn, n), mainTop, right(), mainTop + mainH, p);
+                    cv.drawText("After", xAt(lastIn, n) + 4 * d, mainTop + 12 * d, txt);
+                }
+            }
+
             if ((ind & IND_MA20) != 0) line(cv, ma20, mainTop, mainH, min, span, 0xFFFFC857, 1.3f * d);
             if ((ind & IND_MA50) != 0) line(cv, ma50, mainTop, mainH, min, span, 0xFF7FB8E6, 1.3f * d);
 

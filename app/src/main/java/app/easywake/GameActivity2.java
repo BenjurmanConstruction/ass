@@ -83,10 +83,12 @@ public class GameActivity2 extends GameActivity {
                 startChain();
                 break;
             case TRIVIA:
-                startQuiz(Bank2.trivia(), null, "seenTrivia");
+                chooseLevel(new String[][][]{Bank2.trivia(), Bank4.TRIVIA_HARD,
+                        Bank4.TRIVIA_EXPERT}, null, "seenTrivia");
                 break;
             case VOCAB:
-                startQuiz(Bank2.vocab(), "What does this word mean?", "seenVocab");
+                chooseLevel(new String[][][]{Bank2.vocab(), Bank4.VOCAB_HARD,
+                        Bank4.VOCAB_EXPERT}, "What does this word mean?", "seenVocab");
                 break;
             case LOGIC:
                 startQuiz(Bank2.logic(), null, "seenLogic");
@@ -1176,6 +1178,39 @@ public class GameActivity2 extends GameActivity {
     private TextView quizText;
     private Button[] quizBtns;
 
+    private static final String[] LEVEL_NAMES = {"Normal", "Hard", "Expert"};
+    private int quizLevel;
+    private String quizKey = "";
+
+    /** Lets you pick how hard the quiz is. Harder levels pay more and unlock in turn. */
+    private void chooseLevel(final String[][][] banks, final String prompt,
+                             final String seenKey) {
+        final int open = Math.min(banks.length - 1, Prefs.getInt(this, seenKey + "Lvl", 0));
+        LinearLayout col = column();
+        col.addView(note("Pick a level"), Ui.full(this, 0));
+        col.addView(spacer(), grow());
+        for (int i = 0; i < banks.length; i++) {
+            final int lvl = i;
+            final boolean locked = i > open;
+            Button bt = Ui.button(this, LEVEL_NAMES[i] + "  \u2022  " + 3 * (i + 1)
+                    + " points per right answer" + (locked ? "\nLocked: score 8 of 10 on "
+                    + LEVEL_NAMES[i - 1] : ""), !locked && i == open);
+            bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            bt.setAlpha(locked ? 0.45f : 1f);
+            bt.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (locked) return;
+                    quizLevel = lvl;
+                    quizKey = seenKey;
+                    startQuiz(banks[lvl], prompt, lvl == 0 ? seenKey : seenKey + lvl);
+                }
+            });
+            col.addView(bt, Ui.full(this, 10));
+        }
+        col.addView(spacer(), grow());
+    }
+
     private void startQuiz(String[][] bank, final String prompt, String seenKey) {
         // Draw from questions not seen yet; start over once the pool runs dry.
         List<String> seen = MarketData.list(this, seenKey, "");
@@ -1241,6 +1276,8 @@ public class GameActivity2 extends GameActivity {
         quizLocked = true;
         boolean right = index == quizRight;
         if (right) quizCorrect++;
+        Stats.add(this, "quizAsked", 1);
+        if (right) Stats.add(this, "quizRight", 1);
         // Show the right answer in green, and a wrong pick in red.
         quizBtns[quizRight].setBackground(Ui.round(this, 0xFF2E7D4F, 28));
         if (!right) quizBtns[index].setBackground(Ui.round(this, 0xFF7A2E2E, 28));
@@ -1252,9 +1289,18 @@ public class GameActivity2 extends GameActivity {
                 quizRound++;
                 if (quizRound >= quizSet.size()) {
                     int s = (int) ((SystemClock.uptimeMillis() - quizStart) / 1000);
-                    end(quizCorrect * 1000 - Math.min(s, 999),
-                            quizCorrect + "/" + quizSet.size() + " in " + s + " s",
-                            "Correct answers first, then speed.", quizCorrect * 3 + 2);
+                    // Eight right on this level opens the next one.
+                    if (quizCorrect >= 8 && !quizKey.isEmpty()
+                            && Prefs.getInt(GameActivity2.this, quizKey + "Lvl", 0)
+                            <= quizLevel) {
+                        Prefs.putInt(GameActivity2.this, quizKey + "Lvl", quizLevel + 1);
+                    }
+                    int mult = quizLevel + 1;
+                    end(quizCorrect * mult * 1000 - Math.min(s, 999),
+                            quizCorrect + "/" + quizSet.size() + " in " + s + " s"
+                                    + (quizLevel > 0 ? ", " + LEVEL_NAMES[quizLevel] : ""),
+                            "Correct answers first, then speed. Harder levels count "
+                                    + "double and triple.", quizCorrect * 3 * mult + 2);
                 } else {
                     quizNext();
                 }

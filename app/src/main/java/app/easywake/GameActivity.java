@@ -230,6 +230,7 @@ public class GameActivity extends Activity {
         boolean newBest = Scores.isBest(this, mode, rank);
         final boolean makesBoard = Scores.qualifies(this, mode, rank);
         Progress.Award award = Progress.award(this, mode, rank, points, newBest);
+        Stats.test(this, mode, result, award.earned, newBest);
 
         stage.removeAllViews();
         ScrollView scroll = new ScrollView(this);

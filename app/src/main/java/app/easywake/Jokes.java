@@ -260,9 +260,11 @@ final class Jokes {
 
     static String[] all() {
         if (all == null) {
-            all = new String[ALL.length + Jokes2.ALL.length];
+            all = new String[ALL.length + Jokes2.ALL.length + Jokes3.ALL.length];
             System.arraycopy(ALL, 0, all, 0, ALL.length);
             System.arraycopy(Jokes2.ALL, 0, all, ALL.length, Jokes2.ALL.length);
+            System.arraycopy(Jokes3.ALL, 0, all, ALL.length + Jokes2.ALL.length,
+                    Jokes3.ALL.length);
         }
         return all;
     }
@@ -270,6 +272,7 @@ final class Jokes {
     /** The next joke from a shuffled deck: every joke comes up once before any repeats. */
     static String next() {
         String[] a = all();
+        if (App.ctx != null) Stats.add(App.ctx, "jokes", 1);
         return a[Deck.next(App.ctx, "jokes", a.length)];
     }
 }

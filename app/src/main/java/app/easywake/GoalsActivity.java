@@ -250,6 +250,8 @@ public class GoalsActivity extends Activity {
         if (g.done) return;
         g.done = true;
         g.progress = 100;
+        Stats.add(this, "goals", 1);
+        Stats.log(this, "Finished a goal");
         int today = Progress.today();
         int used = Prefs.getInt(this, "goalRewardDay", 0) == today
                 ? Prefs.getInt(this, "goalRewardCount", 0) : 0;

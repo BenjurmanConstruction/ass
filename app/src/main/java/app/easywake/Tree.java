@@ -61,8 +61,11 @@ final class Tree {
             new Node("blocks", 0, FEATURE, "Block Drop",
                     "A falling-blocks puzzle. Clearing rows earns Knowledge Points.",
                     40, 3, null, null),
-            new Node("casino_more", 0, SOON, "More games",
-                    "Blackjack and video poker.", 0, 0, null, null),
+            new Node("blackjack", 0, FEATURE, "Blackjack",
+                    "Beat the dealer to 21. Blackjack pays 3 to 2.", 50, 3, "slot", null),
+            new Node("holdem", 0, FEATURE, "Texas Hold'em",
+                    "Heads-up limit poker against a computer player.", 70, 4, "blackjack",
+                    null),
 
             // ----- Market -----
             new Node("m_sr", 1, LESSON, "Support and resistance",
@@ -175,6 +178,9 @@ final class Tree {
             new Node("l_goals", 3, FEATURE, "Goal maker",
                     "Set goals, track progress, earn points for finishing.", 30, 2, null,
                     null),
+            new Node("l_water", 3, FEATURE, "Water reminder",
+                    "A glass that fills as you drink, with reminders and a small reward.",
+                    25, 2, null, null),
             new Node("l_reminders", 3, FEATURE, "Reminders",
                     "Daily and weekly reminders that arrive as notifications.", 30, 3, null,
                     null),
@@ -293,6 +299,9 @@ final class Tree {
     static Class<?> screen(String id) {
         if ("slot".equals(id)) return SlotActivity.class;
         if ("blocks".equals(id)) return BlocksActivity.class;
+        if ("blackjack".equals(id)) return BlackjackActivity.class;
+        if ("holdem".equals(id)) return HoldemActivity.class;
+        if ("l_water".equals(id)) return WaterActivity.class;
         if ("m_econ".equals(id)) return EconActivity.class;
         if ("m_alerts".equals(id)) return AlertsActivity.class;
         if ("m_portfolio".equals(id)) return PortfolioActivity.class;
@@ -329,6 +338,8 @@ final class Tree {
         List<String> have = MarketData.list(c, "treeOwned", "");
         have.add(n.id);
         MarketData.saveList(c, "treeOwned", have);
+        if (n.kind == LESSON) Stats.add(c, "lessons", 1);
+        Stats.log(c, "Skill tree: unlocked " + n.name);
         return true;
     }
 }

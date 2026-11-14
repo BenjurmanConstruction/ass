@@ -173,6 +173,30 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".BlackjackActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".HoldemActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".WaterActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ProfileActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <receiver
+            android:name=".WaterReceiver"
+            android:exported="false" />
+
         <service
             android:name=".AlertJob"
             android:exported="false"

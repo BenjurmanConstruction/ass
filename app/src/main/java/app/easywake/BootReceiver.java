@@ -11,5 +11,6 @@ public class BootReceiver extends BroadcastReceiver {
         Scheduler.rescheduleAll(c);
         Reminders.scheduleAll(c);
         Alerts.schedule(c);
+        Water.schedule(c);
     }
 }

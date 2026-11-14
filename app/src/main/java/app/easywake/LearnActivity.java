@@ -165,6 +165,8 @@ public class LearnActivity extends Activity {
         facts.add(String.valueOf(pick));
         MarketData.saveList(this, "vaultOwned", facts);
         announceBadges();
+        Stats.add(this, "lessons", 1);
+        Stats.log(this, "Unlocked a vault fact");
         justUnlocked = Lessons.VAULT[pick];
         build();
         scroll.scrollTo(0, 0);
@@ -179,6 +181,8 @@ public class LearnActivity extends Activity {
         List<String> owned = owned("lessonsOwned");
         owned.add(String.valueOf(idx));
         MarketData.saveList(this, "lessonsOwned", owned);
+        Stats.add(this, "lessons", 1);
+        Stats.log(this, "Unlocked a lesson");
         announceBadges();
         openLesson = idx;
         build();

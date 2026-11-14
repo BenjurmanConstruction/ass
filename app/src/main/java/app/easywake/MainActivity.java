@@ -426,6 +426,13 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, MemoActivity.class));
                     }
                 }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("My profile", "Your stats, your week, and what it says about you",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Brain gym", "24 tests, levels, streaks and high scores",
                 new Runnable() {
                     @Override
@@ -433,7 +440,7 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, BrainActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("My tools", "Slot, Block Drop, alerts, portfolio, weather and more",
+        sheet.addView(menuItem("My tools", "Slot, blackjack, poker, Block Drop, alerts, water and more",
                 new Runnable() {
                     @Override
                     public void run() {

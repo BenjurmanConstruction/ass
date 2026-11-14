@@ -426,6 +426,10 @@ public class BlocksActivity extends Activity {
             Prefs.putInt(this, "blocksKpDay", Progress.today());
             Prefs.putInt(this, "blocksKp", earnedToday + kp);
         }
+        Stats.add(this, "blocksGames", 1);
+        Stats.add(this, "blocksRows", lines);
+        Stats.log(this, String.format(Locale.US, "Block Drop: %,d points, %d rows", score,
+                lines));
         String msg = String.format(Locale.US, "Score %,d\nRows cleared: %d\nLevel %d",
                 score, lines, level())
                 + (record ? "\n\nNew best score!" : String.format(Locale.US,

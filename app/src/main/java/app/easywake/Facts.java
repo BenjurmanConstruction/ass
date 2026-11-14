@@ -86,8 +86,21 @@ final class Facts {
 
     private Facts() {}
 
+    private static String[] all;
+
+    static String[] all() {
+        if (all == null) {
+            all = new String[ALL.length + Facts2.ALL.length];
+            System.arraycopy(ALL, 0, all, 0, ALL.length);
+            System.arraycopy(Facts2.ALL, 0, all, ALL.length, Facts2.ALL.length);
+        }
+        return all;
+    }
+
     /** The next fact from a shuffled deck: every fact comes up once before any repeats. */
     static String next() {
-        return ALL[Deck.next(App.ctx, "facts", ALL.length)];
+        if (App.ctx != null) Stats.add(App.ctx, "facts", 1);
+        String[] a = all();
+        return a[Deck.next(App.ctx, "facts", a.length)];
     }
 }

@@ -142,6 +142,7 @@ public class AssistantActivity extends Activity {
 
     private void send(String text) {
         bubble(text, true);
+        Stats.add(this, "helper", 1);
         String reply;
         try {
             reply = answer(text);
@@ -236,6 +237,36 @@ public class AssistantActivity extends Activity {
         }
 
         // ----- newer tools -----
+        if (has(q, "blackjack", "black jack")) {
+            if (Tree.owned(this, "blackjack")) {
+                open(BlackjackActivity.class);
+                return "Opening blackjack.";
+            }
+            return "Blackjack is locked. It's on the skill tree after the slot (50 "
+                    + "Knowledge Points, level 3).";
+        }
+        if (has(q, "poker", "hold'em", "holdem", "hold em")) {
+            if (Tree.owned(this, "holdem")) {
+                open(HoldemActivity.class);
+                return "Opening Texas Hold'em.";
+            }
+            return "Texas Hold'em is locked. It's on the skill tree after blackjack (70 "
+                    + "Knowledge Points, level 4).";
+        }
+        if (has(q, "water", "hydrat", "thirsty")) {
+            if (Tree.owned(this, "l_water")) {
+                open(WaterActivity.class);
+                return "Opening your water glass. You've had " + Water.count(this) + " of "
+                        + Water.GOAL + " today.";
+            }
+            return "The water reminder is locked. It's on the Life tools branch of the "
+                    + "skill tree (25 Knowledge Points, level 2).";
+        }
+        if (has(q, "profile", "my stats", "statistics", "degenerate", "getting smarter")) {
+            open(ProfileActivity.class);
+            return "Opening your profile.";
+        }
+
         if (has(q, "block drop", "blocks", "tetris", "falling block")) {
             if (Tree.owned(this, "blocks")) {
                 open(BlocksActivity.class);

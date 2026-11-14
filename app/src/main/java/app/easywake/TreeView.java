@@ -48,6 +48,7 @@ final class TreeView extends View {
             new Limb("LIFE TOOLS", 0.50f, 0.58f, 0.76f, 0.59f, 0.88f, 0.41f),
             new Limb("HELPER", 0.50f, 0.76f, 0.76f, 0.78f, 0.88f, 0.64f),
             new Limb("SLEEP", 0.50f, 0.85f, 0.14f, 0.88f, 0.11f, 0.67f),
+            new Limb("CARD ROOM", 0.50f, 0.57f, 0.24f, 0.56f, 0.12f, 0.385f),
     };
 
     private static final Map<String, String> GLYPHS = new HashMap<>();
@@ -59,6 +60,9 @@ final class TreeView extends View {
         GLYPHS.put("casino_more", "🃏");
         GLYPHS.put("blocks", "\uD83E\uDDF1");
         GLYPHS.put("m_econ", "\uD83D\uDCC5");
+        GLYPHS.put("blackjack", "\uD83C\uDCCF");
+        GLYPHS.put("holdem", "\u2660");
+        GLYPHS.put("l_water", "\uD83D\uDCA7");
         GLYPHS.put("m_portfolio", "💼");
         GLYPHS.put("m_paper", "📝");
         GLYPHS.put("m_news", "📰");
@@ -107,6 +111,7 @@ final class TreeView extends View {
     }
 
     static int limbOf(Tree.Node n) {
+        if ("blackjack".equals(n.id) || "holdem".equals(n.id)) return 7;
         switch (n.branch) {
             case 0:
                 return 0;

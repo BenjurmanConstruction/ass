@@ -30,7 +30,7 @@ import java.util.Random;
  * Lucky Sevens: a classic three-reel slot with bars, sevens and a 3x wild diamond, played
  * with Fun Coupons (play money only).
  *
- * Each reel is a fixed strip of 61 stops. A spin picks a random stop on each reel, the
+ * Each reel is a fixed strip of 61 stops, most of them holding a symbol. A spin picks a random stop on each reel, the
  * three rows around it are shown, and every line you bet on is paid from the table in
  * {@link #linePay}. The odds on the pay table screen come from counting every possible
  * combination of this strip.
@@ -43,17 +43,23 @@ public class SlotActivity extends Activity {
     static final char BAR2 = '2';
     static final char BAR1 = '1';
     static final char CHERRY = 'C';
+    static final char BELL = 'G';
+    static final char GRAPES = 'P';
+    static final char LEMON = 'L';
     static final char BLANK = 'X';
 
-    /** The reel strip: 2 wilds, 3 sevens, 4 triple bars, 6 double, 7 single, 3 cherries. */
+    /**
+     * The reel strip: 2 wilds, 3 sevens, 4 triple bars, 6 double, 7 single, 3 cherries,
+     * 7 bells, 8 grapes, 9 lemons and 12 blanks.
+     */
     private static final String STRIP =
-            "XX3XXXCX23XXX2XXC2XXWXX1X2X1X31XXX12X1XX37XX7X1XWXXX1XX27XXCX";
+            "G2G2L1XG2P1L7CGLXP123PL73XG1LPX7XP2XP3X1L2C3XLGPWCX1LXPWGLX1X";
 
     /** Which row (0 top, 1 middle, 2 bottom) each line uses on reels 1, 2 and 3. */
     static final int[][] LINES = {
-            {1, 1, 1}, {0, 0, 0}, {2, 2, 2}, {0, 1, 2}, {2, 1, 0}
+            {1, 1, 1}, {0, 0, 0}, {2, 2, 2}, {0, 1, 2}, {2, 1, 0}, {0, 1, 0}, {2, 1, 2}
     };
-    private static final int[] LINE_CHOICES = {1, 3, 5};
+    private static final int[] LINE_CHOICES = {1, 3, 5, 7};
     private static final int[] BETS = {1, 2, 5, 10, 25};
     private static final int[] BETS_HIGH = {1, 2, 5, 10, 25, 50, 100};
     /** Jackpots are sized for a 25-coupon line bet; smaller bets win a matching share. */
@@ -79,6 +85,7 @@ public class SlotActivity extends Activity {
     private int lineChoice = 1;
     private boolean spinning;
     private int token;
+    private final Stats.Sitting sitting = new Stats.Sitting("Slot", "spin");
 
     @Override
     protected void onCreate(Bundle b) {
@@ -89,7 +96,8 @@ public class SlotActivity extends Activity {
             finish();
             return;
         }
-        lineChoice = Math.max(0, Math.min(2, Prefs.getInt(this, "slotLines", 1)));
+        lineChoice = Math.max(0, Math.min(LINE_CHOICES.length - 1,
+                Prefs.getInt(this, "slotLines", 1)));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -150,7 +158,7 @@ public class SlotActivity extends Activity {
         cabinet.addView(linesView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 250));
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 290));
         cp.topMargin = Ui.dp(this, 14);
         root.addView(cabinet, cp);
 
@@ -260,6 +268,12 @@ public class SlotActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        sitting.close(this);
+    }
+
+    @Override
     protected void onDestroy() {
         token++;
         super.onDestroy();
@@ -303,7 +317,7 @@ public class SlotActivity extends Activity {
         }
         balance.setText(String.format(Locale.US, "%,d Fun Coupons", Wallet.coupons(this)));
         int free = freeSpins();
-        freeText.setText(free > 0 ? free + " free spins left today (all 5 lines at 1 each)"
+        freeText.setText(free > 0 ? free + " free spins left today (all 7 lines at 1 each)"
                 : (Tree.owned(this, "freespins") ? "Free spins used. More tomorrow." : ""));
         int bet = bets()[betIndex];
         linesBtn.setText(lines() == 1 ? "1 line" : lines() + " lines");
@@ -311,14 +325,14 @@ public class SlotActivity extends Activity {
                 + (bet < FULL_BET ? "jackpots pay " + (bet * 100 / FULL_BET) + "%"
                 : "full jackpots"));
         spinBtn.setText(free > 0 ? "FREE SPIN" : "SPIN");
-        if (!spinning) linesView.setActive(free > 0 ? 5 : lines());
+        if (!spinning) linesView.setActive(free > 0 ? LINES.length : lines());
     }
 
     private void spin() {
         if (spinning) return;
         final boolean free = freeSpins() > 0;
         final int bet = free ? 1 : bets()[betIndex];
-        final int lineCount = free ? 5 : lines();
+        final int lineCount = free ? LINES.length : lines();
         final int total = bet * lineCount;
         if (!free) {
             if (Wallet.coupons(this) < total) {
@@ -358,7 +372,7 @@ public class SlotActivity extends Activity {
             reels[i].spinTo(grid[0][i], grid[1][i], grid[2][i], durations[i], new Runnable() {
                 @Override
                 public void run() {
-                    if (last && mine == token) settle(grid, bet, lineCount);
+                    if (last && mine == token) settle(grid, bet, lineCount, free);
                 }
             });
         }
@@ -385,8 +399,8 @@ public class SlotActivity extends Activity {
                 if (x == BLANK) return wilds == 1 ? 1 : 5;
                 return base(x) * mult;
             }
-            if (isBar(rest.get(0)) && isBar(rest.get(1))) return 3 * mult;
-            if (rest.contains(CHERRY)) return 3 * mult;
+            if (isBar(rest.get(0)) && isBar(rest.get(1))) return 2 * mult;
+            if (rest.contains(CHERRY)) return 2 * mult;
             return 1;
         }
         if (a == b && b == c) {
@@ -395,12 +409,12 @@ public class SlotActivity extends Activity {
             if (a == BLANK) return 0;
             return base(a);
         }
-        if (isBar(a) && isBar(b) && isBar(c)) return 3;
+        if (isBar(a) && isBar(b) && isBar(c)) return 2;
         int cherries = 0;
         for (char x : s) {
             if (x == CHERRY) cherries++;
         }
-        if (cherries == 2) return 3;
+        if (cherries == 2) return 2;
         if (cherries == 1) return 1;
         return 0;
     }
@@ -417,16 +431,23 @@ public class SlotActivity extends Activity {
             case BAR3:
                 return 30;
             case BAR2:
-                return 15;
-            case BAR1:
+                return 12;
             case CHERRY:
                 return 8;
+            case BAR1:
+                return 6;
+            case BELL:
+                return 5;
+            case GRAPES:
+                return 3;
+            case LEMON:
+                return 2;
             default:
                 return 0;
         }
     }
 
-    private void settle(char[][] grid, int bet, int lineCount) {
+    private void settle(char[][] grid, int bet, int lineCount, boolean free) {
         spinning = false;
         spinBtn.setAlpha(1f);
         int won = 0;
@@ -462,6 +483,8 @@ public class SlotActivity extends Activity {
             message.setText("No win.");
         }
         if (won > 0) Wallet.addCoupons(this, won);
+        Stats.bet(this, "slot", free ? 0 : bet * lineCount, won);
+        sitting.round(free ? 0 : bet * lineCount, won);
         paint();
     }
 
@@ -470,11 +493,14 @@ public class SlotActivity extends Activity {
                 + "💎 💎 💎   GRAND jackpot\n"
                 + "7 7 7   MAJOR jackpot\n"
                 + "Three triple BARs   MINI jackpot\n"
-                + "Three double BARs   15x\n"
-                + "Three single BARs   8x\n"
+                + "Three double BARs   12x\n"
                 + "Three cherries   8x\n"
-                + "Any three BARs, mixed   3x\n"
-                + "Any two cherries   3x\n"
+                + "Three single BARs   6x\n"
+                + "Three bells   5x\n"
+                + "Three grapes   3x\n"
+                + "Three lemons   2x\n"
+                + "Any three BARs, mixed   2x\n"
+                + "Any two cherries   2x\n"
                 + "Any one cherry   1x\n\n"
                 + "The diamond is wild. It stands in for any symbol, and it multiplies the "
                 + "win: one diamond pays 3 times the normal amount, two diamonds pay 9 "
@@ -482,14 +508,15 @@ public class SlotActivity extends Activity {
                 + "30x before the multiplier (the jackpots need the real symbols). One "
                 + "diamond on a line with nothing else pays 1x; two pay 5x.\n\n"
                 + "Lines: 1 line is the middle row. 3 lines adds the top and bottom rows. "
-                + "5 lines adds both diagonals. Your total bet is the line bet times the "
-                + "number of lines.\n\n"
+                + "5 lines adds both criss-cross diagonals. 7 lines adds a V and an "
+                + "upside-down V. Your total bet is the line bet times the number of "
+                + "lines.\n\n"
                 + "Odds per line, per spin: Grand 1 in 28,373. Major 1 in 8,407. Mini 1 in "
                 + "3,547. About 1 line in 4 pays something.\n\n"
                 + "Every spin adds 1% of the total bet to each jackpot, and they never drop "
                 + "below their starting size. Jackpots are sized for a 25-coupon line bet: "
                 + "a smaller line bet wins the same share of the pot.\n\n"
-                + "Over a long run the machine pays back roughly 96 coupons for every 100 "
+                + "Over a long run the machine pays back roughly 95 coupons for every 100 "
                 + "bet, so like any slot it slowly wins. It's for fun, with play money only.";
         new AlertDialog.Builder(this)
                 .setTitle("Pay table and odds")
@@ -498,16 +525,29 @@ public class SlotActivity extends Activity {
                 .show();
     }
 
-    /** Draws the pay lines over the reels: faint for lines in play, bright for winners. */
+    /**
+     * Draws over the reels: a soft band behind each of the three rows, and the pay lines
+     * in play. Each line has its own color and sits a little above or below its
+     * neighbors so they can be told apart. Winning lines turn bright.
+     */
     static final class LinesView extends View {
+        private static final int[] COLORS = {0xFFFFD54F, 0xFF4DD0E1, 0xFFBA68C8, 0xFF81C784,
+                0xFFFF8A65, 0xFF64B5F6, 0xFFF06292};
+        /** How far each line is nudged off the middle of its row, in dp. */
+        private static final float[] NUDGE = {0, 0, 0, -14, 14, -28, 28};
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint tag = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+        private final android.graphics.Path path = new android.graphics.Path();
         private int active = 1;
         private boolean[] wins;
 
         LinesView(Context c) {
             super(c);
-            paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            tag.setTextAlign(Paint.Align.CENTER);
+            tag.setFakeBoldText(true);
         }
 
         void setActive(int n) {
@@ -525,19 +565,49 @@ public class SlotActivity extends Activity {
             float w = getWidth();
             float h = getHeight();
             float d = getResources().getDisplayMetrics().density;
-            float[] rowY = {h / 6f, h / 2f, h * 5f / 6f};
+            float cell = h / 3f;
+
+            // The three rows.
+            paint.setStyle(Paint.Style.FILL);
+            for (int r = 0; r < 3; r++) {
+                paint.setColor(r == 1 ? 0x1FFFFFFF : 0x10FFFFFF);
+                rect.set(3 * d, r * cell + 3 * d, w - 3 * d, (r + 1) * cell - 3 * d);
+                cv.drawRoundRect(rect, 12 * d, 12 * d, paint);
+            }
+
             float[] colX = {w / 6f, w / 2f, w * 5f / 6f};
+            float edge = 15 * d;
+            tag.setTextSize(9 * d);
             for (int l = 0; l < LINES.length && l < active; l++) {
                 boolean win = wins != null && wins[l];
-                if (!win && wins != null) continue;
-                paint.setStrokeWidth((win ? 4f : 1.2f) * d);
-                paint.setColor(win ? 0xCCFFFFFF : (Ui.ACCENT & 0x00FFFFFF) | 0x44000000);
+                // After a spin, fade the lines that didn't win so the winners stand out.
+                int alpha = win ? 0xFF : (wins != null ? 0x30 : 0x80);
+                int color = (COLORS[l] & 0x00FFFFFF) | (alpha << 24);
                 int[] rows = LINES[l];
-                float edge = 4 * d;
-                cv.drawLine(edge, rowY[rows[0]], colX[0], rowY[rows[0]], paint);
-                cv.drawLine(colX[0], rowY[rows[0]], colX[1], rowY[rows[1]], paint);
-                cv.drawLine(colX[1], rowY[rows[1]], colX[2], rowY[rows[2]], paint);
-                cv.drawLine(colX[2], rowY[rows[2]], w - edge, rowY[rows[2]], paint);
+                float off = NUDGE[l] * d;
+                float y0 = rows[0] * cell + cell / 2f + off;
+                float y1 = rows[1] * cell + cell / 2f + off;
+                float y2 = rows[2] * cell + cell / 2f + off;
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth((win ? 4.5f : 2f) * d);
+                paint.setColor(color);
+                path.reset();
+                path.moveTo(edge, y0);
+                path.lineTo(colX[0], y0);
+                path.lineTo(colX[1], y1);
+                path.lineTo(colX[2], y2);
+                path.lineTo(w - edge, y2);
+                cv.drawPath(path, paint);
+
+                // A numbered tag at each end of the line.
+                paint.setStyle(Paint.Style.FILL);
+                cv.drawCircle(edge - 7 * d, y0, 7 * d, paint);
+                cv.drawCircle(w - edge + 7 * d, y2, 7 * d, paint);
+                tag.setColor(0xFF10141F);
+                tag.setAlpha(Math.min(255, alpha + 0x60));
+                float lift = (tag.ascent() + tag.descent()) / 2f;
+                cv.drawText(String.valueOf(l + 1), edge - 7 * d, y0 - lift, tag);
+                cv.drawText(String.valueOf(l + 1), w - edge + 7 * d, y2 - lift, tag);
             }
         }
     }
@@ -549,8 +619,8 @@ public class SlotActivity extends Activity {
      * animations switched off.
      */
     static final class ReelView extends View {
-        private static final char[] FILL = {BLANK, BAR1, BLANK, BAR2, CHERRY, BLANK, BAR3,
-                BLANK, SEVEN, BAR1, BLANK, WILD, BLANK, BAR2};
+        private static final char[] FILL = {LEMON, BAR1, GRAPES, BAR2, CHERRY, BLANK, BAR3,
+                BELL, SEVEN, BAR1, LEMON, WILD, BLANK, BAR2, GRAPES, BELL, LEMON, BLANK};
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint box = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
@@ -641,13 +711,16 @@ public class SlotActivity extends Activity {
                 paint.setFakeBoldText(false);
                 return;
             }
-            if (s == CHERRY || s == WILD) {
+            if (s == CHERRY || s == WILD || s == BELL || s == GRAPES || s == LEMON) {
+                String face = s == WILD ? "\uD83D\uDC8E" : (s == CHERRY ? "\uD83C\uDF52"
+                        : (s == BELL ? "\uD83D\uDD14" : (s == GRAPES ? "\uD83C\uDF47"
+                        : "\uD83C\uDF4B")));
                 paint.setColor(0xFFFFFFFF);
                 paint.setAlpha(alpha);
                 paint.setTextSize(cell * (s == WILD ? 0.5f : 0.56f));
                 float lift = (paint.ascent() + paint.descent()) / 2f;
                 float y = s == WILD ? cy - cell * 0.1f : cy;
-                cv.drawText(s == WILD ? "💎" : "🍒", cx, y - lift, paint);
+                cv.drawText(face, cx, y - lift, paint);
                 if (s == WILD) {
                     paint.setColor(Ui.ACCENT);
                     paint.setAlpha(alpha);

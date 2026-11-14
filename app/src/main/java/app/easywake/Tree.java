@@ -11,13 +11,15 @@ final class Tree {
     static final int PERK = 2;
     static final int SOON = 3;
 
-    static final String[] BRANCHES = {"Casino", "Market", "Wealth", "Life tools", "Helper"};
+    static final String[] BRANCHES = {"Casino", "Market", "Wealth", "Life tools", "Helper",
+            "Sleep"};
     static final String[] BRANCH_NOTES = {
             "Play-money games. Fun Coupons have no cash value.",
             "Learn to read charts and think about risk. Education only, not advice.",
             "Make your savings work harder.",
-            "Everyday tools. Arriving in the next updates.",
-            "Upgrades for the built-in helper."
+            "Everyday tools.",
+            "Upgrades for the built-in helper.",
+            "Tips for nights when sleep won't come. General information, not medical advice."
     };
 
     static final class Node {
@@ -47,7 +49,7 @@ final class Tree {
         }
     }
 
-    static final Node[] NODES = {
+    private static final Node[] BASE = {
             // ----- Casino -----
             new Node("slot", 0, FEATURE, "Lucky Sevens slot",
                     "A progressive penny slot with Mini, Major and Grand jackpots.",
@@ -158,12 +160,17 @@ final class Tree {
                     "Gold earns 3% a day instead of 2%.", 70, 4, null, null),
 
             // ----- Life tools -----
-            new Node("l_weather", 3, SOON, "Weather on the home screen",
-                    "A forecast for the city you choose.", 0, 0, null, null),
-            new Node("l_goals", 3, SOON, "Goals and reminders",
-                    "A goal maker with daily and weekly reminders.", 0, 0, null, null),
-            new Node("l_recipes", 3, SOON, "Dinner recipes",
-                    "Easy recipes that are hard to mess up.", 0, 0, null, null),
+            new Node("l_weather", 3, FEATURE, "Weather",
+                    "A forecast for the city you choose, shown on the home screen.", 30, 2,
+                    null, null),
+            new Node("l_recipes", 3, FEATURE, "Dinner recipes",
+                    "Fourteen easy dinners with short ingredient lists.", 30, 2, null, null),
+            new Node("l_goals", 3, FEATURE, "Goal maker",
+                    "Set goals, track progress, earn points for finishing.", 30, 2, null,
+                    null),
+            new Node("l_reminders", 3, FEATURE, "Reminders",
+                    "Daily and weekly reminders that arrive as notifications.", 30, 3, null,
+                    null),
 
             // ----- Helper -----
             new Node("h_lookup", 4, SOON, "Safe lookups",
@@ -174,6 +181,97 @@ final class Tree {
     };
 
     private Tree() {}
+
+    // The Sleep lessons are kept in their own array so the long text stays readable.
+    static final Node[] SLEEP = {
+            new Node("s_winddown", 5, LESSON, "Wind down before bed",
+                    "A simple routine that tells your body it's time.", 0, 1, null,
+                    "Your body falls asleep more easily when the hour before bed looks the "
+                            + "same every night. Pick a bedtime and a wake time and keep "
+                            + "them within about an hour, weekends included; the regular "
+                            + "wake time matters most.\n\nIn the last 30 to 60 minutes, dim "
+                            + "the lights, stop work and anything stressful, and do "
+                            + "something quiet: a shower, stretching, a paper book, calm "
+                            + "music. A warm shower an hour or two before bed helps because "
+                            + "your body cools afterward, and falling body temperature is "
+                            + "one of the signals for sleep.\n\nKeep the bed for sleep. If "
+                            + "you work, scroll and watch TV there, your brain stops "
+                            + "linking the bed with sleeping."),
+            new Node("s_light", 5, LESSON, "Light and your body clock",
+                    "Why evenings should be dim, and how Red night mode helps.", 10, 1,
+                    "s_winddown",
+                    "Light is the main thing that sets your internal clock. Bright light in "
+                            + "the morning, ideally daylight within an hour of waking, makes "
+                            + "you more alert by day and sleepier at the right time at "
+                            + "night.\n\nIn the evening it works against you. Bright light, "
+                            + "especially the blue-white kind from screens and overhead "
+                            + "LEDs, tells your brain it's still daytime and delays the "
+                            + "hormone that makes you sleepy. Dim, warm light does this far "
+                            + "less, and red light least of all.\n\nThis app has a setting "
+                            + "for that: Menu, then Colors & night mode, then Red night. It "
+                            + "turns the text red and drops the screen brightness very low "
+                            + "inside the app, so checking an alarm at 2 a.m. doesn't jolt "
+                            + "you awake. Overall brightness matters more than color, so "
+                            + "dim the room as well."),
+            new Node("s_intake", 5, LESSON, "Caffeine, alcohol and late meals",
+                    "What you take in during the day shows up at night.", 10, 1,
+                    "s_winddown",
+                    "Caffeine blocks the chemical that builds up sleep pressure through the "
+                            + "day. Half of it is still in your system five or six hours "
+                            + "later, so an afternoon coffee can still be working at "
+                            + "bedtime. A common rule is no caffeine within eight hours of "
+                            + "bed; that includes energy drinks, cola and strong tea.\n\n"
+                            + "Alcohol is the sneaky one. It helps you fall asleep, then "
+                            + "breaks up the second half of the night and cuts into dream "
+                            + "sleep, so you wake unrefreshed. Nicotine is a stimulant "
+                            + "too.\n\nA heavy meal within two or three hours of bed can "
+                            + "cause heartburn and restlessness, and a lot of fluid late "
+                            + "means trips to the bathroom. A light snack is fine if you're "
+                            + "hungry."),
+            new Node("s_awake", 5, LESSON, "When you can't fall asleep",
+                    "What to do at 2 a.m. instead of staring at the ceiling.", 10, 1,
+                    "s_winddown",
+                    "Lying in bed trying hard to sleep usually backfires. If you've been "
+                            + "awake for what feels like 20 minutes, get up. Go to another "
+                            + "room, keep the lights low, and do something dull and calm "
+                            + "until you feel sleepy, then go back. This keeps your brain "
+                            + "from learning that bed is a place to lie awake.\n\nDon't "
+                            + "watch the clock; doing the math on how little sleep is left "
+                            + "only raises the pressure. Turn it away.\n\nFor a racing "
+                            + "mind, write tomorrow's to-do list or your worries on paper "
+                            + "earlier in the evening so they're parked somewhere. In bed, "
+                            + "slow your breathing: in through the nose for about four "
+                            + "seconds, out for about six, for a few minutes. Keep naps "
+                            + "short, under half an hour, and not late in the day."),
+            new Node("s_room", 5, LESSON, "Set up the room",
+                    "Cool, dark and quiet, plus when to see a doctor.", 10, 1, "s_winddown",
+                    "Three things about the room matter most. Cool: most people sleep best "
+                            + "somewhere around 60 to 67 degrees Fahrenheit. Dark: block "
+                            + "street light and cover small LEDs; even a little light can "
+                            + "disturb sleep. Quiet: sudden noises wake you more than "
+                            + "steady ones, so a constant background sound helps. This "
+                            + "app's Sleep sounds (fan, brown noise and others) are for "
+                            + "that, with a timer or left on all night.\n\nIn the morning, "
+                            + "a gentle alarm is easier on you than a sudden blast, which "
+                            + "is what the fade-in setting on each alarm does.\n\nWhen to "
+                            + "get help: if you have trouble sleeping three or more nights "
+                            + "a week for three months, if you snore loudly or wake up "
+                            + "gasping, or if you're very sleepy during the day, talk to a "
+                            + "doctor. For long-running insomnia, a structured program "
+                            + "called CBT-I is the usual first treatment and works better "
+                            + "over time than sleeping pills. This is general information, "
+                            + "not medical advice."),
+    };
+
+    /** Every node on the tree. */
+    static final Node[] NODES = join(BASE, SLEEP);
+
+    private static Node[] join(Node[] a, Node[] b) {
+        Node[] out = new Node[a.length + b.length];
+        System.arraycopy(a, 0, out, 0, a.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
 
     static Node find(String id) {
         for (Node n : NODES) {
@@ -188,6 +286,10 @@ final class Tree {
         if ("m_portfolio".equals(id)) return PortfolioActivity.class;
         if ("m_paper".equals(id)) return PaperActivity.class;
         if ("m_news".equals(id)) return NewsActivity.class;
+        if ("l_weather".equals(id)) return WeatherActivity.class;
+        if ("l_recipes".equals(id)) return RecipesActivity.class;
+        if ("l_goals".equals(id)) return GoalsActivity.class;
+        if ("l_reminders".equals(id)) return RemindersActivity.class;
         return null;
     }
 

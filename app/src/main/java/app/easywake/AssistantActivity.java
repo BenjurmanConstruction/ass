@@ -297,6 +297,50 @@ public class AssistantActivity extends Activity {
         if (has(q, "joke", "funny", "laugh")) return Jokes.next();
         if (has(q, "fact", "teach me", "something cool", "learn something")) return Facts.next();
 
+        // ----- life tools -----
+        if (has(q, "weather", "forecast", "temperature", "rain today", "outside")) {
+            if (!Tree.owned(this, "l_weather")) {
+                return "Weather is locked. It's on the Life tools branch of the skill tree "
+                        + "(30 Knowledge Points, level 2).";
+            }
+            if (!Weather.hasCity(this)) {
+                open(WeatherActivity.class);
+                return "Pick your city first. Opening Weather.";
+            }
+            return weatherNow();
+        }
+        if (has(q, "event", "schedule", "what's planned", "whats planned", "agenda")) {
+            String today = Events.todayText(this);
+            return today.isEmpty() ? "Nothing on the calendar for today. Open the Calendar "
+                    + "and tap a day to add an event." : "Today:\n" + today;
+        }
+        if (has(q, "recipe", "dinner", "cook", "what to eat", "hungry")) {
+            if (Tree.owned(this, "l_recipes")) {
+                open(RecipesActivity.class);
+                return "Opening dinner recipes.";
+            }
+            return "Dinner recipes are locked. They're on the Life tools branch of the "
+                    + "skill tree (30 Knowledge Points, level 2).";
+        }
+        if (has(q, "goal")) {
+            if (Tree.owned(this, "l_goals")) {
+                open(GoalsActivity.class);
+                return "Opening your goals.";
+            }
+            return "The goal maker is locked. It's on the Life tools branch of the skill "
+                    + "tree (30 Knowledge Points, level 2).";
+        }
+        if (has(q, "can't sleep", "cant sleep", "trouble sleeping", "insomnia", "fall asleep",
+                "sleep better", "sleep tip")) {
+            open(TreeActivity.class);
+            return "A few things that help most: keep the same wake time every day, dim the "
+                    + "lights in the last hour (this app's Red night mode is under Colors & "
+                    + "night mode), skip caffeine within eight hours of bed, and if you're "
+                    + "awake after about 20 minutes, get up and do something dull until "
+                    + "you're sleepy. The Sleep branch on the skill tree has the full "
+                    + "lessons; I've opened it.";
+        }
+
         // ----- wallet, tree and casino -----
         if (has(q, "slot", "casino", "gamble", "spin", "jackpot")) {
             if (Tree.owned(this, "slot")) {
@@ -498,6 +542,42 @@ public class AssistantActivity extends Activity {
                 + "home screen." : "")
                 + " It uses the default gentle sound; open it on the home screen to change "
                 + "anything.";
+    }
+
+    private String weatherNow() {
+        final TextView pending = bubble("Checking the weather...", false);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final Weather.Report r = Weather.fetch(AssistantActivity.this);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing()) return;
+                        if (!r.ok) {
+                            pending.setText("I couldn't get the forecast. Check your "
+                                    + "internet.");
+                            return;
+                        }
+                        StringBuilder sb = new StringBuilder();
+                        sb.append(Weather.city(AssistantActivity.this)).append(": ")
+                                .append(Weather.deg(r.temp)).append(", ")
+                                .append(Weather.describe(r.code).toLowerCase(Locale.US))
+                                .append(", feels like ").append(Weather.deg(r.feels))
+                                .append(".");
+                        if (r.hi.length > 0) {
+                            sb.append(" Today's high ").append(Weather.deg(r.hi[0]))
+                                    .append(", low ").append(Weather.deg(r.lo[0])).append(".");
+                            if (r.rain[0] >= 20) {
+                                sb.append(" ").append(r.rain[0]).append("% chance of rain.");
+                            }
+                        }
+                        pending.setText(sb.toString());
+                    }
+                });
+            }
+        }).start();
+        return null;
     }
 
     private String marketSummary() {

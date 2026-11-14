@@ -69,11 +69,15 @@ public class RingActivity extends Activity {
         root.addView(labelView, wrap());
 
         String memoText = MemoActivity.alarmText(this);
+        String todays = Events.todayText(this);
+        if (!todays.isEmpty()) {
+            memoText = "Today:\n" + todays + (memoText.isEmpty() ? "" : "\n\n" + memoText);
+        }
         if (!memoText.isEmpty()) {
             TextView memos = Ui.text(this, memoText, 16, Ui.TEXT);
             memos.setBackground(Ui.card(this, 16));
             memos.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
-            memos.setMaxLines(6);
+            memos.setMaxLines(9);
             LinearLayout.LayoutParams mm = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT);

@@ -242,7 +242,12 @@ public class BrainActivity extends Activity {
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setBackground(Ui.ripple(this, Ui.card(this, 20), 20));
-        card.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14));
+        card.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14));
+
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(Ui.dp(this, 48),
+                Ui.dp(this, 48));
+        bp.rightMargin = Ui.dp(this, 14);
+        card.addView(Ui.badge(this, Games.ICONS[mode], 48), bp);
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);

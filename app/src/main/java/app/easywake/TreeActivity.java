@@ -70,7 +70,7 @@ public class TreeActivity extends Activity {
             }
         };
         root.addView(tree, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 700)));
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 880)));
         ((LinearLayout.LayoutParams) tree.getLayoutParams()).topMargin = Ui.dp(this, 8);
 
         detail = new LinearLayout(this);

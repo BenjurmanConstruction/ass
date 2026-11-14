@@ -39,14 +39,15 @@ final class TreeView extends View {
     }
 
     // Limb order: casino, market lessons (the trunk's crown), market tools, wealth,
-    // life tools, helper.
+    // life tools, helper, sleep.
     private static final Limb[] LIMBS = {
-            new Limb("CASINO", 0.50f, 0.62f, 0.20f, 0.58f, 0.12f, 0.31f),
-            new Limb("MARKET LESSONS", 0.50f, 0.54f, 0.50f, 0.30f, 0.50f, 0.065f),
-            new Limb("MARKET TOOLS", 0.50f, 0.42f, 0.82f, 0.40f, 0.88f, 0.12f),
-            new Limb("WEALTH", 0.50f, 0.75f, 0.28f, 0.76f, 0.13f, 0.60f),
-            new Limb("LIFE TOOLS", 0.50f, 0.69f, 0.74f, 0.70f, 0.88f, 0.50f),
-            new Limb("HELPER", 0.50f, 0.86f, 0.74f, 0.88f, 0.87f, 0.77f),
+            new Limb("CASINO", 0.50f, 0.50f, 0.20f, 0.47f, 0.12f, 0.25f),
+            new Limb("MARKET LESSONS", 0.50f, 0.45f, 0.50f, 0.25f, 0.50f, 0.055f),
+            new Limb("MARKET TOOLS", 0.50f, 0.36f, 0.82f, 0.34f, 0.88f, 0.10f),
+            new Limb("WEALTH", 0.50f, 0.64f, 0.26f, 0.65f, 0.12f, 0.51f),
+            new Limb("LIFE TOOLS", 0.50f, 0.58f, 0.76f, 0.59f, 0.88f, 0.41f),
+            new Limb("HELPER", 0.50f, 0.76f, 0.76f, 0.78f, 0.88f, 0.64f),
+            new Limb("SLEEP", 0.50f, 0.85f, 0.14f, 0.88f, 0.11f, 0.67f),
     };
 
     private static final Map<String, String> GLYPHS = new HashMap<>();
@@ -67,6 +68,7 @@ final class TreeView extends View {
         GLYPHS.put("l_recipes", "🍲");
         GLYPHS.put("h_lookup", "🔎");
         GLYPHS.put("h_market", "💬");
+        GLYPHS.put("l_reminders", "\u23F0");
     }
 
     Listener listener;
@@ -112,6 +114,8 @@ final class TreeView extends View {
                 return 3;
             case 3:
                 return 4;
+            case 5:
+                return 6;
             default:
                 return 5;
         }
@@ -173,7 +177,7 @@ final class TreeView extends View {
         wood.setStrokeWidth(20 * d);
         cv.drawLine(w * 0.5f, h * 0.80f, w * 0.5f, h * 0.60f, wood);
         wood.setStrokeWidth(14 * d);
-        cv.drawLine(w * 0.5f, h * 0.60f, w * 0.5f, h * 0.42f, wood);
+        cv.drawLine(w * 0.5f, h * 0.60f, w * 0.5f, h * 0.36f, wood);
 
         // Limbs.
         for (int i = 0; i < LIMBS.length; i++) {
@@ -236,7 +240,7 @@ final class TreeView extends View {
             }
 
             String g = GLYPHS.get(n.id);
-            if (g == null) g = "📖";
+            if (g == null) g = n.branch == 5 ? "\uD83C\uDF19" : "\uD83D\uDCD6";
             glyph.setAlpha(owned || can ? 255 : 110);
             float lift = (glyph.ascent() + glyph.descent()) / 2f;
             cv.drawText(g, x, y - lift, glyph);

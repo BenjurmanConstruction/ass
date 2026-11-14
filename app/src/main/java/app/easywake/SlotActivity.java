@@ -1,8 +1,5 @@
 package app.easywake;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -15,7 +12,6 @@ import android.os.Looper;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -293,7 +289,7 @@ public class SlotActivity extends Activity {
 
         // Each reel scrolls and slows to a stop, left to right.
         final int mine = ++token;
-        long[] durations = {1100, 1700, 2400};
+        long[] durations = {1900, 2700, 3600};
         for (int i = 0; i < 3; i++) {
             final boolean last = i == 2;
             reels[i].spinTo(res.show[i], durations[i], new Runnable() {
@@ -417,7 +413,12 @@ public class SlotActivity extends Activity {
                 .show();
     }
 
-    /** One reel: a strip of symbols that scrolls downward and eases onto its result. */
+    /**
+     * One reel: a strip of symbols that scrolls downward, runs at full speed for a while,
+     * then slows and settles onto its result with a small bounce. It keeps its own clock
+     * rather than using the system's animations, so it still spins on phones that have
+     * animations switched off.
+     */
     static final class ReelView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -425,7 +426,12 @@ public class SlotActivity extends Activity {
         private String[] strip;
         /** Which strip position sits on the pay line; fractions are mid-scroll. */
         private float pos = 1f;
-        private ValueAnimator anim;
+        private boolean spinning;
+        private long startAt;
+        private long duration;
+        private float from;
+        private float to;
+        private Runnable done;
 
         ReelView(android.content.Context c) {
             super(c);
@@ -441,15 +447,15 @@ public class SlotActivity extends Activity {
             return ALL[rnd.nextInt(ALL.length)];
         }
 
-        /** Scrolls to show {@code target} on the pay line, then calls {@code done}. */
-        void spinTo(String target, long duration, final Runnable done) {
-            if (anim != null) anim.cancel();
+        /** Scrolls to show {@code target} on the pay line, then calls {@code whenDone}. */
+        void spinTo(String target, long millis, Runnable whenDone) {
             // Keep what is showing now at the start of the new strip so nothing jumps.
             int at = Math.round(pos);
             String above = get(at + 1);
             String center = get(at);
             String below = get(at - 1);
-            int length = 22 + (int) (duration / 100);
+            // About 14 symbols a second at full speed.
+            int length = 6 + (int) (millis * 14 / 1000);
             String[] next = new String[length];
             for (int i = 0; i < length; i++) next[i] = pick();
             next[0] = below;
@@ -457,31 +463,30 @@ public class SlotActivity extends Activity {
             next[2] = above;
             next[length - 2] = target;
             strip = next;
-            pos = 1f;
-            anim = ValueAnimator.ofFloat(1f, length - 2);
-            anim.setDuration(duration);
-            anim.setInterpolator(new DecelerateInterpolator(1.6f));
-            anim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                @Override
-                public void onAnimationUpdate(ValueAnimator a) {
-                    pos = (Float) a.getAnimatedValue();
-                    invalidate();
-                }
-            });
-            anim.addListener(new AnimatorListenerAdapter() {
-                private boolean cancelled;
+            from = 1f;
+            to = length - 2;
+            pos = from;
+            duration = Math.max(200, millis);
+            startAt = android.os.SystemClock.uptimeMillis();
+            done = whenDone;
+            spinning = true;
+            invalidate();
+        }
 
-                @Override
-                public void onAnimationCancel(Animator a) {
-                    cancelled = true;
-                }
-
-                @Override
-                public void onAnimationEnd(Animator a) {
-                    if (!cancelled && done != null) done.run();
-                }
-            });
-            anim.start();
+        /** Progress 0..1 to distance 0..1: steady speed, then braking to a stop. */
+        private static float ease(float t) {
+            float brakeAt = 0.62f;
+            // Speed is constant until brakeAt, then falls to zero; this is its integral,
+            // scaled so the total distance comes out as 1.
+            float full = brakeAt + (1 - brakeAt) / 2f;
+            float d;
+            if (t < brakeAt) {
+                d = t / full;
+            } else {
+                float u = (t - brakeAt) / (1 - brakeAt);
+                d = (brakeAt + (1 - brakeAt) * (u - u * u / 2f)) / full;
+            }
+            return d;
         }
 
         private String get(int i) {
@@ -491,7 +496,8 @@ public class SlotActivity extends Activity {
 
         @Override
         protected void onDetachedFromWindow() {
-            if (anim != null) anim.cancel();
+            spinning = false;
+            done = null;
             super.onDetachedFromWindow();
         }
 
@@ -500,6 +506,23 @@ public class SlotActivity extends Activity {
             float w = getWidth();
             float h = getHeight();
             if (w <= 0 || h <= 0) return;
+
+            boolean finished = false;
+            if (spinning) {
+                float t = (android.os.SystemClock.uptimeMillis() - startAt) / (float) duration;
+                if (t >= 1f) {
+                    pos = to;
+                    spinning = false;
+                    finished = true;
+                } else {
+                    pos = from + (to - from) * ease(t);
+                    // Run a fifth of a symbol past the stop and drop back, like a real reel.
+                    if (t > 0.9f) {
+                        pos += 0.2f * (float) Math.sin(Math.PI * (t - 0.9f) / 0.1f);
+                    }
+                }
+            }
+
             float cell = h / 3f;
             paint.setTextSize(Math.min(cell * 0.62f, w * 0.6f));
             float mid = h / 2f;
@@ -518,6 +541,16 @@ public class SlotActivity extends Activity {
             // Pay line markers on either side of the middle row.
             cv.drawLine(0, mid - cell / 2f, w, mid - cell / 2f, line);
             cv.drawLine(0, mid + cell / 2f, w, mid + cell / 2f, line);
+
+            if (spinning) {
+                postInvalidateOnAnimation();
+            } else if (finished) {
+                // A small thud as the reel lands.
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                Runnable r = done;
+                done = null;
+                if (r != null) post(r);
+            }
         }
     }
 }

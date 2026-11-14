@@ -27,6 +27,7 @@ public class CalendarActivity extends Activity {
     private TextView dayTitle;
     private LinearLayout dayList;
     private List<Alarm> alarms = new ArrayList<>();
+    private List<Events.Event> events = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle b) {
@@ -110,6 +111,7 @@ public class CalendarActivity extends Activity {
     protected void onResume() {
         super.onResume();
         alarms = Store.load(this);
+        events = Events.load(this);
         paint();
     }
 
@@ -202,16 +204,29 @@ public class CalendarActivity extends Activity {
                     cell.addView(num, new LinearLayout.LayoutParams(Ui.dp(this, 34),
                             Ui.dp(this, 34)));
 
-                    View dot = new View(this);
-                    GradientDrawable dd = new GradientDrawable();
-                    dd.setShape(GradientDrawable.OVAL);
-                    dd.setColor(Ui.ACCENT);
-                    dot.setBackground(dd);
-                    dot.setVisibility(alarmsOn(day).isEmpty() ? View.INVISIBLE : View.VISIBLE);
-                    LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(
-                            Ui.dp(this, 5), Ui.dp(this, 5));
-                    dp.topMargin = Ui.dp(this, 3);
-                    cell.addView(dot, dp);
+                    // Gold dot = an alarm that day; blue dot = an event.
+                    LinearLayout dots = new LinearLayout(this);
+                    dots.setOrientation(LinearLayout.HORIZONTAL);
+                    boolean hasAlarm = !alarmsOn(day).isEmpty();
+                    boolean hasEvent = !Events.on(events, Events.dayOf(day)).isEmpty();
+                    int[] colors = {Ui.ACCENT, 0xFF7FB8E6};
+                    boolean[] show = {hasAlarm, hasEvent};
+                    for (int k = 0; k < 2; k++) {
+                        View dot = new View(this);
+                        GradientDrawable dd = new GradientDrawable();
+                        dd.setShape(GradientDrawable.OVAL);
+                        dd.setColor(colors[k]);
+                        dot.setBackground(dd);
+                        dot.setVisibility(show[k] ? View.VISIBLE : View.GONE);
+                        LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(
+                                Ui.dp(this, 5), Ui.dp(this, 5));
+                        dp.setMargins(Ui.dp(this, 1), 0, Ui.dp(this, 1), 0);
+                        dots.addView(dot, dp);
+                    }
+                    LinearLayout.LayoutParams dotsParams = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 5));
+                    dotsParams.topMargin = Ui.dp(this, 3);
+                    cell.addView(dots, dotsParams);
 
                     cell.setOnClickListener(new View.OnClickListener() {
                         @Override
@@ -230,9 +245,58 @@ public class CalendarActivity extends Activity {
         dayTitle.setText(new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
                 .format(picked.getTime()));
         dayList.removeAllViews();
+
+        // Events first, then alarms.
+        final int pickedDay = Events.dayOf(picked);
+        for (final Events.Event e : Events.on(events, pickedDay)) {
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            GradientDrawable eg = Ui.card(this, 18);
+            eg.setStroke(Ui.dp(this, 2), 0xFF7FB8E6);
+            item.setBackground(Ui.ripple(this, eg, 18));
+            item.setPadding(Ui.dp(this, 18), Ui.dp(this, 12), Ui.dp(this, 18),
+                    Ui.dp(this, 12));
+            TextView et = Ui.text(this, e.title, 18, Ui.TEXT);
+            et.setTypeface(Ui.medium());
+            item.addView(et);
+            item.addView(Ui.text(this, (e.minutes >= 0 ? Ui.timeText(this, e.minutes / 60,
+                    e.minutes % 60) : "All day") + "  \u2022  event  \u2022  tap to remove",
+                    13, Ui.SUB));
+            item.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    new android.app.AlertDialog.Builder(CalendarActivity.this)
+                            .setMessage("Remove \"" + e.title + "\"?")
+                            .setPositiveButton("Remove",
+                                    new android.content.DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(
+                                                android.content.DialogInterface d, int w) {
+                                            events.remove(e);
+                                            Events.save(CalendarActivity.this, events);
+                                            paint();
+                                        }
+                                    })
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                }
+            });
+            dayList.addView(item, Ui.full(this, 8));
+        }
+
+        Button addEvent = Ui.button(this, "+  Add an event on this day", false);
+        addEvent.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                addEvent(pickedDay);
+            }
+        });
+        dayList.addView(addEvent, Ui.full(this, 8));
+
         List<Alarm> list = alarmsOn(picked);
         if (list.isEmpty()) {
-            dayList.addView(Ui.text(this, "No alarms on this day.", 15, Ui.SUB));
+            dayList.addView(Ui.text(this, "No alarms on this day.", 15, Ui.SUB),
+                    Ui.full(this, 12));
         } else {
             for (Alarm a : list) {
                 LinearLayout item = new LinearLayout(this);
@@ -249,5 +313,58 @@ public class CalendarActivity extends Activity {
                 dayList.addView(item, Ui.full(this, 8));
             }
         }
+    }
+
+    /** Asks for a title and an optional time, then saves the event. */
+    private void addEvent(final int day) {
+        final int[] minutes = {-1};
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(this, 20);
+        box.setPadding(pad, Ui.dp(this, 8), pad, 0);
+        final android.widget.EditText title = new android.widget.EditText(this);
+        title.setSingleLine(true);
+        title.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        title.setHint("What's happening?");
+        box.addView(title);
+        final Button time = new Button(this);
+        time.setAllCaps(false);
+        time.setText("All day  (tap to set a time)");
+        time.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new android.app.TimePickerDialog(CalendarActivity.this,
+                        new android.app.TimePickerDialog.OnTimeSetListener() {
+                            @Override
+                            public void onTimeSet(android.widget.TimePicker p, int h, int m) {
+                                minutes[0] = h * 60 + m;
+                                time.setText("At " + Ui.timeText(CalendarActivity.this, h, m));
+                            }
+                        }, 9, 0, android.text.format.DateFormat.is24HourFormat(
+                        CalendarActivity.this)).show();
+            }
+        });
+        box.addView(time);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("New event")
+                .setView(box)
+                .setPositiveButton("Save", new android.content.DialogInterface
+                        .OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        String t = title.getText().toString().trim();
+                        if (t.isEmpty()) return;
+                        Events.Event e = new Events.Event();
+                        e.day = day;
+                        e.title = t;
+                        e.minutes = minutes[0];
+                        events.add(e);
+                        Events.save(CalendarActivity.this, events);
+                        paint();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 }

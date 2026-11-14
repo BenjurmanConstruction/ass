@@ -59,6 +59,26 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".WeatherActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".GoalsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RemindersActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RecipesActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ToolsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".PortfolioActivity"
             android:exported="false" />
 
@@ -146,6 +166,10 @@
             android:name=".NoiseService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".AlarmReceiver"

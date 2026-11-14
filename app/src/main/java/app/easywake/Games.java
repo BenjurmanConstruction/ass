@@ -160,6 +160,16 @@ final class Games {
             "Careful reasoning."
     };
 
+    /** A badge for each test. */
+    static final String[] ICONS = {
+            "\u26A1", "\uD83E\uDDEE", "\uD83D\uDD22", "\uD83C\uDFA8",
+            "\uD83D\uDCA1", "\uD83D\uDC35", "\uD83E\uDDE9", "\uD83C\uDFAF",
+            "\uD83D\uDCAC", "\uD83D\uDC41", "\uD83C\uDCCF", "\uD83C\uDFC1",
+            "\uD83D\uDD0D", "\uD83D\uDEA6", "\u2194", "\uD83D\uDD24",
+            "\uD83C\uDFB2", "\u23F1", "\u2328", "\uD83D\uDD00",
+            "\uD83D\uDD17", "\u2753", "\uD83D\uDCDA", "\uD83E\uDD14"
+    };
+
     static final int COUNT = TITLES.length;
 
     private Games() {}

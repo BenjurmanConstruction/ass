@@ -96,7 +96,13 @@ public class GameActivity extends Activity {
             col.addView(ch, Ui.full(this, 0));
         }
 
-        col.addView(Ui.heading(this, "How it works"), Ui.full(this, 14));
+        LinearLayout.LayoutParams logo = new LinearLayout.LayoutParams(Ui.dp(this, 96),
+                Ui.dp(this, 96));
+        logo.gravity = Gravity.CENTER_HORIZONTAL;
+        logo.topMargin = Ui.dp(this, 14);
+        col.addView(Ui.badge(this, Games.ICONS[mode], 96), logo);
+
+        col.addView(Ui.heading(this, "How it works"), Ui.full(this, 18));
         TextView how = Ui.text(this, Games.HOWTO[mode], 16, Ui.TEXT);
         how.setLineSpacing(Ui.dp(this, 3), 1f);
         col.addView(how, Ui.full(this, 6));

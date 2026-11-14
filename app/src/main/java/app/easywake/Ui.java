@@ -244,6 +244,22 @@ final class Ui {
         return bar;
     }
 
+    /** A round badge with a symbol in it, used as a test's logo. */
+    static TextView badge(Context c, String symbol, int sizeDp) {
+        TextView t = text(c, symbol, sizeDp * 0.46f, TEXT);
+        t.setGravity(Gravity.CENTER);
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{(ACCENT_HI & 0x00FFFFFF) | 0x55000000,
+                        (ACCENT_LO & 0x00FFFFFF) | 0x22000000});
+        g.setShape(GradientDrawable.OVAL);
+        g.setStroke(dp(c, 2), ACCENT);
+        t.setBackground(g);
+        t.setWidth(dp(c, sizeDp));
+        t.setHeight(dp(c, sizeDp));
+        t.setIncludeFontPadding(false);
+        return t;
+    }
+
     static LinearLayout.LayoutParams full(Context c, int topDp) {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);

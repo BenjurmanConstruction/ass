@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
     private TextView subtitle;
     private TextView joke;
     private LinearLayout strip;
+    private TextView weather;
     private int builtTheme;
     private int stripGen;
 
@@ -78,6 +79,21 @@ public class MainActivity extends Activity {
         header.addView(menu, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         root.addView(header, Ui.full(this, 0));
 
+        // Today's weather for the chosen city. Tap to open the forecast.
+        weather = Ui.text(this, "", 15, Ui.TEXT);
+        weather.setBackground(Ui.ripple(this, Ui.card(this, 18), 18));
+        weather.setPadding(Ui.dp(this, 16), Ui.dp(this, 11), Ui.dp(this, 16), Ui.dp(this, 11));
+        weather.setMaxLines(1);
+        weather.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        weather.setVisibility(View.GONE);
+        weather.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, WeatherActivity.class));
+            }
+        });
+        root.addView(weather, Ui.full(this, 14));
+
         // The three indexes at a glance. Tap to open the Market screen.
         strip = new LinearLayout(this);
         strip.setOrientation(LinearLayout.HORIZONTAL);
@@ -90,7 +106,7 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(MainActivity.this, MarketActivity.class));
             }
         });
-        root.addView(strip, Ui.full(this, 14));
+        root.addView(strip, Ui.full(this, 10));
 
         // Dad joke of the moment. Tap it for another.
         LinearLayout jokeCard = new LinearLayout(this);
@@ -142,6 +158,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
         Scheduler.rescheduleAll(this);
+        Reminders.scheduleAll(this);
     }
 
     @Override
@@ -156,6 +173,39 @@ public class MainActivity extends Activity {
         joke.setText(Jokes.next());
         refresh();
         loadStrip();
+        loadWeather();
+    }
+
+    private void loadWeather() {
+        if (!Tree.owned(this, "l_weather") || !Weather.hasCity(this) || MarketData.netOff
+                || Prefs.getInt(this, "wxHome", 1) != 1) {
+            weather.setVisibility(View.GONE);
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final Weather.Report r = Weather.fetch(MainActivity.this);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing()) return;
+                        if (!r.ok) {
+                            weather.setVisibility(View.GONE);
+                            return;
+                        }
+                        String city = Weather.city(MainActivity.this);
+                        int comma = city == null ? -1 : city.indexOf(',');
+                        if (comma > 0) city = city.substring(0, comma);
+                        String hiLo = r.hi.length > 0 ? "   H " + Weather.deg(r.hi[0]) + "  L "
+                                + Weather.deg(r.lo[0]) : "";
+                        weather.setText(Weather.icon(r.code) + "  " + Weather.deg(r.temp) + "  "
+                                + Weather.describe(r.code) + hiLo + "   \u2022   " + city);
+                        weather.setVisibility(View.VISIBLE);
+                    }
+                });
+            }
+        }).start();
     }
 
     /** Fetches the three indexes in the background and fills the strip. */
@@ -381,6 +431,13 @@ public class MainActivity extends Activity {
                     @Override
                     public void run() {
                         startActivity(new Intent(MainActivity.this, BrainActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("My tools", "Slot, portfolio, news, weather, goals and more",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, ToolsActivity.class));
                     }
                 }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Skill tree", "Spend Knowledge Points on games, lessons, perks",

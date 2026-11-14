@@ -9,5 +9,6 @@ public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent in) {
         Scheduler.rescheduleAll(c);
+        Reminders.scheduleAll(c);
     }
 }

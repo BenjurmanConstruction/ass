@@ -61,6 +61,9 @@ final class MarketData {
             new Sym("^RUT", "Russell 2000", null),
             new Sym("ES=F", "S&P 500 futures", null),
             new Sym("NQ=F", "Nasdaq futures", null),
+            new Sym("YM=F", "Dow futures", null),
+            new Sym("SI=F", "Silver", null),
+            new Sym("NG=F", "Natural gas", null),
     };
 
     static final String DEFAULT_EXTRAS = "GC=F,CL=F,BTC-USD";
@@ -68,6 +71,14 @@ final class MarketData {
     /** Result of loading one symbol. */
     static final class Series {
         double[] values = new double[0];
+        /** Time of each value (epoch ms), same length as values. */
+        long[] times = new long[0];
+        /** Volume for each value, same length as values; zeros when unknown. */
+        double[] volume = new double[0];
+        /** Open / high / low for each bar (for candles). Empty when the source has none. */
+        double[] open = new double[0];
+        double[] hi = new double[0];
+        double[] lo = new double[0];
         double last = Double.NaN;
         double prev = Double.NaN;
         double high = Double.NaN;
@@ -175,15 +186,43 @@ final class MarketData {
                 JSONObject meta = res.getJSONObject("meta");
                 JSONArray closes = res.getJSONObject("indicators").getJSONArray("quote")
                         .getJSONObject(0).getJSONArray("close");
+                JSONArray stamps = res.optJSONArray("timestamp");
+                JSONArray vols = res.getJSONObject("indicators").getJSONArray("quote")
+                        .getJSONObject(0).optJSONArray("volume");
+                JSONObject quote = res.getJSONObject("indicators").getJSONArray("quote")
+                        .getJSONObject(0);
+                JSONArray opens = quote.optJSONArray("open");
+                JSONArray highs = quote.optJSONArray("high");
+                JSONArray lows = quote.optJSONArray("low");
                 List<Double> vals = new ArrayList<>();
+                List<Double> volList = new ArrayList<>();
+                List<Double> openList = new ArrayList<>();
+                List<Double> hiList = new ArrayList<>();
+                List<Double> loList = new ArrayList<>();
+                List<Long> timeList = new ArrayList<>();
                 for (int i = 0; i < closes.length(); i++) {
-                    if (!closes.isNull(i)) vals.add(closes.getDouble(i));
+                    if (closes.isNull(i)) continue;
+                    double close = closes.getDouble(i);
+                    vals.add(close);
+                    openList.add(pick(opens, i, close));
+                    hiList.add(pick(highs, i, close));
+                    loList.add(pick(lows, i, close));
+                    timeList.add(stamps != null && i < stamps.length()
+                            ? stamps.optLong(i, 0) * 1000L : 0L);
+                    volList.add(vols != null && i < vols.length() && !vols.isNull(i)
+                            ? vols.optDouble(i, 0) : 0.0);
                 }
                 if (vals.size() < 2) {
                     s.error = "no prices returned";
                     continue;
                 }
                 s.values = toArray(vals);
+                s.volume = toArray(volList);
+                s.open = toArray(openList);
+                s.hi = toArray(hiList);
+                s.lo = toArray(loList);
+                s.times = new long[timeList.size()];
+                for (int i = 0; i < s.times.length; i++) s.times[i] = timeList.get(i);
                 s.last = meta.optDouble("regularMarketPrice", s.values[s.values.length - 1]);
                 s.prev = meta.optDouble("chartPreviousClose",
                         meta.optDouble("previousClose", Double.NaN));
@@ -209,18 +248,31 @@ final class MarketData {
             String body = http("https://fred.stlouisfed.org/graph/fredgraph.csv?id="
                     + sym.fred + "&cosd=" + start);
             List<Double> vals = new ArrayList<>();
+            List<Long> timeList = new ArrayList<>();
+            SimpleDateFormat day = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
             String[] lines = body.split("\n");
             for (int i = 1; i < lines.length; i++) {
                 String[] parts = lines[i].trim().split(",");
                 if (parts.length < 2) continue;
                 try {
-                    vals.add(Double.parseDouble(parts[1]));
+                    double v = Double.parseDouble(parts[1]);
+                    long t = 0;
+                    try {
+                        t = day.parse(parts[0]).getTime();
+                    } catch (Exception e) {
+                        t = 0;
+                    }
+                    vals.add(v);
+                    timeList.add(t);
                 } catch (NumberFormatException e) {
                     // Holidays are listed with a "." instead of a number.
                 }
             }
             if (vals.size() >= 2) {
                 s.values = toArray(vals);
+                s.volume = new double[s.values.length];
+                s.times = new long[timeList.size()];
+                for (int i = 0; i < s.times.length; i++) s.times[i] = timeList.get(i);
                 s.last = s.values[s.values.length - 1];
                 s.prev = r <= 1 ? s.values[s.values.length - 2] : s.values[0];
                 finish(s);
@@ -231,6 +283,11 @@ final class MarketData {
             s.error = String.valueOf(e.getMessage());
         }
         return s;
+    }
+
+    private static double pick(JSONArray arr, int i, double fallback) {
+        if (arr == null || i >= arr.length() || arr.isNull(i)) return fallback;
+        return arr.optDouble(i, fallback);
     }
 
     private static double[] toArray(List<Double> list) {

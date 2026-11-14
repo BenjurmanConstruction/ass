@@ -175,7 +175,8 @@ public class MarketActivity extends Activity {
         });
         body.addView(add, Ui.full(this, 10));
         if (!watch.isEmpty()) {
-            body.addView(Ui.text(this, "Hold a watchlist card to remove it.", 12, Ui.SUB),
+            body.addView(Ui.text(this, "Tap any card for the full chart. Hold a watchlist "
+                            + "card to remove it.", 12, Ui.SUB),
                     Ui.full(this, 6));
         }
 
@@ -230,6 +231,19 @@ public class MarketActivity extends Activity {
         c.range = Ui.text(this, "", 12, Ui.SUB);
         card.addView(c.range, Ui.full(this, 6));
 
+        // Tap a card to open that chart on its own screen.
+        card.setBackground(Ui.ripple(this, Ui.card(this, 22), 22));
+        card.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new android.content.Intent(MarketActivity.this,
+                        ChartActivity.class)
+                        .putExtra("symbol", sym.symbol)
+                        .putExtra("name", sym.name)
+                        .putExtra("fred", sym.fred)
+                        .putExtra("range", range));
+            }
+        });
         if (removable) {
             card.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
@@ -448,7 +462,7 @@ public class MarketActivity extends Activity {
         ChartView(Context c) {
             super(c);
             line.setStyle(Paint.Style.STROKE);
-            line.setStrokeWidth(Ui.dp(c, 2));
+            line.setStrokeWidth(Ui.dp(c, 1.5f));
             line.setStrokeJoin(Paint.Join.ROUND);
             line.setStrokeCap(Paint.Cap.ROUND);
             fill.setStyle(Paint.Style.FILL);

@@ -362,6 +362,13 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, MarketActivity.class));
                     }
                 }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("Brain gym", "Crazy facts and quick brain tests",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, BrainActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Colors & night mode", "Accent color and dim modes for late nights",
                 new Runnable() {
                     @Override

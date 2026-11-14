@@ -19,7 +19,8 @@ final class Sfx {
     static final int CARD = 4;
     static final int CHIPS = 5;
     static final int LOSE = 6;
-    private static final int COUNT = 7;
+    static final int PEG = 7;
+    private static final int COUNT = 8;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
@@ -28,18 +29,36 @@ final class Sfx {
 
     private Sfx() {}
 
-    static boolean on(Context c) {
-        return Prefs.getInt(c, "sfxOn", 1) == 1;
+    /** Sound setting: everything, only the win and lose sounds, or nothing. */
+    static final int ALL = 1, WINS_ONLY = 2, OFF = 0;
+    private static final String[] MODE_NAMES = {"Sound: off", "Sound: on",
+            "Sound: wins only"};
+
+    static int mode(Context c) {
+        int m = Prefs.getInt(c, "sfxOn", ALL);
+        return m < 0 || m > 2 ? ALL : m;
     }
 
-    static void setOn(Context c, boolean on) {
-        Prefs.putInt(c, "sfxOn", on ? 1 : 0);
-        if (!on) stopAll();
+    static String modeName(Context c) {
+        return MODE_NAMES[mode(c)];
+    }
+
+    /** Steps to the next setting: on, wins only, off. */
+    static void nextMode(Context c) {
+        int m = mode(c);
+        Prefs.putInt(c, "sfxOn", m == ALL ? WINS_ONLY : (m == WINS_ONLY ? OFF : ALL));
+        stopAll();
+    }
+
+    private static boolean allowed(Context c, int id) {
+        int m = mode(c);
+        if (m == OFF) return false;
+        return m == ALL || id == WIN || id == BIG_WIN || id == JACKPOT || id == LOSE;
     }
 
     /** Plays a sound from its start, if game sounds are switched on. */
     static synchronized void play(Context c, int id) {
-        if (!on(c) || id < 0 || id >= COUNT) return;
+        if (id < 0 || id >= COUNT || !allowed(c, id)) return;
         try {
             AudioTrack t = TRACKS[id];
             if (t == null) {
@@ -84,14 +103,13 @@ final class Sfx {
 
     /** A button that switches game sounds on and off. */
     static android.widget.Button toggle(final Context c) {
-        final android.widget.Button bt = Ui.button(c, on(c) ? "Sound: on" : "Sound: off",
-                false);
+        final android.widget.Button bt = Ui.button(c, modeName(c), false);
         bt.setOnClickListener(new android.view.View.OnClickListener() {
             @Override
             public void onClick(android.view.View v) {
-                setOn(c, !on(c));
-                bt.setText(on(c) ? "Sound: on" : "Sound: off");
-                if (on(c)) play(c, CHIPS);
+                nextMode(c);
+                bt.setText(modeName(c));
+                play(c, WIN);
             }
         });
         return bt;
@@ -106,10 +124,10 @@ final class Sfx {
                 b = spin();
                 break;
             case WIN:
-                b = notes(new double[]{1319, 1760}, 0.11, 0.5);
+                b = notes(new double[]{784, 1047}, 0.12, 0.5);
                 break;
             case BIG_WIN:
-                b = notes(new double[]{1047, 1319, 1568, 2093, 1568, 2093, 2637}, 0.1, 0.7);
+                b = notes(new double[]{523, 659, 784, 1047, 784, 1047, 1319}, 0.11, 0.6);
                 break;
             case JACKPOT:
                 b = jackpot();
@@ -120,13 +138,19 @@ final class Sfx {
             case CHIPS:
                 b = chips();
                 break;
+            case PEG:
+                b = new float[(int) (0.12 * SR)];
+                bell(b, 0, 988, 0.1, 0.5);
+                break;
             default:
                 b = lose();
                 break;
         }
         float peak = 0.001f;
         for (float v : b) peak = Math.max(peak, Math.abs(v));
-        float scale = Math.min(1f, 0.85f / peak);
+        // Kept well under full volume: these sit behind the game, not on top of it.
+        float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f};
+        float scale = loudness[id] / peak;
         short[] out = new short[b.length];
         for (int i = 0; i < b.length; i++) out[i] = (short) (b[i] * scale * 32767);
         return out;
@@ -139,9 +163,10 @@ final class Sfx {
         for (int i = 0; i < n && from + i < b.length; i++) {
             double t = i / (double) SR;
             double env = Math.exp(-t * 5.5 / dur) * Math.min(1, i / 40.0);
+            // A soft mallet tone: mostly the note itself, with a little brightness
+            // right at the strike that fades fast.
             double v = Math.sin(2 * Math.PI * freq * t)
-                    + 0.4 * Math.sin(2 * Math.PI * freq * 2.01 * t)
-                    + 0.2 * Math.sin(2 * Math.PI * freq * 3.02 * t);
+                    + 0.25 * Math.sin(2 * Math.PI * freq * 4 * t) * Math.exp(-t * 60);
             b[from + i] += (float) (v * env * amp);
         }
     }
@@ -205,19 +230,12 @@ final class Sfx {
                 if (passed != last) {
                     last = passed;
                     double at = ms / 1000.0;
-                    // Each reel clicks at its own pitch so three together sound busy.
-                    int from = (int) (at * SR);
-                    int n = (int) (0.012 * SR);
-                    double f = 1500 + reel * 350;
-                    for (int i = 0; i < n && from + i < b.length; i++) {
-                        double t = i / (double) SR;
-                        b[from + i] += (float) (Math.sin(2 * Math.PI * f * t)
-                                * Math.exp(-t * 420) * 0.16);
-                    }
-                    burst(b, r, at, 0.008, 0.1, 0.2);
+                    // A soft, dull click, like a wooden ratchet. Later reels are
+                    // quieter so three together don't turn into a buzz.
+                    burst(b, r, at, 0.014, 0.16 - reel * 0.04, 0.82);
                 }
             }
-            thump(b, r, dur, 0.9);
+            thump(b, r, dur, 0.5);
         }
         return b;
     }
@@ -228,15 +246,15 @@ final class Sfx {
         double at = 0;
         for (int round = 0; round < 5; round++) {
             for (double f : run) {
-                bell(b, at, f * (round % 2 == 0 ? 1 : 1.122), 0.4, 0.6);
+                bell(b, at, f * 0.5 * (round % 2 == 0 ? 1 : 1.122), 0.4, 0.6);
                 at += 0.085;
             }
         }
         // A long bright chord to finish, with coins falling over it.
-        for (double f : new double[]{1047, 1319, 1568, 2093, 2637}) bell(b, at, f, 1.5, 0.5);
+        for (double f : new double[]{523, 659, 784, 1047, 1319}) bell(b, at, f, 1.5, 0.5);
         Random r = new Random(3);
-        for (int i = 0; i < 26; i++) {
-            bell(b, 0.3 + r.nextDouble() * 2.6, 3200 + r.nextInt(1800), 0.09, 0.22);
+        for (int i = 0; i < 14; i++) {
+            bell(b, 0.3 + r.nextDouble() * 2.6, 1800 + r.nextInt(900), 0.09, 0.14);
         }
         return b;
     }
@@ -264,7 +282,7 @@ final class Sfx {
         float[] b = new float[(int) (0.5 * SR)];
         for (int i = 0; i < 6; i++) {
             double at = i * 0.05 + r.nextDouble() * 0.02;
-            bell(b, at, 2600 + r.nextInt(900), 0.06, 0.5);
+            bell(b, at, 1700 + r.nextInt(500), 0.05, 0.3);
             burst(b, r, at, 0.012, 0.35, 0.1);
         }
         return b;

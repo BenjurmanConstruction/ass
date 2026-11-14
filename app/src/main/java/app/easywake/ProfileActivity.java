@@ -154,6 +154,7 @@ public class ProfileActivity extends Activity {
             int cnt = Stats.get(this, "cat" + i);
             if (cnt > 0) line(brain, Games.CATEGORIES[i] + " tests", n(cnt));
         }
+        line(brain, "Sudoku puzzles solved", n(Stats.get(this, "sudoku")));
         line(brain, "Lessons and facts unlocked", n(Stats.get(this, "lessons")));
         root.addView(brain, Ui.full(this, 10));
 
@@ -185,6 +186,7 @@ public class ProfileActivity extends Activity {
         LinearLayout rest = card();
         line(rest, "Block Drop games", n(Stats.get(this, "blocksGames")));
         line(rest, "Block Drop rows cleared", n(Stats.get(this, "blocksRows")));
+        line(rest, "Peg Pop games", n(Stats.get(this, "pegsGames")));
         line(rest, "Glasses of water", n(Stats.get(this, "water")));
         line(rest, "Goals finished", n(Stats.get(this, "goals")));
         line(rest, "Questions asked the helper", n(Stats.get(this, "helper")));

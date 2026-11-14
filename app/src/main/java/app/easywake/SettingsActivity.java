@@ -49,6 +49,20 @@ public class SettingsActivity extends Activity {
                 + "stop working; alarms, sleep sounds, the Brain gym and everything else "
                 + "carry on as normal.", 13, Ui.SUB), Ui.full(this, 8));
 
+        // ----- sound -----
+        final Ui.Row sound = Ui.row(this, "Game sounds", Sfx.modeName(this)
+                .replace("Sound: ", ""));
+        sound.view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Sfx.nextMode(SettingsActivity.this);
+                sound.value.setText(Sfx.modeName(SettingsActivity.this)
+                        .replace("Sound: ", ""));
+            }
+        });
+        root.addView(Ui.heading(this, "Sound"), Ui.full(this, 22));
+        root.addView(sound.view, Ui.full(this, 10));
+
         // ----- brain gym -----
         root.addView(Ui.heading(this, "Brain gym"), Ui.full(this, 26));
         String saved = Prefs.getString(this, "playerName");

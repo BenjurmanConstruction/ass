@@ -32,7 +32,9 @@ import java.util.regex.Pattern;
 public class AssistantActivity extends Activity {
     private static final String[] SUGGESTIONS = {
             "What can you do?", "Next alarm", "Set alarm for 7 am", "How's the market?",
-            "Tell me a joke", "Crazy fact", "My points", "Show my memos", "Play the fan"
+            "Tell me a joke", "Crazy fact", "My points", "What can I unlock?",
+            "Timer 10 minutes", "Concrete 10 x 12 x 4", "5 feet in meters", "Flip a coin",
+            "Show my memos", "Play the fan"
     };
 
     private LinearLayout chat;
@@ -192,6 +194,20 @@ public class AssistantActivity extends Activity {
         String sum = Calc.answer(raw);
         if (sum != null) return sum;
 
+        // ----- conversions, job-site sums, timers, dates, small talk -----
+        String extra = Helper2.answer(this, raw);
+        if (extra != null) return extra;
+
+        // ----- dictionary -----
+        Matcher def = Pattern.compile("(?i)^\\s*(?:define|definition of|meaning of|"
+                + "what does)\\s+(?:the word\\s+)?([a-z'-]+)(?:\\s+mean)?\\s*\\??$").matcher(raw);
+        if (def.find()) {
+            // Market terms are answered from the app's own notes first.
+            String term = MarketKB.answer(raw);
+            if (term != null && Tree.owned(this, "h_market")) return term;
+            return define(def.group(1));
+        }
+
         // ----- lookups that were asked for by name -----
         Matcher look = Pattern.compile("(?i)^\\s*(?:look ?up|search for|search|wiki|"
                 + "wikipedia|who is|who was|who are|who were)\\s+(.+?)\\s*\\??$")
@@ -237,6 +253,18 @@ public class AssistantActivity extends Activity {
         }
 
         // ----- newer tools -----
+        if (has(q, "sudoku")) {
+            open(SudokuActivity.class);
+            return "Opening Sudoku.";
+        }
+        if (has(q, "peg pop", "pegs", "peggle")) {
+            if (Tree.owned(this, "pegs")) {
+                open(PegsActivity.class);
+                return "Opening Peg Pop.";
+            }
+            return "Peg Pop is locked. It's on the Casino branch of the skill tree (40 "
+                    + "Knowledge Points, level 3).";
+        }
         if (has(q, "blackjack", "black jack")) {
             if (Tree.owned(this, "blackjack")) {
                 open(BlackjackActivity.class);
@@ -324,12 +352,9 @@ public class AssistantActivity extends Activity {
                     + "first, then Paper trading (60 Knowledge Points, level 4).";
         }
         if (has(q, "news", "headline")) {
-            if (Tree.owned(this, "m_news")) {
-                open(NewsActivity.class);
-                return "Opening market news.";
-            }
-            return "Market news is locked. It's on the Market branch of the skill tree (40 "
-                    + "Knowledge Points, level 3).";
+            return "The news feed was removed because the headlines weren't useful. For "
+                    + "what's moving markets, try \"economic calendar\" or \"how's the "
+                    + "market\".";
         }
 
         // ----- market -----
@@ -531,10 +556,84 @@ public class AssistantActivity extends Activity {
         }
         // Anything else phrased as "what is ..." goes to the encyclopedia.
         Matcher what = Pattern.compile("(?i)^\\s*(?:what is|what's|what are|what was|"
-                + "what were|define|meaning of|tell me about|where is|when was|when did)\\s+(.+?)\\s*\\??$")
+                + "what were|tell me about|where is|when was|when did)\\s+(.+?)\\s*\\??$")
                 .matcher(raw);
         if (what.find()) return lookup(what.group(1));
         return "I didn't catch that. I'm a simple helper, so try one of these:\n" + help();
+    }
+
+    /** Looks a word up in a free online dictionary, falling back to Wikipedia. */
+    private String define(final String word) {
+        if (!Tree.owned(this, "h_lookup")) {
+            return "I can look words up once you unlock Safe lookups on the Helper branch "
+                    + "of the skill tree (30 Knowledge Points, level 2).";
+        }
+        if (MarketData.netOff) {
+            return "Internet is switched off in Settings, so I can't look things up.";
+        }
+        final TextView pending = bubble("Looking up \"" + word + "\"...", false);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String out;
+                try {
+                    org.json.JSONArray arr = new org.json.JSONArray(MarketData.http(
+                            "https://api.dictionaryapi.dev/api/v2/entries/en/"
+                                    + java.net.URLEncoder.encode(word, "UTF-8")));
+                    org.json.JSONArray meanings = arr.getJSONObject(0)
+                            .getJSONArray("meanings");
+                    StringBuilder sb = new StringBuilder(word.toLowerCase(Locale.US));
+                    int shown = 0;
+                    for (int i = 0; i < meanings.length() && shown < 4; i++) {
+                        org.json.JSONObject m = meanings.getJSONObject(i);
+                        org.json.JSONArray defs = m.getJSONArray("definitions");
+                        for (int j = 0; j < defs.length() && j < 2 && shown < 4; j++) {
+                            sb.append("\n\n").append(m.optString("partOfSpeech"))
+                                    .append(": ").append(defs.getJSONObject(j)
+                                            .optString("definition"));
+                            shown++;
+                        }
+                    }
+                    if (shown == 0) throw new Exception("empty");
+                    out = sb + "\n\nSource: Free Dictionary API (Wiktionary).";
+                } catch (Exception e) {
+                    try {
+                        out = wiki(word);
+                    } catch (Exception e2) {
+                        out = "I couldn't find \"" + word + "\". Check the spelling and "
+                                + "your internet.";
+                    }
+                }
+                final String reply = out;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!isFinishing()) pending.setText(reply);
+                    }
+                });
+            }
+        }).start();
+        return null;
+    }
+
+    /** Downloads the opening summary of the best-matching Wikipedia article. */
+    private static String wiki(String topic) throws Exception {
+        String url = "https://en.wikipedia.org/w/api.php?action=query"
+                + "&generator=search&gsrlimit=1&prop=extracts&exintro=1"
+                + "&explaintext=1&redirects=1&format=json&gsrsearch="
+                + java.net.URLEncoder.encode(topic, "UTF-8");
+        org.json.JSONObject pages = new org.json.JSONObject(MarketData.http(url))
+                .getJSONObject("query").getJSONObject("pages");
+        org.json.JSONObject page = pages.getJSONObject(pages.keys().next());
+        String title = page.optString("title");
+        String text = page.optString("extract").trim();
+        if (text.isEmpty()) throw new Exception("empty");
+        if (text.length() > 700) {
+            int cut = text.lastIndexOf(". ", 700);
+            text = text.substring(0, cut > 200 ? cut + 1 : 700) + " ...";
+        }
+        return title + "\n\n" + text + "\n\nSource: Wikipedia. Anyone can edit it, so "
+                + "double-check anything important.";
     }
 
     /** Fetches a short plain-text summary from Wikipedia. Needs the Safe lookups unlock. */
@@ -554,22 +653,7 @@ public class AssistantActivity extends Activity {
             public void run() {
                 String out;
                 try {
-                    String url = "https://en.wikipedia.org/w/api.php?action=query"
-                            + "&generator=search&gsrlimit=1&prop=extracts&exintro=1"
-                            + "&explaintext=1&redirects=1&format=json&gsrsearch="
-                            + java.net.URLEncoder.encode(topic, "UTF-8");
-                    org.json.JSONObject pages = new org.json.JSONObject(MarketData.http(url))
-                            .getJSONObject("query").getJSONObject("pages");
-                    org.json.JSONObject page = pages.getJSONObject(pages.keys().next());
-                    String title = page.optString("title");
-                    String text = page.optString("extract").trim();
-                    if (text.isEmpty()) throw new Exception("empty");
-                    if (text.length() > 700) {
-                        int cut = text.lastIndexOf(". ", 700);
-                        text = text.substring(0, cut > 200 ? cut + 1 : 700) + " ...";
-                    }
-                    out = title + "\n\n" + text + "\n\nSource: Wikipedia. Anyone can edit "
-                            + "it, so double-check anything important.";
+                    out = wiki(topic);
                 } catch (Exception e) {
                     out = "I couldn't find anything for \"" + topic + "\". Try different "
                             + "words, or check your internet.";
@@ -593,6 +677,15 @@ public class AssistantActivity extends Activity {
                 + "• \"Show my memos\"\n"
                 + "• \"How's the market?\" or \"Price of AAPL\"\n"
                 + "• \"15% of 240\" or \"(40 + 15) / 5\" (calculator)\n"
+                + "• \"5 feet in meters\", \"350 f to c\", \"how many cups in a gallon\"\n"
+                + "• \"Concrete 10 x 12 x 4\", \"drywall 12 x 8\", \"paint 400\", "
+                + "\"stairs 108\", \"board feet 2 x 6 x 10\"\n"
+                + "• \"Timer 10 minutes\" or \"remind me in 2 hours to call Dan\"\n"
+                + "• \"Tip on 48.50\", \"split 120 by 4\", \"percent change from 50 to 65\"\n"
+                + "• \"Days until Christmas\", \"what's the date\", \"flip a coin\", "
+                + "\"roll 2 dice\"\n"
+                + "• \"What can I unlock?\", \"my level\", \"what's new\"\n"
+                + "• \"Define frugal\" (needs Safe lookups)\n"
                 + "• \"Look up the Hoover Dam\" or \"Who was Nikola Tesla?\" (needs Safe "
                 + "lookups)\n"
                 + "• \"How do I find support and resistance?\" (needs Market Q&A)\n"

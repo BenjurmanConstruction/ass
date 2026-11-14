@@ -150,7 +150,6 @@ public class MarketActivity extends Activity {
         body.addView(Ui.heading(this, "Tools"), Ui.full(this, 18));
         body.addView(tool("My portfolio", "m_portfolio"), Ui.full(this, 10));
         body.addView(tool("Paper trading", "m_paper"), Ui.full(this, 10));
-        body.addView(tool("Market news", "m_news"), Ui.full(this, 10));
         body.addView(tool("Price alerts", "m_alerts"), Ui.full(this, 10));
         body.addView(tool("Economic calendar", "m_econ"), Ui.full(this, 10));
 

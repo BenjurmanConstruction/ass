@@ -56,8 +56,9 @@ final class Games {
             "Tap the panel to arm it. It turns red: wait. After a random pause it turns "
                     + "green: tap as fast as you can. You get five tries and your score is "
                     + "the average. Tapping before green doesn't count and you redo that try.",
-            "A sum appears with four answers. Tap the right one. You have 60 seconds, and the "
-                    + "sums get harder as you go. A wrong answer just moves you on, so don't "
+            "After a 3-2-1 countdown, a sum appears with four answers. Tap the right one. "
+                    + "You have 60 seconds. It starts with easy single digits and the sums "
+                    + "get harder every four you get right. A wrong answer just moves you on, so don't "
                     + "freeze: speed matters more than being perfect.",
             "A number flashes on screen for a few seconds, then disappears. Type it back "
                     + "exactly. Get it right and the next number is one digit longer. The "
@@ -89,9 +90,11 @@ final class Games {
             "Sixteen cards lie face down, hiding eight pairs of symbols. Flip two at a time. "
                     + "A matching pair stays up; otherwise they turn back over. Clear the "
                     + "board in as few moves as you can. Fewer moves beats faster time.",
-            "A 5 by 5 grid holds the numbers 1 to 25 in random order. Tap them in order from "
-                    + "1 to 25 as fast as you can. Tip: keep your eyes on the center and use "
-                    + "your side vision to find the next number instead of scanning.",
+            "A grid holds the numbers in random order. Tap them in order as fast as you "
+                    + "can. Pick from four races: Classic (1 to 25), Backwards (25 to 1), "
+                    + "Big grid (1 to 36) and Shuffle, where the grid rearranges every five "
+                    + "numbers. A wrong tap adds a second. Tip: keep your eyes on the "
+                    + "center and use your side vision instead of scanning.",
             "Every tile is the same color except one that's a slightly different shade. Tap "
                     + "the odd one. Each one you find makes the next difference smaller. You "
                     + "have 30 seconds, and a wrong tap costs you two of them.",
@@ -105,8 +108,9 @@ final class Games {
                     + "same as the one shown two letters ago. Otherwise do nothing. For "
                     + "example in the run K, T, K the second K is a match. It's hard on "
                     + "purpose; this one really stretches working memory.",
-            "A scatter of dots flashes for under a second. Then pick how many there were. "
-                    + "Ten rounds, and the counts climb. Tip: don't count one by one. See "
+            "A scatter of dots flashes briefly. Then pick how many there were. Ten "
+                    + "rounds: it starts with a few dots and a long look, then the counts "
+                    + "climb and the flash gets shorter. Tip: don't count one by one. See "
                     + "them as small groups and add the groups.",
             "You're given a target, like 10 seconds. Tap Start, then tap Stop when you think "
                     + "exactly that much time has passed. There's no clock on screen. Three "

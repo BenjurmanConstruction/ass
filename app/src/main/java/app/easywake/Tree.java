@@ -61,6 +61,9 @@ final class Tree {
             new Node("blocks", 0, FEATURE, "Block Drop",
                     "A falling-blocks puzzle. Clearing rows earns Knowledge Points.",
                     40, 3, null, null),
+            new Node("pegs", 0, FEATURE, "Peg Pop",
+                    "Aim, shoot and bounce a ball through the pegs. Clear the gold ones.",
+                    40, 3, null, null),
             new Node("blackjack", 0, FEATURE, "Blackjack",
                     "Beat the dealer to 21. Blackjack pays 3 to 2.", 50, 3, "slot", null),
             new Node("holdem", 0, FEATURE, "Texas Hold'em",
@@ -151,13 +154,11 @@ final class Tree {
             new Node("m_portfolio", 1, FEATURE, "Portfolio tracker",
                     "Enter your real positions and cost basis; see value and gain.", 40, 3,
                     null, null),
-            new Node("m_news", 1, FEATURE, "Market news",
-                    "Headlines from CNBC, MarketWatch and Yahoo Finance.", 40, 3, null, null),
             new Node("m_paper", 1, FEATURE, "Paper trading",
                     "Practice with $10,000 of pretend cash. Add more with Knowledge Points.",
                     60, 4, "m_risk", null),
             new Node("m_econ", 1, FEATURE, "Economic calendar",
-                    "Dates of Fed decisions, inflation reports and jobs reports.", 25, 2,
+                    "Fed decisions, CPI, PPI, PCE, GDP and jobs dates, with the latest numbers.", 25, 2,
                     null, null),
             new Node("m_alerts", 1, FEATURE, "Price alerts",
                     "A notification when a ticker reaches the price you set.", 40, 3, null,
@@ -299,6 +300,7 @@ final class Tree {
     static Class<?> screen(String id) {
         if ("slot".equals(id)) return SlotActivity.class;
         if ("blocks".equals(id)) return BlocksActivity.class;
+        if ("pegs".equals(id)) return PegsActivity.class;
         if ("blackjack".equals(id)) return BlackjackActivity.class;
         if ("holdem".equals(id)) return HoldemActivity.class;
         if ("l_water".equals(id)) return WaterActivity.class;
@@ -306,7 +308,6 @@ final class Tree {
         if ("m_alerts".equals(id)) return AlertsActivity.class;
         if ("m_portfolio".equals(id)) return PortfolioActivity.class;
         if ("m_paper".equals(id)) return PaperActivity.class;
-        if ("m_news".equals(id)) return NewsActivity.class;
         if ("l_weather".equals(id)) return WeatherActivity.class;
         if ("l_recipes".equals(id)) return RecipesActivity.class;
         if ("l_goals".equals(id)) return GoalsActivity.class;

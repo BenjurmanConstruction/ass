@@ -88,10 +88,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".NewsActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".TreeActivity"
             android:exported="false" />
 
@@ -170,6 +166,16 @@
 
         <activity
             android:name=".EconActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".PegsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".SudokuActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 

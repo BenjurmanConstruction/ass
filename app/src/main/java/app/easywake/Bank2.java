@@ -321,13 +321,28 @@ final class Bank2 {
         return out.toArray(new String[0][]);
     }
 
+    private static String[][] triviaHard;
+    private static String[][] vocabHard;
+
+    static String[][] triviaHard() {
+        if (triviaHard == null) triviaHard = unique(join(Bank4.TRIVIA_HARD, Bank5.TRIVIA_HARD));
+        return triviaHard;
+    }
+
+    static String[][] vocabHard() {
+        if (vocabHard == null) vocabHard = unique(join(Bank4.VOCAB_HARD, Bank5.VOCAB_HARD));
+        return vocabHard;
+    }
+
     static String[][] trivia() {
-        if (trivia == null) trivia = unique(join(join(Bank.TRIVIA, TRIVIA), Bank3.TRIVIA));
+        if (trivia == null) trivia = unique(join(join(join(Bank.TRIVIA, TRIVIA), Bank3.TRIVIA),
+                Bank5.TRIVIA));
         return trivia;
     }
 
     static String[][] vocab() {
-        if (vocab == null) vocab = unique(join(join(Bank.VOCAB, VOCAB), Bank3.VOCAB));
+        if (vocab == null) vocab = unique(join(join(join(Bank.VOCAB, VOCAB), Bank3.VOCAB),
+                Bank5.VOCAB));
         return vocab;
     }
 

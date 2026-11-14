@@ -235,6 +235,7 @@ public class SlotActivity extends Activity {
             }
         });
         root.addView(spinBtn, Ui.full(this, 12));
+        root.addView(Sfx.toggle(this), Ui.full(this, 10));
 
         Button getCoupons = Ui.button(this, "Wallet: get coupons or cash out", false);
         getCoupons.setOnClickListener(new View.OnClickListener() {
@@ -244,8 +245,6 @@ public class SlotActivity extends Activity {
             }
         });
         root.addView(getCoupons, Ui.full(this, 10));
-
-        root.addView(Sfx.toggle(this), Ui.full(this, 10));
 
         Button table = Ui.button(this, "Pay table and odds", false);
         table.setOnClickListener(new View.OnClickListener() {

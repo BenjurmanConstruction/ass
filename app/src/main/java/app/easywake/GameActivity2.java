@@ -68,7 +68,12 @@ public class GameActivity2 extends GameActivity {
                 startNBack();
                 break;
             case DOTS:
-                startDots();
+                countdown(new Runnable() {
+                    @Override
+                    public void run() {
+                        startDots();
+                    }
+                });
                 break;
             case TIME:
                 startTime();
@@ -83,11 +88,11 @@ public class GameActivity2 extends GameActivity {
                 startChain();
                 break;
             case TRIVIA:
-                chooseLevel(new String[][][]{Bank2.trivia(), Bank4.TRIVIA_HARD,
+                chooseLevel(new String[][][]{Bank2.trivia(), Bank2.triviaHard(),
                         Bank4.TRIVIA_EXPERT}, null, "seenTrivia");
                 break;
             case VOCAB:
-                chooseLevel(new String[][][]{Bank2.vocab(), Bank4.VOCAB_HARD,
+                chooseLevel(new String[][][]{Bank2.vocab(), Bank2.vocabHard(),
                         Bank4.VOCAB_EXPERT}, "What does this word mean?", "seenVocab");
                 break;
             case LOGIC:
@@ -412,54 +417,175 @@ public class GameActivity2 extends GameActivity {
 
     // ---------- number grid race (Schulte table) ----------
 
+    private static final String[] GRID_NAMES = {"Classic", "Backwards", "Big grid",
+            "Shuffle"};
+    private static final String[] GRID_HINTS = {
+            "Tap 1 to 25 in order",
+            "Tap 25 down to 1",
+            "A 6 by 6 grid: 1 to 36",
+            "1 to 25, and the grid reshuffles every 5 numbers"};
+    private int gridVariant;
+    private int gridSize;
     private int gridNext;
+    private int gridFound;
+    private int gridMisses;
     private long gridStart;
     private TextView gridInfo;
+    private android.widget.ProgressBar gridBar;
+    private final List<Integer> gridValues = new ArrayList<>();
+    private final List<Integer> gridDone = new ArrayList<>();
+    private TextView[] gridCells = new TextView[0];
 
+    /** Lets you pick which kind of grid to race. */
     private void startGrid() {
-        gridNext = 1;
-        List<Integer> nums = new ArrayList<>();
-        for (int i = 1; i <= 25; i++) nums.add(i);
-        Collections.shuffle(nums, rnd);
         LinearLayout col = column();
-        gridInfo = note("Find 1");
-        col.addView(gridInfo, Ui.full(this, 0));
+        col.addView(note("Pick a race"), Ui.full(this, 0));
         col.addView(spacer(), grow());
-        for (int r = 0; r < 5; r++) {
+        for (int i = 0; i < GRID_NAMES.length; i++) {
+            final int variant = i;
+            int best = Prefs.getInt(this, "gridBest" + i, 0);
+            Button bt = Ui.button(this, GRID_NAMES[i] + "\n" + GRID_HINTS[i]
+                    + (best > 0 ? "\nYour best: " + secs(best) : ""), i == 0);
+            bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            bt.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    gridVariant = variant;
+                    countdown(new Runnable() {
+                        @Override
+                        public void run() {
+                            gridBegin();
+                        }
+                    });
+                }
+            });
+            col.addView(bt, Ui.full(this, 10));
+        }
+        col.addView(Ui.text(this, "A wrong tap adds one second to your time.", 13, Ui.SUB),
+                Ui.full(this, 12));
+        col.addView(spacer(), grow());
+    }
+
+    private void gridBegin() {
+        gridSize = gridVariant == 2 ? 6 : 5;
+        final int count = gridSize * gridSize;
+        gridNext = gridVariant == 1 ? count : 1;
+        gridFound = 0;
+        gridMisses = 0;
+        gridValues.clear();
+        gridDone.clear();
+        for (int i = 1; i <= count; i++) gridValues.add(i);
+        Collections.shuffle(gridValues, rnd);
+        gridCells = new TextView[count];
+
+        LinearLayout col = column();
+        gridInfo = note("");
+        gridInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        col.addView(gridInfo, Ui.full(this, 0));
+        gridBar = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        gridBar.setMax(count);
+        gridBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+        col.addView(gridBar, Ui.full(this, 8));
+        col.addView(spacer(), grow());
+        for (int r = 0; r < gridSize; r++) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            for (int c = 0; c < 5; c++) {
-                final int value = nums.get(r * 5 + c);
-                final TextView t = Ui.text(this, String.valueOf(value), 22, Ui.TEXT);
+            for (int c = 0; c < gridSize; c++) {
+                final int idx = r * gridSize + c;
+                final TextView t = Ui.text(this, "", gridSize == 6 ? 19 : 22, Ui.TEXT);
                 t.setTypeface(Ui.medium());
                 t.setGravity(Gravity.CENTER);
                 t.setBackground(Ui.card(this, 12));
                 t.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        if (value != gridNext) return;
-                        t.setTextColor(0x33FFFFFF);
-                        gridNext++;
-                        if (gridNext > 25) {
-                            int ms = (int) (SystemClock.uptimeMillis() - gridStart);
-                            end(-ms / 10, secs(ms), "Time to tap 1 through 25. Under 30 "
-                                            + "seconds is solid; under 20 is excellent.",
-                                    Math.max(5, Math.min(40, 55 - ms / 1000)));
-                        } else {
-                            gridInfo.setText("Find " + gridNext);
-                        }
+                        gridTap(idx);
                     }
                 });
                 LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,
-                        Ui.dp(this, 62), 1f);
+                        Ui.dp(this, gridSize == 6 ? 54 : 62), 1f);
                 int m = Ui.dp(this, 3);
                 p.setMargins(m, m, m, m);
                 row.addView(t, p);
+                gridCells[idx] = t;
             }
             col.addView(row, Ui.full(this, 0));
         }
         col.addView(spacer(), grow());
+        gridPaint();
         gridStart = SystemClock.uptimeMillis();
+        final int mine = ++token;
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (mine != token) return;
+                long ms = SystemClock.uptimeMillis() - gridStart + gridMisses * 1000L;
+                gridInfo.setText("Find " + gridNext + "   •   " + String.format(
+                        java.util.Locale.US, "%.1f s", ms / 1000f)
+                        + (gridMisses > 0 ? "   •   " + gridMisses + " wrong" : ""));
+                handler.postDelayed(this, 100);
+            }
+        });
+    }
+
+    private void gridPaint() {
+        for (int i = 0; i < gridCells.length; i++) {
+            int value = gridValues.get(i);
+            boolean done = gridDone.contains(value);
+            gridCells[i].setText(String.valueOf(value));
+            gridCells[i].setTextColor(done ? 0x2AFFFFFF : Ui.TEXT);
+            gridCells[i].setBackground(Ui.card(this, 12));
+        }
+        gridBar.setProgress(gridFound);
+    }
+
+    private void gridTap(int idx) {
+        final int value = gridValues.get(idx);
+        if (gridDone.contains(value)) return;
+        final TextView cell = gridCells[idx];
+        if (value != gridNext) {
+            // Wrong number: flash red and add a second.
+            gridMisses++;
+            cell.setBackground(Ui.round(this, 0xFF7A2E2E, 12));
+            cell.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            final int mine = token;
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mine == token) cell.setBackground(Ui.card(GameActivity2.this, 12));
+                }
+            }, 220);
+            return;
+        }
+        cell.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        gridDone.add(value);
+        gridFound++;
+        int count = gridCells.length;
+        if (gridFound >= count) {
+            int ms = (int) (SystemClock.uptimeMillis() - gridStart) + gridMisses * 1000;
+            int best = Prefs.getInt(this, "gridBest" + gridVariant, 0);
+            if (best == 0 || ms < best) Prefs.putInt(this, "gridBest" + gridVariant, ms);
+            // Compare every kind of race on the same scale: time per 25 numbers.
+            int per25 = ms * 25 / count;
+            int bonus = gridVariant == 0 ? 0 : (gridVariant == 1 ? 3 : 5);
+            end(-per25 / 10, secs(ms) + (gridVariant > 0 ? ", " + GRID_NAMES[gridVariant]
+                            : ""),
+                    (gridMisses > 0 ? gridMisses + " wrong tap" + (gridMisses == 1 ? "" : "s")
+                            + " added " + gridMisses + " s. " : "")
+                            + "On the classic grid, under 30 seconds is solid and under 20 "
+                            + "is excellent.",
+                    Math.max(5, Math.min(40, 55 - per25 / 1000)) + bonus);
+            return;
+        }
+        gridNext += gridVariant == 1 ? -1 : 1;
+        if (gridVariant == 3 && gridFound % 5 == 0) {
+            Collections.shuffle(gridValues, rnd);
+            gridPaint();
+        } else {
+            cell.setTextColor(0x2AFFFFFF);
+            gridBar.setProgress(gridFound);
+        }
     }
 
     // ---------- odd color out ----------
@@ -816,7 +942,20 @@ public class GameActivity2 extends GameActivity {
     private void dotFlash() {
         dotChoices.setVisibility(View.INVISIBLE);
         dotArena.removeAllViews();
-        dotAnswer = 4 + rnd.nextInt(5 + dotRound);
+        dotInfo.setText("Round " + (dotRound + 1) + " of 10. Ready...");
+        // A short pause so the dots don't appear before you're looking.
+        final int wait = ++token;
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (wait == token) dotShow();
+            }
+        }, 800);
+    }
+
+    private void dotShow() {
+        // Start small and slow, then build: 3 to 5 dots at first, more each round.
+        dotAnswer = 3 + dotRound / 2 + rnd.nextInt(3);
         int size = Ui.dp(this, 22);
         int w = Math.max(1, dotArena.getWidth() - size);
         int h = Math.max(1, dotArena.getHeight() - size);
@@ -859,7 +998,7 @@ public class GameActivity2 extends GameActivity {
                 fillOptions(dotBtns, dotAnswer, 3);
                 dotChoices.setVisibility(View.VISIBLE);
             }
-        }, 750);
+        }, Math.max(800, 1700 - dotRound * 100));
     }
 
     // ---------- time sense ----------

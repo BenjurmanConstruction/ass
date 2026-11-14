@@ -90,9 +90,11 @@ final class Facts {
 
     static String[] all() {
         if (all == null) {
-            all = new String[ALL.length + Facts2.ALL.length];
+            all = new String[ALL.length + Facts2.ALL.length + Facts3.ALL.length];
             System.arraycopy(ALL, 0, all, 0, ALL.length);
             System.arraycopy(Facts2.ALL, 0, all, ALL.length, Facts2.ALL.length);
+            System.arraycopy(Facts3.ALL, 0, all, ALL.length + Facts2.ALL.length,
+                    Facts3.ALL.length);
         }
         return all;
     }

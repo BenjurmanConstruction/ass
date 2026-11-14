@@ -141,7 +141,12 @@ public class GameActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
         switch (mode) {
             case MATH:
-                startMath();
+                countdown(new Runnable() {
+                    @Override
+                    public void run() {
+                        startMath();
+                    }
+                });
                 break;
             case DIGITS:
                 startDigits();
@@ -176,6 +181,31 @@ public class GameActivity extends Activity {
     }
 
     // ---------- shared pieces ----------
+
+    /** Counts 3, 2, 1 on screen before a timed test begins, so the clock starts fair. */
+    void countdown(final Runnable go) {
+        LinearLayout col = column();
+        col.addView(spacer(), grow());
+        col.addView(note("Get ready"), Ui.full(this, 0));
+        final TextView number = big("3", 96);
+        col.addView(number, Ui.full(this, 6));
+        col.addView(spacer(), grow());
+        final int mine = ++token;
+        final int[] left = {3};
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (mine != token) return;
+                left[0]--;
+                if (left[0] <= 0) {
+                    go.run();
+                } else {
+                    number.setText(String.valueOf(left[0]));
+                    handler.postDelayed(this, 650);
+                }
+            }
+        }, 650);
+    }
 
     LinearLayout column() {
         stage.removeAllViews();
@@ -498,24 +528,25 @@ public class GameActivity extends Activity {
     }
 
     void mathNext() {
-        int level = Math.min(4, mathScore / 5);
+        // Starts with single digits and small times tables, then grows every four right.
+        int level = Math.min(5, mathScore / 4);
         int kind = rnd.nextInt(3);
         int a;
         int b2;
         String text;
         if (kind == 0) {
-            a = 3 + rnd.nextInt(12 + level * 15);
-            b2 = 2 + rnd.nextInt(12 + level * 15);
+            a = 2 + rnd.nextInt(8 + level * 13);
+            b2 = 2 + rnd.nextInt(8 + level * 13);
             mathAnswer = a + b2;
             text = a + " + " + b2;
         } else if (kind == 1) {
-            a = 8 + rnd.nextInt(14 + level * 15);
-            b2 = 2 + rnd.nextInt(Math.max(2, a - 3));
+            a = 6 + rnd.nextInt(9 + level * 13);
+            b2 = 1 + rnd.nextInt(Math.max(2, a - 2));
             mathAnswer = a - b2;
             text = a + " − " + b2;
         } else {
-            a = 2 + rnd.nextInt(8 + level);
-            b2 = 2 + rnd.nextInt(8 + level);
+            a = 2 + rnd.nextInt(4 + level * 3 / 2);
+            b2 = 2 + rnd.nextInt(4 + level * 3 / 2);
             mathAnswer = a * b2;
             text = a + " × " + b2;
         }

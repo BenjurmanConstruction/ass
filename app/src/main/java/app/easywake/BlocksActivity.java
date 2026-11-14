@@ -261,7 +261,8 @@ public class BlocksActivity extends Activity {
     }
 
     private long delay() {
-        return Math.max(90, 720 - (level() - 1) * 60L);
+        // A full second per step to begin with, quickening a little each level.
+        return Math.max(130, 1000 - (level() - 1) * 75L);
     }
 
     private void newGame() {

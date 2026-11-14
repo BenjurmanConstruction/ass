@@ -137,6 +137,14 @@ public class BrainActivity extends Activity {
             }
         });
         hero.addView(spend, Ui.full(this, 10));
+        Button sudoku = Ui.button(this, "Sudoku: solve one for up to 35 points", false);
+        sudoku.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(BrainActivity.this, SudokuActivity.class));
+            }
+        });
+        hero.addView(sudoku, Ui.full(this, 10));
         root.addView(hero, Ui.full(this, 14));
 
         // ----- daily challenge -----

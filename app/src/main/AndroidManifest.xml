@@ -170,6 +170,21 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".Slot2Activity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".RouletteActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".VideoPokerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".PegsActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

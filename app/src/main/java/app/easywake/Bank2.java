@@ -325,24 +325,43 @@ final class Bank2 {
     private static String[][] vocabHard;
 
     static String[][] triviaHard() {
-        if (triviaHard == null) triviaHard = unique(join(Bank4.TRIVIA_HARD, Bank5.TRIVIA_HARD));
+        if (triviaHard == null) triviaHard = unique(join(join(Bank4.TRIVIA_HARD,
+                Bank5.TRIVIA_HARD), Bank6.trivia(1)));
         return triviaHard;
     }
 
     static String[][] vocabHard() {
-        if (vocabHard == null) vocabHard = unique(join(Bank4.VOCAB_HARD, Bank5.VOCAB_HARD));
+        if (vocabHard == null) vocabHard = unique(join(join(Bank4.VOCAB_HARD,
+                Bank5.VOCAB_HARD), Bank7.vocab(1)));
         return vocabHard;
     }
 
+    private static String[][] triviaExpert;
+    private static String[][] vocabExpert;
+
+    static String[][] triviaExpert() {
+        if (triviaExpert == null) {
+            triviaExpert = unique(join(Bank4.TRIVIA_EXPERT, Bank6.trivia(2)));
+        }
+        return triviaExpert;
+    }
+
+    static String[][] vocabExpert() {
+        if (vocabExpert == null) {
+            vocabExpert = unique(join(Bank4.VOCAB_EXPERT, Bank7.vocab(2)));
+        }
+        return vocabExpert;
+    }
+
     static String[][] trivia() {
-        if (trivia == null) trivia = unique(join(join(join(Bank.TRIVIA, TRIVIA), Bank3.TRIVIA),
-                Bank5.TRIVIA));
+        if (trivia == null) trivia = unique(join(join(join(join(Bank.TRIVIA, TRIVIA),
+                Bank3.TRIVIA), Bank5.TRIVIA), Bank6.trivia(0)));
         return trivia;
     }
 
     static String[][] vocab() {
-        if (vocab == null) vocab = unique(join(join(join(Bank.VOCAB, VOCAB), Bank3.VOCAB),
-                Bank5.VOCAB));
+        if (vocab == null) vocab = unique(join(join(join(join(Bank.VOCAB, VOCAB), Bank3.VOCAB),
+                Bank5.VOCAB), Bank7.vocab(0)));
         return vocab;
     }
 

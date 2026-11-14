@@ -89,11 +89,11 @@ public class GameActivity2 extends GameActivity {
                 break;
             case TRIVIA:
                 chooseLevel(new String[][][]{Bank2.trivia(), Bank2.triviaHard(),
-                        Bank4.TRIVIA_EXPERT}, null, "seenTrivia");
+                        Bank2.triviaExpert()}, null, "seenTrivia");
                 break;
             case VOCAB:
                 chooseLevel(new String[][][]{Bank2.vocab(), Bank2.vocabHard(),
-                        Bank4.VOCAB_EXPERT}, "What does this word mean?", "seenVocab");
+                        Bank2.vocabExpert()}, "What does this word mean?", "seenVocab");
                 break;
             case LOGIC:
                 startQuiz(Bank2.logic(), null, "seenLogic");

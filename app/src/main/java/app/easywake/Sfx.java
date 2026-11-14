@@ -20,12 +20,16 @@ final class Sfx {
     static final int CHIPS = 5;
     static final int LOSE = 6;
     static final int PEG = 7;
-    private static final int COUNT = 8;
+    /** The spin clip for the five-reel slot. */
+    static final int SPIN5 = 8;
+    private static final int COUNT = 9;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
     /** How long each slot reel spins, in milliseconds. Must match SlotActivity. */
     static final long[] REEL_MS = {1900, 2700, 3600};
+    /** The same for the five-reel slot. Must match Slot2Activity. */
+    static final long[] REEL5_MS = {1300, 1700, 2100, 2500, 2900};
 
     private Sfx() {}
 
@@ -98,6 +102,7 @@ final class Sfx {
     }
 
     static synchronized void stopAll() {
+        // Stops whatever is still ringing, on every sound.
         for (int i = 0; i < COUNT; i++) stop(i);
     }
 
@@ -121,7 +126,10 @@ final class Sfx {
         float[] b;
         switch (id) {
             case SPIN:
-                b = spin();
+                b = spin(REEL_MS);
+                break;
+            case SPIN5:
+                b = spin(REEL5_MS);
                 break;
             case WIN:
                 b = notes(new double[]{784, 1047}, 0.12, 0.5);
@@ -149,7 +157,7 @@ final class Sfx {
         float peak = 0.001f;
         for (float v : b) peak = Math.max(peak, Math.abs(v));
         // Kept well under full volume: these sit behind the game, not on top of it.
-        float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f};
+        float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f, 0.3f};
         float scale = loudness[id] / peak;
         short[] out = new short[b.length];
         for (int i = 0; i < b.length; i++) out[i] = (short) (b[i] * scale * 32767);
@@ -218,21 +226,21 @@ final class Sfx {
      * The whole spin as one clip: each reel ticks as its symbols pass, slowing as it
      * brakes, and thumps when it stops. Timed to match what the reels do on screen.
      */
-    private static float[] spin() {
+    private static float[] spin(long[] ms) {
         Random r = new Random(7);
-        float[] b = new float[(int) ((REEL_MS[2] / 1000.0 + 0.35) * SR)];
-        for (int reel = 0; reel < 3; reel++) {
-            double dur = REEL_MS[reel] / 1000.0;
-            int symbols = 7 + (int) (REEL_MS[reel] * 14 / 1000) - 3;
+        float[] b = new float[(int) ((ms[ms.length - 1] / 1000.0 + 0.35) * SR)];
+        for (int reel = 0; reel < ms.length; reel++) {
+            double dur = ms[reel] / 1000.0;
+            int symbols = 7 + (int) (ms[reel] * 14 / 1000) - 3;
             int last = 0;
-            for (int ms = 0; ms < REEL_MS[reel]; ms++) {
-                int passed = (int) (symbols * ease(ms / (double) REEL_MS[reel]));
+            for (int at1 = 0; at1 < ms[reel]; at1++) {
+                int passed = (int) (symbols * ease(at1 / (double) ms[reel]));
                 if (passed != last) {
                     last = passed;
-                    double at = ms / 1000.0;
+                    double at = at1 / 1000.0;
                     // A soft, dull click, like a wooden ratchet. Later reels are
                     // quieter so three together don't turn into a buzz.
-                    burst(b, r, at, 0.014, 0.16 - reel * 0.04, 0.82);
+                    burst(b, r, at, 0.014, Math.max(0.05, 0.16 - reel * 0.03), 0.82);
                 }
             }
             thump(b, r, dur, 0.5);

@@ -1,17 +1,19 @@
 package app.easywake;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.format.DateFormat;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -61,28 +63,18 @@ public class AssistantActivity extends Activity {
         sp.topMargin = Ui.dp(this, 10);
         root.addView(scroll, sp);
 
-        HorizontalScrollView hs = new HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        LinearLayout chips = new LinearLayout(this);
-        chips.setOrientation(LinearLayout.HORIZONTAL);
-        for (final String s : SUGGESTIONS) {
-            TextView chip = Ui.text(this, s, 13, Ui.TEXT);
-            chip.setBackground(Ui.ripple(this, Ui.card(this, 18), 18));
-            chip.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
-            chip.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    send(s);
-                }
-            });
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            cp.rightMargin = Ui.dp(this, 8);
-            chips.addView(chip, cp);
-        }
-        hs.addView(chips);
-        root.addView(hs, Ui.full(this, 8));
+        Button menu = Ui.button(this, "Show what I can do", false);
+        menu.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        menu.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showTopics("Pick a topic");
+            }
+        });
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 44));
+        mp.topMargin = Ui.dp(this, 8);
+        root.addView(menu, mp);
 
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -121,10 +113,254 @@ public class AssistantActivity extends Activity {
         setContentView(root);
         Bg.apply(this, root);
 
-        bubble(greeting() + " I'm the built-in helper. I can set alarms, save memos, check "
-                + "the market, play sleep sounds, tell jokes and facts, and explain how "
-                + "things in this app work. Tap a suggestion below or type what you need.",
-                false);
+        bubble(greeting() + " I'm the helper. Tap a topic to see what I can do, or just "
+                + "type what you need in plain words.", false);
+        showTopics("What do you need?");
+    }
+
+    // ---------- topics: what the helper can do, as buttons ----------
+
+    /**
+     * Each topic is {name, one-line description, actions...}. An action is "label|kind:text"
+     * where kind is run (send it), fill (put it in the box to finish typing) or form
+     * (ask for the numbers in a small window).
+     */
+    private static final String[][] TOPICS = {
+            {"Alarms and sleep", "Check or set alarms, and play sleep sounds.",
+                    "Next alarm|run:Next alarm",
+                    "Set an alarm...|fill:Set alarm for ",
+                    "Play the fan|run:Play the fan",
+                    "Stop the sound|run:Stop the fan"},
+            {"Timers and notes", "Quick timers and notes to yourself.",
+                    "Start a timer...|form:timer",
+                    "Remind me in a while...|form:remind",
+                    "Write a memo...|fill:Memo ",
+                    "Show my memos|run:Show my memos"},
+            {"Sums", "Type any sum, like 48 x 12.5 or 15% of 240. Or use these.",
+                    "Work out a tip...|form:tip",
+                    "Split a bill...|form:split",
+                    "Percent change...|form:change",
+                    "Type a sum...|fill:"},
+            {"Convert units", "Length, weight, volume, area, speed and temperature.",
+                    "Convert something...|form:convert",
+                    "5 feet in meters|run:5 feet in meters",
+                    "350 F to C|run:350 f to c",
+                    "Cups in a gallon|run:how many cups in a gallon"},
+            {"Job site", "Material sums for the job.",
+                    "Concrete for a slab...|form:concrete",
+                    "Drywall sheets...|form:drywall",
+                    "Paint...|form:paint",
+                    "Stairs...|form:stairs",
+                    "Board feet...|form:board",
+                    "Square feet...|form:area"},
+            {"Market", "Prices, the calendar and market questions.",
+                    "How's the market?|run:How's the market?",
+                    "Price of a ticker...|fill:Price of ",
+                    "Economic calendar|run:Economic calendar",
+                    "Price alerts|run:Price alerts",
+                    "Ask a market question...|fill:What is "},
+            {"Look things up", "Short answers from Wikipedia and a dictionary.",
+                    "Look something up...|fill:Look up ",
+                    "Define a word...|fill:Define ",
+                    "Who was...|fill:Who was "},
+            {"My progress", "Points, levels and what to unlock next.",
+                    "My points|run:My points",
+                    "What can I unlock?|run:What can I unlock?",
+                    "My level|run:My level",
+                    "My profile|run:Open my profile",
+                    "Daily challenge|run:Daily challenge"},
+            {"Fun", "Jokes, facts and a bit of chance.",
+                    "Tell me a joke|run:Tell me a joke",
+                    "Crazy fact|run:Crazy fact",
+                    "Flip a coin|run:Flip a coin",
+                    "Roll two dice|run:Roll 2 dice",
+                    "Days until Christmas|run:Days until Christmas"},
+    };
+
+    /** {window title, command pattern, field labels...}. A * marks a field for words. */
+    private static String[] formSpec(String kind) {
+        switch (kind) {
+            case "timer":
+                return new String[]{"Start a timer", "timer {0} minutes[ to {1}]",
+                        "Minutes", "*What for (optional)"};
+            case "remind":
+                return new String[]{"Remind me", "remind me in {0} minutes[ to {1}]",
+                        "In how many minutes", "*About what (optional)"};
+            case "tip":
+                return new String[]{"Tip", "[{1}% ]tip on {0}", "Bill amount",
+                        "Tip percent (optional)"};
+            case "split":
+                return new String[]{"Split a bill", "split {0} by {1}", "Total amount",
+                        "Number of people"};
+            case "change":
+                return new String[]{"Percent change", "percent change from {0} to {1}",
+                        "From", "To"};
+            case "convert":
+                return new String[]{"Convert", "{0} {1} to {2}", "Amount",
+                        "*From (feet, lb, gallons...)", "*To (meters, kg, liters...)"};
+            case "concrete":
+                return new String[]{"Concrete for a slab", "concrete {0} x {1} x {2}",
+                        "Length in feet", "Width in feet", "Thickness in inches"};
+            case "drywall":
+                return new String[]{"Drywall sheets", "drywall {0} x {1}",
+                        "Wall length in feet", "Wall height in feet"};
+            case "paint":
+                return new String[]{"Paint", "paint {0} x {1}", "Wall length in feet",
+                        "Wall height in feet"};
+            case "stairs":
+                return new String[]{"Stairs", "stairs {0}", "Total rise in inches"};
+            case "board":
+                return new String[]{"Board feet", "board feet {0} x {1} x {2}",
+                        "Thickness in inches", "Width in inches", "Length in feet"};
+            default:
+                return new String[]{"Square feet", "square feet {0} x {1}", "Length in feet",
+                        "Width in feet"};
+        }
+    }
+
+    /** Adds a card to the chat with one button per topic. */
+    private void showTopics(String heading) {
+        LinearLayout card = menuCard(heading, null);
+        LinearLayout row = null;
+        for (int i = 0; i < TOPICS.length; i++) {
+            if (i % 2 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                card.addView(row, Ui.full(this, 6));
+            }
+            final int idx = i;
+            Button bt = Ui.button(this, TOPICS[i][0], false);
+            bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+            bt.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+            bt.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showTopic(idx);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 52), 1f);
+            int m = Ui.dp(this, 3);
+            lp.setMargins(m, 0, m, 0);
+            row.addView(bt, lp);
+        }
+        if (TOPICS.length % 2 == 1 && row != null) {
+            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        }
+    }
+
+    /** Adds a card to the chat listing everything in one topic. */
+    private void showTopic(int idx) {
+        final String[] t = TOPICS[idx];
+        LinearLayout card = menuCard(t[0], t[1]);
+        for (int i = 2; i < t.length; i++) {
+            int bar = t[i].indexOf('|');
+            String label = t[i].substring(0, bar);
+            final String action = t[i].substring(bar + 1);
+            Button bt = Ui.button(this, label, false);
+            bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            bt.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    act(action);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 48));
+            lp.topMargin = Ui.dp(this, 6);
+            card.addView(bt, lp);
+        }
+    }
+
+    private LinearLayout menuCard(String title, String sub) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(Ui.card(this, 18));
+        card.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 14));
+        TextView t = Ui.text(this, title, 16, Ui.ACCENT);
+        t.setTypeface(Ui.medium());
+        card.addView(t);
+        if (sub != null) card.addView(Ui.text(this, sub, 13, Ui.SUB));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Ui.dp(this, 10);
+        chat.addView(card, lp);
+        scroll.post(new Runnable() {
+            @Override
+            public void run() {
+                scroll.fullScroll(View.FOCUS_DOWN);
+            }
+        });
+        return card;
+    }
+
+    private void act(String action) {
+        int colon = action.indexOf(':');
+        String kind = action.substring(0, colon);
+        String text = action.substring(colon + 1);
+        if (kind.equals("run")) {
+            send(text);
+        } else if (kind.equals("fill")) {
+            // Put the start of the command in the box, ready to be finished.
+            input.setText(text);
+            input.setSelection(text.length());
+            input.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(
+                    Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+        } else {
+            form(formSpec(text));
+        }
+    }
+
+    /** Asks for a few values in a small window, then sends the finished command. */
+    private void form(final String[] spec) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(this, 20);
+        box.setPadding(pad, Ui.dp(this, 8), pad, 0);
+        final EditText[] fields = new EditText[spec.length - 2];
+        for (int i = 0; i < fields.length; i++) {
+            String label = spec[i + 2];
+            boolean words = label.startsWith("*");
+            EditText e = new EditText(this);
+            e.setSingleLine(true);
+            e.setHint(words ? label.substring(1) : label);
+            e.setInputType(words ? InputType.TYPE_CLASS_TEXT
+                    : InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            box.addView(e, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            fields[i] = e;
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(spec[0])
+                .setView(box)
+                .setPositiveButton("Work it out",
+                        new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                String cmd = spec[1];
+                                for (int i = 0; i < fields.length; i++) {
+                                    String v = fields[i].getText().toString().trim();
+                                    // A part in [square brackets] is dropped when its
+                                    // field was left empty.
+                                    Matcher opt = Pattern.compile("\\[([^\\]]*\\{" + i
+                                            + "\\}[^\\]]*)\\]").matcher(cmd);
+                                    if (opt.find()) {
+                                        cmd = cmd.replace(opt.group(0),
+                                                v.isEmpty() ? "" : opt.group(1));
+                                    } else if (v.isEmpty()) {
+                                        bubble("I need every box filled in for that one. "
+                                                + "Try again.", false);
+                                        return;
+                                    }
+                                    cmd = cmd.replace("{" + i + "}", v);
+                                }
+                                send(cmd.trim());
+                            }
+                        })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private String greeting() {
@@ -253,6 +489,30 @@ public class AssistantActivity extends Activity {
         }
 
         // ----- newer tools -----
+        if (has(q, "roulette")) {
+            if (Tree.owned(this, "roulette")) {
+                open(RouletteActivity.class);
+                return "Opening roulette.";
+            }
+            return "Roulette is locked. It's on the skill tree after blackjack (50 "
+                    + "Knowledge Points, level 3).";
+        }
+        if (has(q, "video poker", "jacks or better")) {
+            if (Tree.owned(this, "vpoker")) {
+                open(VideoPokerActivity.class);
+                return "Opening video poker.";
+            }
+            return "Video poker is locked. It's on the skill tree after blackjack (50 "
+                    + "Knowledge Points, level 3).";
+        }
+        if (has(q, "royal riches", "second slot", "other slot", "five reel", "5 reel")) {
+            if (Tree.owned(this, "slot2")) {
+                open(Slot2Activity.class);
+                return "Opening Royal Riches.";
+            }
+            return "Royal Riches is locked. It's on the skill tree after the first slot "
+                    + "(60 Knowledge Points, level 4).";
+        }
         if (has(q, "sudoku")) {
             open(SudokuActivity.class);
             return "Opening Sudoku.";
@@ -551,15 +811,19 @@ public class AssistantActivity extends Activity {
             return "I'm a small helper built into this app. I match keywords rather than "
                     + "truly understanding language, so I only handle what's on my list.";
         }
-        if (has(q, "help", "what can you", "can you do", "commands")) {
-            return help();
+        if (has(q, "help", "what can you", "can you do", "commands", "menu")) {
+            showTopics("Here's what I can do");
+            return null;
         }
         // Anything else phrased as "what is ..." goes to the encyclopedia.
         Matcher what = Pattern.compile("(?i)^\\s*(?:what is|what's|what are|what was|"
                 + "what were|tell me about|where is|when was|when did)\\s+(.+?)\\s*\\??$")
                 .matcher(raw);
         if (what.find()) return lookup(what.group(1));
-        return "I didn't catch that. I'm a simple helper, so try one of these:\n" + help();
+        bubble("I didn't catch that. I only understand certain things, so pick a topic and "
+                + "I'll show you what works.", false);
+        showTopics("Pick a topic");
+        return null;
     }
 
     /** Looks a word up in a free online dictionary, falling back to Wikipedia. */

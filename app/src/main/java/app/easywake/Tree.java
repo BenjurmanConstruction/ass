@@ -64,8 +64,17 @@ final class Tree {
             new Node("pegs", 0, FEATURE, "Peg Pop",
                     "Aim, shoot and bounce a ball through the pegs. Clear the gold ones.",
                     40, 3, null, null),
+            new Node("slot2", 0, FEATURE, "Royal Riches slot",
+                    "A five-reel slot with ten lines, a wild star and free spins.",
+                    60, 4, "slot", null),
             new Node("blackjack", 0, FEATURE, "Blackjack",
                     "Beat the dealer to 21. Blackjack pays 3 to 2.", 50, 3, "slot", null),
+            new Node("vpoker", 0, FEATURE, "Video poker",
+                    "Jacks or Better: hold, draw, and the best odds in the house.",
+                    50, 3, "blackjack", null),
+            new Node("roulette", 0, FEATURE, "Roulette",
+                    "A single-zero wheel with number and outside bets.", 50, 3,
+                    "blackjack", null),
             new Node("holdem", 0, FEATURE, "Texas Hold'em",
                     "Heads-up limit poker against a computer player.", 70, 4, "blackjack",
                     null),
@@ -302,6 +311,9 @@ final class Tree {
         if ("blocks".equals(id)) return BlocksActivity.class;
         if ("pegs".equals(id)) return PegsActivity.class;
         if ("blackjack".equals(id)) return BlackjackActivity.class;
+        if ("slot2".equals(id)) return Slot2Activity.class;
+        if ("vpoker".equals(id)) return VideoPokerActivity.class;
+        if ("roulette".equals(id)) return RouletteActivity.class;
         if ("holdem".equals(id)) return HoldemActivity.class;
         if ("l_water".equals(id)) return WaterActivity.class;
         if ("m_econ".equals(id)) return EconActivity.class;

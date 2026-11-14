@@ -41,6 +41,8 @@ public class NoiseService extends Service {
     static volatile int tone = 40;
     /** 0..100 strength of the fan's motor hum. */
     static volatile int hum = 35;
+    /** 0..100 how much deep growl is added under the sound. */
+    static volatile int rumble = 0;
     /** Lets the Sleep sounds screen refresh when playback starts or stops. */
     static Runnable onChange;
 
@@ -244,11 +246,11 @@ public class NoiseService extends Service {
                     int frames = buf.length / 2;
                     float gain = 0f;
                     // Let the loudness leveller settle before anything is heard.
-                    gen.setParams(tone, hum);
+                    gen.setParams(tone, hum, rumble);
                     for (int i = 0; i < 24; i++) gen.fill(buf, frames, 0f, 0f);
                     track.play();
                     while (token == mine) {
-                        gen.setParams(tone, hum);
+                        gen.setParams(tone, hum, rumble);
                         float next = Math.min(1f, gain + 0.05f);
                         gen.fill(buf, frames, gain, next);
                         gain = next;

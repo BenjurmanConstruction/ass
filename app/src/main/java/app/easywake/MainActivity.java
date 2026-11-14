@@ -391,32 +391,19 @@ public class MainActivity extends Activity {
         gp.bottomMargin = Ui.dp(this, 14);
         sheet.addView(grip, gp);
 
+        sheet.addView(Ui.heading(this, "Every day"), Ui.full(this, 4));
         sheet.addView(menuItem("Sleep sounds", "Fan, noise, or your own recording",
                 new Runnable() {
                     @Override
                     public void run() {
                         startActivity(new Intent(MainActivity.this, SleepActivity.class));
                     }
-                }, d), Ui.full(this, 0));
+                }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Calendar", "Month view with your alarm days marked",
                 new Runnable() {
                     @Override
                     public void run() {
                         startActivity(new Intent(MainActivity.this, CalendarActivity.class));
-                    }
-                }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("Market", "Indexes, gold, oil, Bitcoin and your watchlist",
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        startActivity(new Intent(MainActivity.this, MarketActivity.class));
-                    }
-                }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("Helper", "Ask for things in plain words",
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        startActivity(new Intent(MainActivity.this, AssistantActivity.class));
                     }
                 }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Memos", "Notes to self, optionally shown at wake-up",
@@ -426,21 +413,22 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, MemoActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("My profile", "Your stats, your week, and what it says about you",
+        sheet.addView(menuItem("Helper", "Ask for things in plain words",
                 new Runnable() {
                     @Override
                     public void run() {
-                        startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+                        startActivity(new Intent(MainActivity.this, AssistantActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("Brain gym", "24 tests, levels, streaks and high scores",
+        sheet.addView(Ui.heading(this, "Train and play"), Ui.full(this, 18));
+        sheet.addView(menuItem("Brain gym", "24 tests, Sudoku, levels, streaks and high scores",
                 new Runnable() {
                     @Override
                     public void run() {
                         startActivity(new Intent(MainActivity.this, BrainActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("My tools", "Slot, blackjack, poker, Block Drop, alerts, water and more",
+        sheet.addView(menuItem("Games and tools", "Casino, arcade games, alerts, water, weather and more",
                 new Runnable() {
                     @Override
                     public void run() {
@@ -454,6 +442,22 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, TreeActivity.class));
                     }
                 }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("My profile", "Your stats, your week, and what it says about you",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, ProfileActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(Ui.heading(this, "Money"), Ui.full(this, 18));
+        sheet.addView(menuItem("Market", "Indexes, gold, oil, Bitcoin and your watchlist",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, MarketActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(Ui.heading(this, "Make it yours"), Ui.full(this, 18));
         sheet.addView(menuItem("Colors & night mode", "Accent color and dim modes for late nights",
                 new Runnable() {
                     @Override

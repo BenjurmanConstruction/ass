@@ -172,6 +172,8 @@ public class ProfileActivity extends Activity {
         game(casino, "Slot spins", "slot");
         game(casino, "Blackjack hands", "bj");
         game(casino, "Poker hands", "poker");
+        game(casino, "Video poker hands", "vpoker");
+        game(casino, "Roulette spins", "roulette");
         if (Stats.get(this, "bjBets") > 0) {
             line(casino, "Blackjack won / lost / tied", Stats.get(this, "bjWon") + " / "
                     + Stats.get(this, "bjLost") + " / " + Stats.get(this, "bjPush"));

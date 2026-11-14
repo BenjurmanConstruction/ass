@@ -46,7 +46,7 @@ final class NoiseGen {
     /** Everything one ear hears. Left and right get their own noise so the sound is wide. */
     private final class Channel {
         private long seed;
-        private double b0, b1, b2, brown, t1, t2, hpIn, hpOut, dropEnv, dropLp;
+        private double b0, b1, b2, brown, t1, t2, hpIn, hpOut, dropEnv, dropLp, sub1, sub2;
         private final Resonator[] tones = {new Resonator(), new Resonator(), new Resonator()};
 
         Channel(long seed) {
@@ -110,6 +110,15 @@ final class NoiseGen {
             hpOut = hp;
             y = hp;
 
+            if (rumble > 0) {
+                // Rumble: a layer of very deep noise under the sound, then a soft
+                // overdrive that thickens it, the way a big motor growls.
+                sub1 += 0.01 * (w - sub1);
+                sub2 += 0.01 * (sub1 - sub2);
+                y += sub2 * 10 * rumble;
+                double drive = 1 + 9 * rumble;
+                y = Math.tanh(y * drive) / drive;
+            }
             if (type == FAN || type == BIG_FAN || type == CABIN) {
                 // The motor and blades: soft tones made by filtering noise, so they
                 // waver naturally the way a real motor does instead of sounding like a
@@ -140,6 +149,8 @@ final class NoiseGen {
     private double humAmp;
     private int lastTone = -1;
     private int lastHum = -1;
+    private int lastRumble = -1;
+    private double rumble;
     // Loudness levelling: fast while settling after a change, then very slow, so the
     // volume never pumps up and down.
     private double meanSquare = 0.01;
@@ -149,17 +160,20 @@ final class NoiseGen {
 
     NoiseGen(int type) {
         this.type = (type >= 0 && type < NAMES.length) ? type : 0;
-        setParams(40, 35);
+        setParams(40, 35, 0);
     }
 
     /**
      * @param tone 0 = deepest and most muffled, 100 = brightest
      * @param hum  0..100 strength of the motor hum (fans and the cabin only)
+     * @param rumbleAmount 0..100 how much deep growl is added underneath
      */
-    void setParams(int tone, int hum) {
-        if (tone == lastTone && hum == lastHum) return;
+    void setParams(int tone, int hum, int rumbleAmount) {
+        if (tone == lastTone && hum == lastHum && rumbleAmount == lastRumble) return;
         lastTone = tone;
         lastHum = hum;
+        lastRumble = rumbleAmount;
+        rumble = Math.max(0, Math.min(100, rumbleAmount)) / 100.0;
         double t = Math.max(0, Math.min(100, tone)) / 100.0;
         double base = type == BIG_FAN ? 110.0 : (type == CABIN ? 140.0 : 180.0);
         double fc = base * Math.pow(66.0, t);

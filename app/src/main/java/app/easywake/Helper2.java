@@ -446,7 +446,10 @@ final class Helper2 {
                     + ". Every test you finish adds some.";
         }
         if (t.matches(".*(what'?s new|whats new|new features|latest update).*")) {
-            return "Newest things in the app:\n• Sudoku, in the Brain gym\n• Peg Pop "
+            return "Newest things in the app:\n• Roulette, video poker and a five-reel slot\n"
+                    + "• Over 1,000 trivia questions and 1,000 word meanings\n"
+                    + "• A Rumble control for sleep sounds\n"
+                    + "• Sudoku, in the Brain gym\n• Peg Pop "
                     + "on the skill tree\n• Blackjack and Texas Hold'em\n• A fuller "
                     + "economic calendar with live numbers\n• Four kinds of Number grid "
                     + "race\n• My profile, with your stats\n• I can now convert "

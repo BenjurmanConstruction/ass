@@ -29,6 +29,7 @@ public class SleepActivity extends Activity {
     private Button changeFile;
     private LinearLayout toneCard;
     private LinearLayout humCard;
+    private LinearLayout rumbleCard;
     private Ui.Row timerRow;
     private Button playBtn;
     private TextView status;
@@ -54,6 +55,7 @@ public class SleepActivity extends Activity {
         NoiseService.volume = Prefs.getInt(this, "noiseVol", 70) / 100f;
         NoiseService.tone = Prefs.getInt(this, "noiseTone", 40);
         NoiseService.hum = Prefs.getInt(this, "noiseHum", 35);
+        NoiseService.rumble = Prefs.getInt(this, "noiseRumble", 0);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -125,6 +127,17 @@ public class SleepActivity extends Activity {
                     }
                 });
         root.addView(humCard, Ui.full(this, 8));
+
+        rumbleCard = sliderCard("Rumble", "Adds a deep growl underneath. Right is heavier "
+                        + "and rougher.",
+                Prefs.getInt(this, "noiseRumble", 0), new SliderListener() {
+                    @Override
+                    public void onValue(int v, boolean done) {
+                        NoiseService.rumble = v;
+                        if (done) Prefs.putInt(SleepActivity.this, "noiseRumble", v);
+                    }
+                });
+        root.addView(rumbleCard, Ui.full(this, 8));
 
         root.addView(sliderCard("Loudness", "Also follows your phone's media volume.",
                 Prefs.getInt(this, "noiseVol", 70), new SliderListener() {
@@ -298,6 +311,7 @@ public class SleepActivity extends Activity {
         boolean custom = selected == CUSTOM_INDEX;
         changeFile.setVisibility(custom && hasFile ? View.VISIBLE : View.GONE);
         toneCard.setVisibility(custom ? View.GONE : View.VISIBLE);
+        rumbleCard.setVisibility(custom ? View.GONE : View.VISIBLE);
         humCard.setVisibility(selected == 0 || selected == 4 || selected == 6 ? View.VISIBLE
                 : View.GONE);
 

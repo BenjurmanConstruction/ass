@@ -148,8 +148,6 @@ final class Jokes {
                     + "so I threw him out. I hate visitors.",
             "The doctor gave me one year to live, so I shot him. The judge gave me "
                     + "fifteen. Problem solved.",
-            "Give a man a match and he's warm for a few hours. Set him on fire and "
-                    + "he's warm for the rest of his life.",
             "I have a clean conscience. It's never been used.",
             "My therapist says I have a preoccupation with revenge. We'll see about that.",
             "Today I gave my dead batteries away. Free of charge.",
@@ -164,8 +162,6 @@ final class Jokes {
                     + "Nobody checked for days.",
             "The inventor of the throat lozenge died last week. There was no "
                     + "coffin at his funeral.",
-            "I want to die peacefully in my sleep like my grandfather, not "
-                    + "screaming like the passengers in his car.",
             "Never trust an undertaker. Sooner or later he'll let you down.",
             "My uncle the taxidermist died. He's been stuffed with regret ever since.",
             "I asked the librarian for a book on paranoia. She whispered, \"It's "

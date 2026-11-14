@@ -68,6 +68,19 @@ public class RingActivity extends Activity {
         labelView.setGravity(Gravity.CENTER);
         root.addView(labelView, wrap());
 
+        String memoText = MemoActivity.alarmText(this);
+        if (!memoText.isEmpty()) {
+            TextView memos = Ui.text(this, memoText, 16, Ui.TEXT);
+            memos.setBackground(Ui.card(this, 16));
+            memos.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
+            memos.setMaxLines(6);
+            LinearLayout.LayoutParams mm = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            mm.topMargin = Ui.dp(this, 16);
+            root.addView(memos, mm);
+        }
+
         if (Prefs.getInt(this, "marketRing", 1) == 1) {
             final TextView market = Ui.text(this, "", 15, Ui.SUB);
             market.setGravity(Gravity.CENTER);

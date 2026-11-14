@@ -189,6 +189,33 @@ final class MarketData {
         return s;
     }
 
+    /**
+     * Finds tickers by symbol or company name. Each result is {symbol, name}.
+     * Returns an empty list if the search service can't be reached.
+     */
+    static List<String[]> search(String query) {
+        List<String[]> out = new ArrayList<>();
+        try {
+            String body = http("https://query1.finance.yahoo.com/v1/finance/search?q="
+                    + URLEncoder.encode(query.trim(), "UTF-8")
+                    + "&quotesCount=8&newsCount=0");
+            JSONArray quotes = new JSONObject(body).optJSONArray("quotes");
+            if (quotes == null) return out;
+            for (int i = 0; i < quotes.length(); i++) {
+                JSONObject q = quotes.getJSONObject(i);
+                String symbol = q.optString("symbol", "");
+                if (clean(symbol) == null) continue;
+                String name = q.optString("shortname", q.optString("longname", symbol));
+                String kind = q.optString("quoteType", "");
+                out.add(new String[]{symbol, name + (kind.isEmpty() ? "" : "  (" + kind
+                        .toLowerCase(Locale.US) + ")")});
+            }
+        } catch (Exception e) {
+            out.clear();
+        }
+        return out;
+    }
+
     private static void finish(Series s) {
         double hi = -Double.MAX_VALUE;
         double lo = Double.MAX_VALUE;

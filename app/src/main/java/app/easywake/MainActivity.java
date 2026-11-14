@@ -362,7 +362,21 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, MarketActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("Brain gym", "Crazy facts and quick brain tests",
+        sheet.addView(menuItem("Helper", "Ask for things in plain words",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, AssistantActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("Memos", "Notes to self, optionally shown at wake-up",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, MemoActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("Brain gym", "24 tests, levels, streaks and high scores",
                 new Runnable() {
                     @Override
                     public void run() {

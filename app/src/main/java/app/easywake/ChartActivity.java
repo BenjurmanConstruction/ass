@@ -96,7 +96,23 @@ public class ChartActivity extends Activity {
         scroll.addView(root, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
-        root.addView(Ui.topBar(this, sym.name), Ui.full(this, 0));
+        LinearLayout top = Ui.topBar(this, sym.name);
+        Button lookup = Ui.button(this, "Look up", false);
+        lookup.setTextSize(14);
+        lookup.setMinHeight(Ui.dp(this, 40));
+        lookup.setMinimumHeight(Ui.dp(this, 40));
+        lookup.setMinWidth(0);
+        lookup.setMinimumWidth(0);
+        lookup.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0);
+        lookup.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                askLookup();
+            }
+        });
+        top.addView(lookup, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40)));
+        root.addView(top, Ui.full(this, 0));
 
         price = Ui.text(this, "Loading...", 38, Ui.TEXT);
         price.setTypeface(Ui.light());
@@ -129,6 +145,21 @@ public class ChartActivity extends Activity {
 
         stats = Ui.text(this, "", 13, Ui.SUB);
         root.addView(stats, Ui.full(this, 12));
+
+        final Button watch = Ui.button(this, "", false);
+        paintWatch(watch);
+        watch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                java.util.List<String> list = MarketData.list(ChartActivity.this,
+                        "marketWatch", "");
+                if (list.contains(sym.symbol)) list.remove(sym.symbol);
+                else list.add(sym.symbol);
+                MarketData.saveList(ChartActivity.this, "marketWatch", list);
+                paintWatch(watch);
+            }
+        });
+        if (!builtIn(sym.symbol)) root.addView(watch, Ui.full(this, 14));
 
         extRow = Ui.row(this, "Extended hours (pre / after market)", extended ? "On" : "Off");
         extRow.view.setOnClickListener(new View.OnClickListener() {
@@ -191,6 +222,100 @@ public class ChartActivity extends Activity {
         Bg.apply(this, scroll);
         paintPills();
         applyToChart();
+    }
+
+    private static boolean builtIn(String symbol) {
+        for (MarketData.Sym s : MarketData.INDEXES) if (s.symbol.equals(symbol)) return true;
+        for (MarketData.Sym s : MarketData.EXTRAS) if (s.symbol.equals(symbol)) return true;
+        return false;
+    }
+
+    private void paintWatch(Button b) {
+        boolean in = MarketData.list(this, "marketWatch", "").contains(sym.symbol);
+        b.setText(in ? "In your watchlist  \u2022  tap to remove" : "+  Add to watchlist");
+    }
+
+    /** Opens a different symbol in place of this one. */
+    private void openChart(String symbol, String name) {
+        startActivity(new android.content.Intent(this, ChartActivity.class)
+                .putExtra("symbol", symbol)
+                .putExtra("name", name)
+                .putExtra("range", range));
+        finish();
+    }
+
+    private void askLookup() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setHint("Ticker or company, like AAPL or Tesla");
+        LinearLayout wrap = new LinearLayout(this);
+        int pad = Ui.dp(this, 20);
+        wrap.setPadding(pad, Ui.dp(this, 8), pad, 0);
+        wrap.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Look up")
+                .setView(wrap)
+                .setPositiveButton("Search", new android.content.DialogInterface
+                        .OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        String q = input.getText().toString().trim();
+                        if (!q.isEmpty()) runLookup(q);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void runLookup(final String query) {
+        android.widget.Toast.makeText(this, "Searching...", android.widget.Toast.LENGTH_SHORT)
+                .show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final java.util.List<String[]> found = MarketData.search(query);
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing()) return;
+                        showMatches(query, found);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void showMatches(String query, final java.util.List<String[]> found) {
+        if (found.isEmpty()) {
+            // Search unavailable or no match: treat what was typed as the ticker itself.
+            String t = MarketData.clean(query);
+            if (t == null) {
+                android.widget.Toast.makeText(this, "No match. Try the ticker symbol.",
+                        android.widget.Toast.LENGTH_LONG).show();
+            } else {
+                openChart(t, t);
+            }
+            return;
+        }
+        String[] labels = new String[found.size()];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = found.get(i)[0] + "  \u2014  " + found.get(i)[1];
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Pick one")
+                .setItems(labels, new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        String[] pick = found.get(which);
+                        String name = pick[1];
+                        int cut = name.indexOf("  (");
+                        if (cut > 0) name = name.substring(0, cut);
+                        openChart(pick[0], name);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void paintColors() {

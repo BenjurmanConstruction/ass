@@ -8,9 +8,9 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Top-10 boards for the Brain gym tests, plus the points balance. */
+/** Top-5 boards for the Brain gym tests, plus the points balance. */
 final class Scores {
-    static final int MAX = 10;
+    static final int MAX = 5;
 
     static final class Entry {
         String name = "";
@@ -58,7 +58,7 @@ final class Scores {
         Prefs.putString(c, "hs" + mode, arr.toString());
     }
 
-    /** Would this result make the top 10? */
+    /** Would this result make the top 5? */
     static boolean qualifies(Context c, int mode, int rank) {
         List<Entry> list = load(c, mode);
         return list.size() < MAX || rank > list.get(list.size() - 1).rank;

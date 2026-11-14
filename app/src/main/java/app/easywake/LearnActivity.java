@@ -141,6 +141,14 @@ public class LearnActivity extends Activity {
         }
     }
 
+    private void announceBadges() {
+        int bonus = Progress.checkLearnBadges(this);
+        if (bonus > 0) {
+            Toast.makeText(this, "Badge earned! +" + bonus + " points", Toast.LENGTH_LONG)
+                    .show();
+        }
+    }
+
     private void unlockFact() {
         List<String> facts = owned("vaultOwned");
         List<Integer> locked = new ArrayList<>();
@@ -156,6 +164,7 @@ public class LearnActivity extends Activity {
         int pick = locked.get(new Random().nextInt(locked.size()));
         facts.add(String.valueOf(pick));
         MarketData.saveList(this, "vaultOwned", facts);
+        announceBadges();
         justUnlocked = Lessons.VAULT[pick];
         build();
         scroll.scrollTo(0, 0);
@@ -170,6 +179,7 @@ public class LearnActivity extends Activity {
         List<String> owned = owned("lessonsOwned");
         owned.add(String.valueOf(idx));
         MarketData.saveList(this, "lessonsOwned", owned);
+        announceBadges();
         openLesson = idx;
         build();
     }

@@ -36,30 +36,15 @@ public class GameActivity extends Activity {
     static final int SERIES = 6;
     static final int AIM = 7;
 
-    static final String[] TITLES = {
-            "Reaction time", "Speed math", "Number memory", "Color focus",
-            "Sequence memory", "Chimp test", "Number patterns", "Aim trainer"
-    };
-    static final String[] HINTS = {
-            "Tap the moment the panel turns green. Five tries.",
-            "Solve as many sums as you can in 60 seconds.",
-            "Memorize a number, then type it back. It gets longer each round.",
-            "Tap the color the word is printed in, not what the word says. 20 rounds.",
-            "Watch the tiles light up, then repeat the pattern. One more tile each level.",
-            "Numbers appear, then hide when you tap 1. Tap the rest in order from memory.",
-            "Work out what number comes next. Ten questions.",
-            "Tap 20 targets as fast as you can."
-    };
+    static final String[] COLOR_NAMES = {"RED", "BLUE", "GREEN", "YELLOW"};
+    static final int[] COLOR_VALUES = {0xFFFF5A5A, 0xFF5AA0FF, 0xFF5FD38A, 0xFFFFD84D};
 
-    private static final String[] COLOR_NAMES = {"RED", "BLUE", "GREEN", "YELLOW"};
-    private static final int[] COLOR_VALUES = {0xFFFF5A5A, 0xFF5AA0FF, 0xFF5FD38A, 0xFFFFD84D};
-
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Random rnd = new Random();
-    private FrameLayout stage;
-    private int mode;
+    final Handler handler = new Handler(Looper.getMainLooper());
+    final Random rnd = new Random();
+    FrameLayout stage;
+    int mode;
     /** Bumped whenever a round ends, so stale timers do nothing. */
-    private int token;
+    int token;
 
     static String secs(int ms) {
         return String.format(Locale.US, "%.2f s", ms / 1000f);
@@ -69,13 +54,13 @@ public class GameActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         mode = getIntent().getIntExtra("mode", REACTION);
-        if (mode < 0 || mode >= TITLES.length) mode = REACTION;
+        if (mode < 0 || mode >= Games.COUNT) mode = REACTION;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(this, 18);
         root.setPadding(pad, pad, pad, pad);
-        root.addView(Ui.topBar(this, TITLES[mode]), Ui.full(this, 0));
+        root.addView(Ui.topBar(this, Games.TITLES[mode]), Ui.full(this, 0));
 
         stage = new FrameLayout(this);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
@@ -85,7 +70,57 @@ public class GameActivity extends Activity {
 
         setContentView(root);
         Bg.apply(this, root);
-        start();
+        intro();
+    }
+
+    /** Explains the test before it starts. */
+    void intro() {
+        token++;
+        handler.removeCallbacksAndMessages(null);
+        stage.removeAllViews();
+        ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(col, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+        stage.addView(scroll, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        if (mode == Progress.challengeMode() && !Progress.challengeDone(this)) {
+            TextView ch = Ui.text(this, "Today's daily challenge: double points on your "
+                    + "first go.", 14, Ui.ON_ACCENT);
+            ch.setTypeface(Ui.medium());
+            ch.setBackground(Ui.gold(this, 14));
+            ch.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+            col.addView(ch, Ui.full(this, 0));
+        }
+
+        col.addView(Ui.heading(this, "How it works"), Ui.full(this, 14));
+        TextView how = Ui.text(this, Games.HOWTO[mode], 16, Ui.TEXT);
+        how.setLineSpacing(Ui.dp(this, 3), 1f);
+        col.addView(how, Ui.full(this, 6));
+
+        col.addView(Ui.heading(this, "What it trains"), Ui.full(this, 20));
+        col.addView(Ui.text(this, Games.TRAINS[mode], 15, Ui.TEXT), Ui.full(this, 6));
+
+        col.addView(Ui.heading(this, "Points"), Ui.full(this, 20));
+        col.addView(Ui.text(this, "The better you do, the more points you earn. Extra for a "
+                + "new #1, the daily challenge, your first test of the day, and a growing "
+                + "bonus for every day in a row you play.", 15, Ui.TEXT), Ui.full(this, 6));
+
+        col.addView(Ui.heading(this, "Score to beat"), Ui.full(this, 20));
+        col.addView(Ui.text(this, Scores.bestText(this, mode), 15, Ui.ACCENT),
+                Ui.full(this, 6));
+
+        Button go = Ui.button(this, "Start", true);
+        go.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                start();
+            }
+        });
+        col.addView(go, Ui.full(this, 26));
     }
 
     @Override
@@ -95,7 +130,7 @@ public class GameActivity extends Activity {
         super.onDestroy();
     }
 
-    private void start() {
+    void start() {
         token++;
         handler.removeCallbacksAndMessages(null);
         switch (mode) {
@@ -120,15 +155,23 @@ public class GameActivity extends Activity {
             case AIM:
                 startAim();
                 break;
-            default:
+            case REACTION:
                 startReaction();
+                break;
+            default:
+                startOther();
                 break;
         }
     }
 
+    /** Tests beyond the first eight live in GameActivity2. */
+    void startOther() {
+        startReaction();
+    }
+
     // ---------- shared pieces ----------
 
-    private LinearLayout column() {
+    LinearLayout column() {
         stage.removeAllViews();
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -138,28 +181,28 @@ public class GameActivity extends Activity {
         return col;
     }
 
-    private TextView big(String s, float sp) {
+    TextView big(String s, float sp) {
         TextView t = Ui.text(this, s, sp, Ui.TEXT);
         t.setTypeface(Ui.light());
         t.setGravity(Gravity.CENTER);
         return t;
     }
 
-    private TextView note(String s) {
+    TextView note(String s) {
         TextView t = Ui.text(this, s, 15, Ui.ACCENT);
         t.setGravity(Gravity.CENTER);
         return t;
     }
 
-    private View spacer() {
+    View spacer() {
         return new View(this);
     }
 
-    private LinearLayout.LayoutParams grow() {
+    LinearLayout.LayoutParams grow() {
         return new LinearLayout.LayoutParams(1, 0, 1f);
     }
 
-    private void hideKeyboard() {
+    void hideKeyboard() {
         InputMethodManager imm = (InputMethodManager) getSystemService(
                 Context.INPUT_METHOD_SERVICE);
         if (imm != null && stage != null) {
@@ -173,15 +216,14 @@ public class GameActivity extends Activity {
      * @param rank   higher is better
      * @param result what goes on the board, for example "245 ms"
      */
-    private void end(final int rank, final String result, String detail, int points) {
+    void end(final int rank, final String result, String detail, int points) {
         token++;
         handler.removeCallbacksAndMessages(null);
         hideKeyboard();
 
         boolean newBest = Scores.isBest(this, mode, rank);
         final boolean makesBoard = Scores.qualifies(this, mode, rank);
-        int earned = Math.max(1, points) + (newBest ? 15 : 0);
-        Scores.addPoints(this, earned);
+        Progress.Award award = Progress.award(this, mode, rank, points, newBest);
 
         stage.removeAllViews();
         ScrollView scroll = new ScrollView(this);
@@ -198,11 +240,23 @@ public class GameActivity extends Activity {
         d.setGravity(Gravity.CENTER);
         col.addView(d, Ui.full(this, 8));
 
-        TextView pts = Ui.text(this, "+" + earned + " points" + (newBest ? "  (new #1 bonus!)"
-                : "") + "   •   You have " + Scores.points(this), 15, Ui.ACCENT);
-        pts.setTypeface(Ui.medium());
-        pts.setGravity(Gravity.CENTER);
-        col.addView(pts, Ui.full(this, 12));
+        // Everything this run paid out, line by line.
+        LinearLayout pay = new LinearLayout(this);
+        pay.setOrientation(LinearLayout.VERTICAL);
+        pay.setBackground(Ui.card(this, 18));
+        pay.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
+        TextView total = Ui.text(this, "+" + award.earned + " points", 24, Ui.ACCENT);
+        total.setTypeface(Ui.medium());
+        pay.addView(total);
+        for (String line : award.notes) {
+            boolean bigNews = line.startsWith("LEVEL UP") || line.startsWith("Badge");
+            TextView t = Ui.text(this, line, 14, bigNews ? Ui.ACCENT : Ui.SUB);
+            if (bigNews) t.setTypeface(Ui.medium());
+            pay.addView(t, Ui.full(this, 3));
+        }
+        pay.addView(Ui.text(this, "Balance: " + Scores.points(this) + " points", 14, Ui.TEXT),
+                Ui.full(this, 8));
+        col.addView(pay, Ui.full(this, 14));
 
         final LinearLayout board = new LinearLayout(this);
         board.setOrientation(LinearLayout.VERTICAL);
@@ -212,7 +266,7 @@ public class GameActivity extends Activity {
             entry.setOrientation(LinearLayout.VERTICAL);
             entry.setBackground(Ui.card(this, 18));
             entry.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 14));
-            entry.addView(Ui.text(this, "You made the top 10! Name for the board:", 15,
+            entry.addView(Ui.text(this, "You made the top 5! Name for the board:", 15,
                     Ui.TEXT));
             final EditText name = new EditText(this);
             name.setSingleLine(true);
@@ -263,7 +317,7 @@ public class GameActivity extends Activity {
         col.addView(done, Ui.full(this, 10));
     }
 
-    private void fillBoard(LinearLayout board, int highlight) {
+    void fillBoard(LinearLayout board, int highlight) {
         board.removeAllViews();
         List<Scores.Entry> list = Scores.load(this, mode);
         if (list.isEmpty()) {
@@ -290,13 +344,13 @@ public class GameActivity extends Activity {
         }
     }
 
-    private Button answerButton(String label, float sp) {
+    Button answerButton(String label, float sp) {
         Button bt = Ui.button(this, label, false);
         bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         return bt;
     }
 
-    private LinearLayout.LayoutParams cell(int heightDp) {
+    LinearLayout.LayoutParams cell(int heightDp) {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, Ui.dp(this, heightDp),
                 1f);
         int m = Ui.dp(this, 5);
@@ -306,14 +360,14 @@ public class GameActivity extends Activity {
 
     // ---------- reaction time ----------
 
-    private int reactRound;
-    private int reactTotal;
-    private long reactGoAt;
+    int reactRound;
+    int reactTotal;
+    long reactGoAt;
     /** 0 = idle, 1 = waiting for green, 2 = green. */
-    private int reactState;
-    private TextView reactPanel;
+    int reactState;
+    TextView reactPanel;
 
-    private void startReaction() {
+    void startReaction() {
         reactRound = 0;
         reactTotal = 0;
         reactState = 0;
@@ -334,7 +388,7 @@ public class GameActivity extends Activity {
         col.addView(hint, Ui.full(this, 12));
     }
 
-    private void reactionArm() {
+    void reactionArm() {
         reactState = 1;
         reactPanel.setText("Wait for green...");
         reactPanel.setTextColor(Ui.TEXT);
@@ -353,7 +407,7 @@ public class GameActivity extends Activity {
         }, 1500 + rnd.nextInt(3000));
     }
 
-    private void reactionTap() {
+    void reactionTap() {
         if (reactState == 0) {
             reactionArm();
         } else if (reactState == 1) {
@@ -382,14 +436,14 @@ public class GameActivity extends Activity {
 
     // ---------- speed math ----------
 
-    private int mathScore;
-    private int mathAnswer;
-    private long mathEndAt;
-    private TextView mathTimer;
-    private TextView mathProblem;
-    private final Button[] mathBtns = new Button[4];
+    int mathScore;
+    int mathAnswer;
+    long mathEndAt;
+    TextView mathTimer;
+    TextView mathProblem;
+    final Button[] mathBtns = new Button[4];
 
-    private void startMath() {
+    void startMath() {
         mathScore = 0;
         mathEndAt = SystemClock.uptimeMillis() + 60000;
         LinearLayout col = column();
@@ -436,7 +490,7 @@ public class GameActivity extends Activity {
         });
     }
 
-    private void mathNext() {
+    void mathNext() {
         int level = Math.min(4, mathScore / 5);
         int kind = rnd.nextInt(3);
         int a;
@@ -463,7 +517,7 @@ public class GameActivity extends Activity {
     }
 
     /** Puts the right answer and three near-misses on four buttons, shuffled. */
-    private void fillOptions(Button[] btns, int answer, int spread) {
+    void fillOptions(Button[] btns, int answer, int spread) {
         List<Integer> options = new ArrayList<>();
         options.add(answer);
         int guard = 0;
@@ -482,15 +536,15 @@ public class GameActivity extends Activity {
 
     // ---------- number memory ----------
 
-    private int digitLen;
-    private String digitTarget;
+    int digitLen;
+    String digitTarget;
 
-    private void startDigits() {
+    void startDigits() {
         digitLen = 3;
         digitsShow();
     }
 
-    private void digitsShow() {
+    void digitsShow() {
         hideKeyboard();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < digitLen; i++) {
@@ -515,7 +569,7 @@ public class GameActivity extends Activity {
         }, 1200 + digitLen * 600L);
     }
 
-    private void digitsAsk() {
+    void digitsAsk() {
         LinearLayout col = column();
         TextView q = Ui.text(this, "What was the number?", 18, Ui.TEXT);
         q.setGravity(Gravity.CENTER);
@@ -564,14 +618,14 @@ public class GameActivity extends Activity {
 
     // ---------- color focus (Stroop) ----------
 
-    private int stroopRound;
-    private int stroopCorrect;
-    private int stroopInk;
-    private long stroopStart;
-    private TextView stroopWord;
-    private TextView stroopCount;
+    int stroopRound;
+    int stroopCorrect;
+    int stroopInk;
+    long stroopStart;
+    TextView stroopWord;
+    TextView stroopCount;
 
-    private void startStroop() {
+    void startStroop() {
         stroopRound = 0;
         stroopCorrect = 0;
         LinearLayout col = column();
@@ -605,7 +659,7 @@ public class GameActivity extends Activity {
         stroopNext();
     }
 
-    private void stroopNext() {
+    void stroopNext() {
         int word = rnd.nextInt(4);
         // Mostly mismatched, which is what makes it hard.
         stroopInk = rnd.nextInt(10) < 7 ? (word + 1 + rnd.nextInt(3)) % 4 : word;
@@ -614,7 +668,7 @@ public class GameActivity extends Activity {
         stroopCount.setText("Round " + (stroopRound + 1) + " of 20");
     }
 
-    private void stroopPick(int idx) {
+    void stroopPick(int idx) {
         if (idx == stroopInk) stroopCorrect++;
         stroopRound++;
         if (stroopRound >= 20) {
@@ -630,13 +684,13 @@ public class GameActivity extends Activity {
 
     // ---------- sequence memory ----------
 
-    private final View[] seqCells = new View[9];
-    private final List<Integer> seq = new ArrayList<>();
-    private int seqPos;
-    private boolean seqInput;
-    private TextView seqInfo;
+    final View[] seqCells = new View[9];
+    final List<Integer> seq = new ArrayList<>();
+    int seqPos;
+    boolean seqInput;
+    TextView seqInfo;
 
-    private void startSequence() {
+    void startSequence() {
         seq.clear();
         LinearLayout col = column();
         seqInfo = note("");
@@ -664,7 +718,7 @@ public class GameActivity extends Activity {
         seqNextLevel();
     }
 
-    private void seqLight(final int idx, int ms) {
+    void seqLight(final int idx, int ms) {
         seqCells[idx].setBackground(Ui.gold(this, 18));
         final int mine = token;
         handler.postDelayed(new Runnable() {
@@ -675,7 +729,7 @@ public class GameActivity extends Activity {
         }, ms);
     }
 
-    private void seqNextLevel() {
+    void seqNextLevel() {
         seqInput = false;
         seq.add(rnd.nextInt(9));
         seqInfo.setText("Level " + seq.size() + ". Watch...");
@@ -700,7 +754,7 @@ public class GameActivity extends Activity {
         }, 700 + seq.size() * 620L);
     }
 
-    private void seqTap(int idx) {
+    void seqTap(int idx) {
         if (!seqInput) return;
         if (idx == seq.get(seqPos)) {
             seqLight(idx, 160);
@@ -725,18 +779,18 @@ public class GameActivity extends Activity {
 
     // ---------- chimp test ----------
 
-    private static final int CHIMP_COLS = 5;
-    private static final int CHIMP_ROWS = 6;
-    private final TextView[] chimpCells = new TextView[CHIMP_COLS * CHIMP_ROWS];
-    private final int[] chimpNumbers = new int[CHIMP_COLS * CHIMP_ROWS];
-    private int chimpCount;
-    private int chimpNext;
-    private int chimpBest;
-    private int chimpStrikes;
-    private boolean chimpLocked;
-    private TextView chimpInfo;
+    static final int CHIMP_COLS = 5;
+    static final int CHIMP_ROWS = 6;
+    final TextView[] chimpCells = new TextView[CHIMP_COLS * CHIMP_ROWS];
+    final int[] chimpNumbers = new int[CHIMP_COLS * CHIMP_ROWS];
+    int chimpCount;
+    int chimpNext;
+    int chimpBest;
+    int chimpStrikes;
+    boolean chimpLocked;
+    TextView chimpInfo;
 
-    private void startChimp() {
+    void startChimp() {
         chimpCount = 4;
         chimpBest = 0;
         chimpStrikes = 0;
@@ -771,7 +825,7 @@ public class GameActivity extends Activity {
         chimpRound();
     }
 
-    private void chimpRound() {
+    void chimpRound() {
         chimpLocked = false;
         chimpNext = 1;
         List<Integer> spots = new ArrayList<>();
@@ -792,7 +846,7 @@ public class GameActivity extends Activity {
         chimpInfo.setText(chimpCount + " numbers   •   Strikes " + chimpStrikes + " of 3");
     }
 
-    private void chimpTap(int idx) {
+    void chimpTap(int idx) {
         if (chimpLocked) return;
         int n = chimpNumbers[idx];
         if (n == 0) return;
@@ -838,7 +892,7 @@ public class GameActivity extends Activity {
         }
     }
 
-    private void chimpAgain(int delay) {
+    void chimpAgain(int delay) {
         chimpLocked = true;
         final int mine = ++token;
         handler.postDelayed(new Runnable() {
@@ -851,15 +905,15 @@ public class GameActivity extends Activity {
 
     // ---------- number patterns ----------
 
-    private int seriesRound;
-    private int seriesCorrect;
-    private int seriesAnswer;
-    private long seriesStart;
-    private TextView seriesInfo;
-    private TextView seriesText;
-    private final Button[] seriesBtns = new Button[4];
+    int seriesRound;
+    int seriesCorrect;
+    int seriesAnswer;
+    long seriesStart;
+    TextView seriesInfo;
+    TextView seriesText;
+    final Button[] seriesBtns = new Button[4];
 
-    private void startSeries() {
+    void startSeries() {
         seriesRound = 0;
         seriesCorrect = 0;
         LinearLayout col = column();
@@ -906,7 +960,7 @@ public class GameActivity extends Activity {
         seriesNext();
     }
 
-    private void seriesNext() {
+    void seriesNext() {
         int[] t = new int[6];
         int kind = rnd.nextInt(6);
         int hard = seriesRound / 3;
@@ -956,13 +1010,13 @@ public class GameActivity extends Activity {
 
     // ---------- aim trainer ----------
 
-    private int aimCount;
-    private long aimStart;
-    private FrameLayout aimArena;
-    private View aimTarget;
-    private TextView aimInfo;
+    int aimCount;
+    long aimStart;
+    FrameLayout aimArena;
+    View aimTarget;
+    TextView aimInfo;
 
-    private void startAim() {
+    void startAim() {
         aimCount = 0;
         LinearLayout col = column();
         aimInfo = note("Tap the target");
@@ -1006,7 +1060,7 @@ public class GameActivity extends Activity {
         });
     }
 
-    private void aimPlace() {
+    void aimPlace() {
         int size = Ui.dp(this, 68);
         int w = Math.max(1, aimArena.getWidth() - size);
         int h = Math.max(1, aimArena.getHeight() - size);

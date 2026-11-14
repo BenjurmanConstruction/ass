@@ -166,7 +166,7 @@ public class MarketActivity extends Activity {
                     + "or ETH-USD.", 13, Ui.SUB), Ui.full(this, 8));
         }
         for (String t : watch) addCard(new MarketData.Sym(t, t, null), false, true);
-        Button add = Ui.button(this, "+  Add a ticker", false);
+        Button add = Ui.button(this, "+  Add or look up a ticker", false);
         add.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

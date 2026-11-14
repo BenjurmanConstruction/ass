@@ -32,7 +32,7 @@ public class SleepActivity extends Activity {
     private Ui.Row timerRow;
     private Button playBtn;
     private TextView status;
-    /** 0..3 = built-in sounds, CUSTOM_INDEX = the user's own file. */
+    /** 0..6 = built-in sounds, CUSTOM_INDEX = the user's own file. */
     private int selected;
     private int minutes;
 
@@ -298,7 +298,8 @@ public class SleepActivity extends Activity {
         boolean custom = selected == CUSTOM_INDEX;
         changeFile.setVisibility(custom && hasFile ? View.VISIBLE : View.GONE);
         toneCard.setVisibility(custom ? View.GONE : View.VISIBLE);
-        humCard.setVisibility(selected == 0 ? View.VISIBLE : View.GONE);
+        humCard.setVisibility(selected == 0 || selected == 4 || selected == 6 ? View.VISIBLE
+                : View.GONE);
 
         timerRow.value.setText(timerText(minutes));
         if (playing != -1) {

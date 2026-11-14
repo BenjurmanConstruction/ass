@@ -245,6 +245,8 @@ public class SlotActivity extends Activity {
         });
         root.addView(getCoupons, Ui.full(this, 10));
 
+        root.addView(Sfx.toggle(this), Ui.full(this, 10));
+
         Button table = Ui.button(this, "Pay table and odds", false);
         table.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -271,6 +273,7 @@ public class SlotActivity extends Activity {
     protected void onPause() {
         super.onPause();
         sitting.close(this);
+        Sfx.stop(Sfx.SPIN);
     }
 
     @Override
@@ -366,7 +369,8 @@ public class SlotActivity extends Activity {
         paint();
 
         final int mine = ++token;
-        long[] durations = {1900, 2700, 3600};
+        long[] durations = Sfx.REEL_MS;
+        Sfx.play(this, Sfx.SPIN);
         for (int i = 0; i < 3; i++) {
             final boolean last = i == 2;
             reels[i].spinTo(grid[0][i], grid[1][i], grid[2][i], durations[i], new Runnable() {
@@ -483,6 +487,9 @@ public class SlotActivity extends Activity {
             message.setText("No win.");
         }
         if (won > 0) Wallet.addCoupons(this, won);
+        if (bestJackpot >= 0) Sfx.play(this, Sfx.JACKPOT);
+        else if (won >= bet * lineCount * 5) Sfx.play(this, Sfx.BIG_WIN);
+        else if (won > 0) Sfx.play(this, Sfx.WIN);
         Stats.bet(this, "slot", free ? 0 : bet * lineCount, won);
         sitting.round(free ? 0 : bet * lineCount, won);
         paint();

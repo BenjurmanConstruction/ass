@@ -392,6 +392,7 @@ public class BlocksActivity extends Activity {
             int[] worth = {0, 100, 300, 500, 800};
             score += worth[cleared] * level();
             lines += cleared;
+            Sfx.play(this, cleared >= 4 ? Sfx.BIG_WIN : Sfx.WIN);
             boardView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         }
         spawn();

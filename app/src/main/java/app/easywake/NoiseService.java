@@ -57,19 +57,76 @@ public class NoiseService extends Service {
         }
     };
 
-    /** Keeps the own-recording player's loudness in step with the slider. */
+    /** How long the end of a recording blends into its start, in milliseconds. */
+    private static final int BLEND_MS = 2500;
+    /** The second player used to blend the end of a recording into its beginning. */
+    private MediaPlayer nextPlayer;
+    private int fileLength;
+
+    /**
+     * Keeps the own-recording player's loudness in step with the slider, and near the
+     * end of the recording fades in a second copy from the start while the first fades
+     * out, so the join can't be heard.
+     */
     private final Runnable fileVolumeTick = new Runnable() {
         @Override
         public void run() {
             if (filePlayer == null) return;
             try {
-                filePlayer.setVolume(volume, volume);
+                if (fileLength < BLEND_MS * 3) {
+                    // Too short to blend; it simply repeats.
+                    filePlayer.setVolume(volume, volume);
+                } else {
+                    int left = fileLength - filePlayer.getCurrentPosition();
+                    if (left <= BLEND_MS && nextPlayer == null) {
+                        nextPlayer = openFile();
+                        if (nextPlayer != null) {
+                            nextPlayer.setVolume(0f, 0f);
+                            nextPlayer.start();
+                        }
+                    }
+                    if (nextPlayer != null) {
+                        float mix = Math.max(0f, Math.min(1f, 1f - left / (float) BLEND_MS));
+                        // Equal-power blend keeps the loudness even through the join.
+                        float out = (float) Math.cos(mix * Math.PI / 2) * volume;
+                        float in = (float) Math.sin(mix * Math.PI / 2) * volume;
+                        filePlayer.setVolume(out, out);
+                        nextPlayer.setVolume(in, in);
+                        if (left <= 60 || !filePlayer.isPlaying()) {
+                            filePlayer.release();
+                            filePlayer = nextPlayer;
+                            nextPlayer = null;
+                            filePlayer.setVolume(volume, volume);
+                        }
+                    } else {
+                        filePlayer.setVolume(volume, volume);
+                    }
+                }
             } catch (IllegalStateException e) {
                 return;
             }
-            handler.postDelayed(this, 200);
+            handler.postDelayed(this, 40);
         }
     };
+
+    /** Opens the user's recording, ready to play, or returns null. */
+    private MediaPlayer openFile() {
+        String uri = Prefs.getString(this, "noiseUri");
+        if (uri == null || uri.isEmpty()) return null;
+        MediaPlayer p = new MediaPlayer();
+        try {
+            p.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build());
+            p.setDataSource(this, Uri.parse(uri));
+            p.prepare();
+            return p;
+        } catch (Exception e) {
+            p.release();
+            return null;
+        }
+    }
 
     static String nameOf(Context c, int type) {
         if (type == TYPE_CUSTOM) {
@@ -138,21 +195,15 @@ public class NoiseService extends Service {
     }
 
     private boolean startFile() {
-        String uri = Prefs.getString(this, "noiseUri");
-        if (uri == null || uri.isEmpty()) return false;
-        MediaPlayer p = new MediaPlayer();
+        MediaPlayer p = openFile();
+        if (p == null) return false;
         try {
-            p.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build());
-            p.setDataSource(this, Uri.parse(uri));
-            p.setLooping(true);
-            p.prepare();
+            fileLength = p.getDuration();
+            p.setLooping(fileLength < BLEND_MS * 3);
             p.setVolume(volume, volume);
             p.start();
             filePlayer = p;
-            handler.postDelayed(fileVolumeTick, 200);
+            handler.postDelayed(fileVolumeTick, 40);
             return true;
         } catch (Exception e) {
             p.release();
@@ -168,8 +219,11 @@ public class NoiseService extends Service {
             public void run() {
                 AudioTrack track = null;
                 try {
+                    // Ask for audio priority so other apps can't make the sound stutter.
+                    android.os.Process.setThreadPriority(
+                            android.os.Process.THREAD_PRIORITY_AUDIO);
                     int sr = NoiseGen.SAMPLE_RATE;
-                    int min = AudioTrack.getMinBufferSize(sr, AudioFormat.CHANNEL_OUT_MONO,
+                    int min = AudioTrack.getMinBufferSize(sr, AudioFormat.CHANNEL_OUT_STEREO,
                             AudioFormat.ENCODING_PCM_16BIT);
                     track = new AudioTrack.Builder()
                             .setAudioAttributes(new AudioAttributes.Builder()
@@ -179,22 +233,24 @@ public class NoiseService extends Service {
                             .setAudioFormat(new AudioFormat.Builder()
                                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                                     .setSampleRate(sr)
-                                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                                     .build())
-                            .setBufferSizeInBytes(Math.max(min, sr))
+                            // About three quarters of a second in hand, against stutter.
+                            .setBufferSizeInBytes(Math.max(min, sr * 3))
                             .setTransferMode(AudioTrack.MODE_STREAM)
                             .build();
                     NoiseGen gen = new NoiseGen(type);
-                    short[] buf = new short[2048];
+                    short[] buf = new short[4096];
+                    int frames = buf.length / 2;
                     float gain = 0f;
                     // Let the loudness leveller settle before anything is heard.
                     gen.setParams(tone, hum);
-                    for (int i = 0; i < 12; i++) gen.fill(buf, buf.length, 0f, 0f);
+                    for (int i = 0; i < 24; i++) gen.fill(buf, frames, 0f, 0f);
                     track.play();
                     while (token == mine) {
                         gen.setParams(tone, hum);
                         float next = Math.min(1f, gain + 0.05f);
-                        gen.fill(buf, buf.length, gain, next);
+                        gen.fill(buf, frames, gain, next);
                         gain = next;
                         track.setVolume(volume);
                         track.write(buf, 0, buf.length);
@@ -202,7 +258,7 @@ public class NoiseService extends Service {
                     // Quick fade-out instead of an abrupt cut.
                     while (gain > 0f) {
                         float next = Math.max(0f, gain - 0.2f);
-                        gen.fill(buf, buf.length, gain, next);
+                        gen.fill(buf, frames, gain, next);
                         gain = next;
                         track.write(buf, 0, buf.length);
                     }
@@ -234,6 +290,10 @@ public class NoiseService extends Service {
             }
             filePlayer.release();
             filePlayer = null;
+        }
+        if (nextPlayer != null) {
+            nextPlayer.release();
+            nextPlayer = null;
         }
     }
 

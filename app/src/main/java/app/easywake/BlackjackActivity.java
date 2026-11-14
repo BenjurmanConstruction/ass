@@ -185,6 +185,7 @@ public class BlackjackActivity extends Activity {
             }
         });
         root.addView(wallet, Ui.full(this, 14));
+        root.addView(Sfx.toggle(this), Ui.full(this, 10));
         Button rules = Ui.button(this, "Rules and odds", false);
         rules.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -290,6 +291,7 @@ public class BlackjackActivity extends Activity {
         dealer.add(draw());
         holeHidden = true;
         state = PLAYING;
+        Sfx.play(this, Sfx.CARD);
         message.setText("");
         if (natural(mine) || natural(dealer)) {
             holeHidden = false;
@@ -308,6 +310,7 @@ public class BlackjackActivity extends Activity {
     private void hit(boolean lastCard) {
         if (state != PLAYING) return;
         mine.add(draw());
+        Sfx.play(this, Sfx.CARD);
         int t = total(mine);
         if (t > 21) {
             holeHidden = false;
@@ -342,6 +345,7 @@ public class BlackjackActivity extends Activity {
                 if (run != token) return;
                 if (total(dealer) < 17) {
                     dealer.add(draw());
+                    Sfx.play(BlackjackActivity.this, Sfx.CARD);
                     paint();
                     handler.postDelayed(this, 650);
                     return;
@@ -371,6 +375,7 @@ public class BlackjackActivity extends Activity {
         Stats.bet(this, "bj", bet, back);
         Stats.add(this, outcome > 0 ? "bjWon" : (outcome < 0 ? "bjLost" : "bjPush"), 1);
         sitting.round(bet, back);
+        Sfx.play(this, outcome > 0 ? Sfx.WIN : (outcome < 0 ? Sfx.LOSE : Sfx.CHIPS));
         paint();
     }
 

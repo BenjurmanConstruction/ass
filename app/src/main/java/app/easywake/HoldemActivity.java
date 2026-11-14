@@ -56,6 +56,7 @@ public class HoldemActivity extends Activity {
     private int blind;
     private boolean live;
     private boolean showdown;
+    private boolean postingBlinds;
     private int token;
 
     private LinearLayout oppRow;
@@ -209,6 +210,7 @@ public class HoldemActivity extends Activity {
             }
         });
         root.addView(wallet, Ui.full(this, 14));
+        root.addView(Sfx.toggle(this), Ui.full(this, 10));
         Button rules = Ui.button(this, "How to play and hand ranks", false);
         rules.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -267,6 +269,7 @@ public class HoldemActivity extends Activity {
     /** Moves coupons from a player into the pot. The computer has no wallet to drain. */
     private void pay(int p, int amount) {
         if (amount <= 0) return;
+        if (!postingBlinds) Sfx.play(this, Sfx.CHIPS);
         if (p == ME) {
             Wallet.addCoupons(this, -amount);
             myTotal += amount;
@@ -299,9 +302,12 @@ public class HoldemActivity extends Activity {
         showdown = false;
         live = true;
         button = 1 - button;
+        Sfx.play(this, Sfx.CARD);
         // The button posts the small blind and acts first before the flop.
+        postingBlinds = true;
         pay(button, blind / 2);
         pay(1 - button, blind);
+        postingBlinds = false;
         level = blind;
         betsMade = 1;
         waiting = 2;
@@ -368,6 +374,7 @@ public class HoldemActivity extends Activity {
         }
         street++;
         shown = street == 1 ? 3 : shown + 1;
+        Sfx.play(this, Sfx.CARD);
         in[ME] = 0;
         in[OPP] = 0;
         level = 0;
@@ -414,6 +421,7 @@ public class HoldemActivity extends Activity {
         Stats.bet(this, "poker", myTotal, back);
         if (winner == ME) Stats.add(this, "pokerWon", 1);
         sitting.round(myTotal, back);
+        Sfx.play(this, winner == ME ? Sfx.WIN : (winner == OPP ? Sfx.LOSE : Sfx.CHIPS));
         if (shownDown) shown = 5;
         paint();
     }

@@ -15,6 +15,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
@@ -169,7 +170,13 @@ public class AlarmService extends Service {
             AudioAttributes attrs = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
                     .build();
-            vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0), attrs);
+            VibrationEffect effect = VibrationEffect.createWaveform(pattern, 0);
+            if (Build.VERSION.SDK_INT >= 33) {
+                vibrator.vibrate(effect,
+                        VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM));
+            } else {
+                vibrator.vibrate(effect, attrs);
+            }
         } catch (Exception e) {
             // Vibration is optional.
         }

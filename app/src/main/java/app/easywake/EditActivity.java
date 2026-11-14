@@ -6,7 +6,10 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.content.Context;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.OpenableColumns;
 import android.text.InputType;
 import android.text.format.DateFormat;
@@ -24,6 +27,7 @@ import android.widget.Toast;
 /** Screen for creating or changing one alarm. */
 public class EditActivity extends Activity {
     private static final int PICK_FILE = 1;
+    private static final int TRIM = 2;
     private static final int[] FADE_OPTIONS = {0, 15, 30, 60, 120, 300};
     private static final int[] SNOOZE_OPTIONS = {5, 10, 15, 20, 30};
     private static final String[] DAY_LETTERS = {"S", "M", "T", "W", "T", "F", "S"};
@@ -35,6 +39,7 @@ public class EditActivity extends Activity {
     private final TextView[] dayViews = new TextView[7];
     private TextView repeatHint;
     private Ui.Row soundRow;
+    private Ui.Row clipRow;
     private Ui.Row fadeRow;
     private Ui.Row vibrateRow;
     private Ui.Row snoozeRow;
@@ -111,6 +116,15 @@ public class EditActivity extends Activity {
             }
         });
         root.addView(soundRow.view, Ui.full(this, 10));
+
+        clipRow = Ui.row(this, "Part of song", "");
+        clipRow.view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openTrim();
+            }
+        });
+        root.addView(clipRow.view, Ui.full(this, 10));
 
         previewBtn = Ui.button(this, "▶  Play preview", false);
         previewBtn.setOnClickListener(new View.OnClickListener() {
@@ -206,6 +220,10 @@ public class EditActivity extends Activity {
 
     private void paintRows() {
         soundRow.value.setText(alarm.soundText());
+        clipRow.view.setVisibility(alarm.usesFile() ? View.VISIBLE : View.GONE);
+        clipRow.value.setText(alarm.hasClip()
+                ? Ui.clock(alarm.clipStartMs) + " to " + Ui.clock(alarm.clipEndMs)
+                : "Whole song");
         fadeRow.value.setText(Ui.fadeText(alarm.fadeSec));
         vibrateRow.value.setText(Ui.vibrateText(alarm.vibrateMode));
         snoozeRow.value.setText(alarm.snoozeMin + " minutes");
@@ -250,6 +268,14 @@ public class EditActivity extends Activity {
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == TRIM) {
+            if (result == RESULT_OK && data != null) {
+                alarm.clipStartMs = data.getLongExtra("start", 0);
+                alarm.clipEndMs = data.getLongExtra("end", 0);
+                paintRows();
+            }
+            return;
+        }
         if (request != PICK_FILE || result != RESULT_OK || data == null) return;
         Uri uri = data.getData();
         if (uri == null) return;
@@ -262,7 +288,21 @@ public class EditActivity extends Activity {
         }
         alarm.uri = uri.toString();
         alarm.soundName = displayName(uri);
+        alarm.clipStartMs = 0;
+        alarm.clipEndMs = 0;
         paintRows();
+        // Go straight to choosing which part of the song to play.
+        openTrim();
+    }
+
+    private void openTrim() {
+        if (!alarm.usesFile()) return;
+        stopPreview();
+        startActivityForResult(new Intent(this, TrimActivity.class)
+                .putExtra("uri", alarm.uri)
+                .putExtra("name", alarm.soundText())
+                .putExtra("start", alarm.clipStartMs)
+                .putExtra("end", alarm.clipEndMs), TRIM);
     }
 
     private String displayName(Uri uri) {
@@ -309,9 +349,25 @@ public class EditActivity extends Activity {
                     public void onClick(DialogInterface d, int which) {
                         alarm.vibrateMode = which;
                         paintRows();
+                        if (which != 0) buzz();
                     }
                 })
                 .show();
+    }
+
+    /** Short buzz so you can feel that vibration works on this phone. */
+    private void buzz() {
+        try {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v == null || !v.hasVibrator()) {
+                Toast.makeText(this, "This phone reports no vibration motor.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            v.vibrate(VibrationEffect.createOneShot(350, VibrationEffect.DEFAULT_AMPLITUDE));
+        } catch (Exception e) {
+            // Vibration is optional.
+        }
     }
 
     private void chooseSnooze() {

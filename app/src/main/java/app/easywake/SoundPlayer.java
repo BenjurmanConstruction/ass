@@ -21,6 +21,25 @@ final class SoundPlayer {
     private long fadeStart;
     private int fadeMs;
     private Runnable onFadeDone;
+    private long clipStart;
+    private long clipEnd;
+
+    /** Keeps playback inside the chosen part of the song. */
+    private final Runnable clipTick = new Runnable() {
+        @Override
+        public void run() {
+            if (mp == null) return;
+            try {
+                int pos = mp.getCurrentPosition();
+                if (pos >= clipEnd || pos < clipStart - 1500) {
+                    mp.seekTo(clipStart, MediaPlayer.SEEK_CLOSEST);
+                }
+            } catch (IllegalStateException e) {
+                return;
+            }
+            handler.postDelayed(this, 80);
+        }
+    };
 
     private final Runnable fadeTick = new Runnable() {
         @Override
@@ -52,8 +71,10 @@ final class SoundPlayer {
                 .build();
 
         MediaPlayer p = null;
+        boolean fromFile = false;
         if (a.usesFile()) {
             p = tryCreate(c, attrs, Uri.parse(a.uri), null);
+            fromFile = p != null;
         }
         if (p == null) {
             try {
@@ -73,6 +94,20 @@ final class SoundPlayer {
             onFadeDone = null;
             if (fadeDone != null) fadeDone.run();
             return;
+        }
+
+        if (fromFile && a.hasClip()) {
+            try {
+                int dur = mp.getDuration();
+                clipStart = Math.max(0, a.clipStartMs);
+                clipEnd = dur > 0 ? Math.min(a.clipEndMs, dur) : a.clipEndMs;
+                if (clipEnd - clipStart >= 500) {
+                    mp.seekTo(clipStart, MediaPlayer.SEEK_CLOSEST);
+                    handler.postDelayed(clipTick, 80);
+                }
+            } catch (Exception e) {
+                // Play the whole song instead.
+            }
         }
 
         fadeMs = withFade ? a.fadeSec * 1000 : 0;
@@ -126,6 +161,7 @@ final class SoundPlayer {
 
     void stop() {
         handler.removeCallbacks(fadeTick);
+        handler.removeCallbacks(clipTick);
         onFadeDone = null;
         if (mp != null) {
             try {

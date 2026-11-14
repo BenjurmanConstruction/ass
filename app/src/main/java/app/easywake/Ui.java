@@ -231,6 +231,14 @@ final class Ui {
         return m + (m == 1 ? " minute" : " minutes");
     }
 
+    /** "1:05" style position in a song. */
+    static String clock(long ms) {
+        long total = Math.max(0, ms) / 1000;
+        long m = total / 60;
+        long sec = total % 60;
+        return m + ":" + (sec < 10 ? "0" : "") + sec;
+    }
+
     static String vibrateText(int mode) {
         if (mode == 2) return "From the start";
         if (mode == 1) return "After the fade-in";

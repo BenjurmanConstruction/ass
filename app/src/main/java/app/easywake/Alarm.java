@@ -18,6 +18,9 @@ public class Alarm {
     /** Music file chosen by the user, or null for a built-in tone. */
     public String uri = null;
     public String soundName = null;
+    /** Part of the music file to play, in milliseconds. Both 0 = the whole song. */
+    public long clipStartMs = 0;
+    public long clipEndMs = 0;
     public int fadeSec = 60;
     /** 0 = off, 1 = start vibrating after the fade-in, 2 = vibrate from the start. */
     public int vibrateMode = 0;
@@ -25,6 +28,10 @@ public class Alarm {
     public String label = "";
     /** If in the future, the alarm is snoozed until this time (epoch ms). */
     public long snoozeUntil = 0;
+
+    public boolean hasClip() {
+        return usesFile() && clipEndMs > clipStartMs;
+    }
 
     public boolean usesFile() {
         return uri != null && !uri.isEmpty();
@@ -48,6 +55,8 @@ public class Alarm {
         o.put("tone", tone);
         if (uri != null) o.put("uri", uri);
         if (soundName != null) o.put("soundName", soundName);
+        o.put("clipStart", clipStartMs);
+        o.put("clipEnd", clipEndMs);
         o.put("fadeSec", fadeSec);
         o.put("vibrateMode", vibrateMode);
         o.put("snoozeMin", snoozeMin);
@@ -66,6 +75,8 @@ public class Alarm {
         a.tone = o.optInt("tone", 0);
         a.uri = o.has("uri") ? o.optString("uri", "") : null;
         a.soundName = o.has("soundName") ? o.optString("soundName", "") : null;
+        a.clipStartMs = o.optLong("clipStart", 0);
+        a.clipEndMs = o.optLong("clipEnd", 0);
         a.fadeSec = o.optInt("fadeSec", 60);
         // Older versions stored a simple on/off; treat "on" as "after the fade-in".
         a.vibrateMode = o.has("vibrateMode") ? o.optInt("vibrateMode", 0)

@@ -32,6 +32,10 @@
             android:windowSoftInputMode="stateHidden" />
 
         <activity
+            android:name=".TrimActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".SleepActivity"
             android:exported="false" />
 

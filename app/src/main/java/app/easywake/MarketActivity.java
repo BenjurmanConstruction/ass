@@ -348,6 +348,7 @@ public class MarketActivity extends Activity {
     protected void onResume() {
         super.onResume();
         visible = true;
+        // Coming back from a chart screen: pick up any line color change.
         handler.removeCallbacks(autoRefresh);
         handler.post(autoRefresh);
     }
@@ -425,7 +426,8 @@ public class MarketActivity extends Activity {
         c.change.setTextColor(color);
         c.range.setText("Low " + MarketData.fmt(s.low) + "   •   High "
                 + MarketData.fmt(s.high));
-        c.chart.setData(s.values, r == 0 && s.live ? s.prev : Double.NaN, color);
+        c.chart.setData(s.values, r == 0 && s.live ? s.prev : Double.NaN,
+                MarketData.lineColor(this, color));
     }
 
     private void paintFooter(int r) {

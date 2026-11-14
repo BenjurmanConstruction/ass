@@ -54,6 +54,8 @@ public class ChartActivity extends Activity {
     private final Button[] rangeBtns = new Button[MarketData.RANGE_LABELS.length];
     private final Button[] typeBtns = new Button[TYPE_NAMES.length];
     private final Button[] indBtns = new Button[IND_NAMES.length];
+    private LinearLayout colorRow;
+    private int autoColor = Ui.SUB;
 
     private final Runnable autoRefresh = new Runnable() {
         @Override
@@ -135,6 +137,17 @@ public class ChartActivity extends Activity {
             }
         }), Ui.full(this, 10));
 
+        root.addView(Ui.heading(this, "Line color"), Ui.full(this, 22));
+        HorizontalScrollView colorScroll = new HorizontalScrollView(this);
+        colorScroll.setHorizontalScrollBarEnabled(false);
+        colorRow = new LinearLayout(this);
+        colorRow.setOrientation(LinearLayout.HORIZONTAL);
+        colorScroll.addView(colorRow);
+        root.addView(colorScroll, Ui.full(this, 10));
+        paintColors();
+        root.addView(Ui.text(this, "Auto is green when up and red when down. Candles and "
+                + "bars always use green and red.", 12, Ui.SUB), Ui.full(this, 8));
+
         root.addView(Ui.heading(this, "Indicators"), Ui.full(this, 22));
         root.addView(pills(IND_NAMES, indBtns, new Pick() {
             @Override
@@ -157,6 +170,43 @@ public class ChartActivity extends Activity {
         Bg.apply(this, scroll);
         paintPills();
         applyToChart();
+    }
+
+    private void paintColors() {
+        colorRow.removeAllViews();
+        int current = Prefs.getInt(this, "chartLine", 0);
+        for (int i = 0; i < MarketData.LINE_NAMES.length; i++) {
+            final int idx = i;
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.VERTICAL);
+            cell.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
+            View dot = new View(this);
+            android.graphics.drawable.GradientDrawable g =
+                    new android.graphics.drawable.GradientDrawable();
+            g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            g.setColor(MarketData.lineSwatch(i));
+            g.setStroke(Ui.dp(this, i == current ? 3 : 1),
+                    i == current ? 0xFFFFFFFF : Ui.STROKE);
+            dot.setBackground(g);
+            cell.addView(dot, new LinearLayout.LayoutParams(Ui.dp(this, 38), Ui.dp(this, 38)));
+            TextView name = Ui.text(this, MarketData.LINE_NAMES[i], 11,
+                    i == current ? Ui.TEXT : Ui.SUB);
+            name.setGravity(android.view.Gravity.CENTER);
+            cell.addView(name, Ui.full(this, 4));
+            cell.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Prefs.putInt(ChartActivity.this, "chartLine", idx);
+                    paintColors();
+                    chart.setLineColor(MarketData.lineColor(ChartActivity.this, autoColor));
+                }
+            });
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cp.rightMargin = Ui.dp(this, 16);
+            colorRow.addView(cell, cp);
+        }
     }
 
     private interface Pick {
@@ -274,7 +324,9 @@ public class ChartActivity extends Activity {
                 + MarketData.fmt(s.high)
                 + (Double.isNaN(s.prev) ? "" : "   •   "
                 + (r == 0 ? "Prev close " : "Start ") + MarketData.fmt(s.prev)));
-        chart.setSeries(s, color, r == 0 && s.live ? s.prev : Double.NaN, r);
+        autoColor = color;
+        chart.setSeries(s, MarketData.lineColor(this, color),
+                r == 0 && s.live ? s.prev : Double.NaN, r);
         readout.setText("Touch the chart to read the price at any point.");
         footer.setText("Updated " + android.text.format.DateFormat.getTimeFormat(this)
                 .format(new Date()) + ". " + (s.live
@@ -347,6 +399,11 @@ public class ChartActivity extends Activity {
             dash.setStrokeWidth(d);
             dash.setColor(0x55FFFFFF);
             dash.setPathEffect(new DashPathEffect(new float[]{4 * d, 4 * d}, 0));
+        }
+
+        void setLineColor(int color) {
+            this.color = color;
+            invalidate();
         }
 
         void configure(int type, int indicators) {

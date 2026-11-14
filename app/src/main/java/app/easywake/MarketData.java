@@ -31,6 +31,29 @@ final class MarketData {
     static final int UP = 0xFF66D19E;
     static final int DOWN = 0xFFFF7A7A;
 
+    static final String[] LINE_NAMES = {
+            "Auto", "Accent", "White", "Blue", "Purple", "Orange", "Pink", "Teal"
+    };
+    private static final int[] LINE_COLORS = {
+            0, 0, 0xFFFFFFFF, 0xFF5AA0FF, 0xFFB39DDB, 0xFFFF9F45, 0xFFFF7EB6, 0xFF4FD1C5
+    };
+
+    /**
+     * The color to draw a chart line in. "Auto" keeps green for up and red for down;
+     * anything else is the color the user picked.
+     */
+    static int lineColor(Context c, int autoColor) {
+        int i = Prefs.getInt(c, "chartLine", 0);
+        if (i <= 0 || i >= LINE_COLORS.length) return autoColor;
+        return i == 1 ? Ui.ACCENT : LINE_COLORS[i];
+    }
+
+    /** Swatch color for the picker (Auto shows green). */
+    static int lineSwatch(int i) {
+        if (i <= 0 || i >= LINE_COLORS.length) return UP;
+        return i == 1 ? Ui.ACCENT : LINE_COLORS[i];
+    }
+
     /** Something that can be charted. */
     static final class Sym {
         final String symbol;

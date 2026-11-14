@@ -948,7 +948,7 @@ public class GameActivity2 extends GameActivity {
 
     private void startTyping() {
         typeStartAt = 0;
-        final String target = Bank.SENTENCES[rnd.nextInt(Bank.SENTENCES.length)];
+        final String target = Bank3.sentences()[Deck.next(this, "sentences", Bank3.sentences().length)];
         LinearLayout col = column();
         col.addView(note("Type this exactly:"), Ui.full(this, 0));
         TextView show = Ui.text(this, target, 20, Ui.TEXT);
@@ -1043,7 +1043,8 @@ public class GameActivity2 extends GameActivity {
     }
 
     private void scrNext() {
-        String word = Bank.SCRAMBLE[rnd.nextInt(Bank.SCRAMBLE.length)];
+        String[] bank = Bank3.scramble();
+        String word = bank[Deck.next(this, "scramble", bank.length)];
         List<Character> letters = new ArrayList<>();
         for (char ch : word.toCharArray()) letters.add(ch);
         String mixed = word;
@@ -1058,7 +1059,7 @@ public class GameActivity2 extends GameActivity {
         options.add(word);
         int guard = 0;
         while (options.size() < 4 && guard++ < 300) {
-            String other = Bank.SCRAMBLE[rnd.nextInt(Bank.SCRAMBLE.length)];
+            String other = bank[rnd.nextInt(bank.length)];
             // Same length makes the wrong answers believable.
             if (!options.contains(other) && (other.length() == word.length() || guard > 150)) {
                 options.add(other);

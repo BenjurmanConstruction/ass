@@ -57,6 +57,8 @@ final class TreeView extends View {
         GLYPHS.put("freespins", "🎁");
         GLYPHS.put("highroller", "💰");
         GLYPHS.put("casino_more", "🃏");
+        GLYPHS.put("blocks", "\uD83E\uDDF1");
+        GLYPHS.put("m_econ", "\uD83D\uDCC5");
         GLYPHS.put("m_portfolio", "💼");
         GLYPHS.put("m_paper", "📝");
         GLYPHS.put("m_news", "📰");

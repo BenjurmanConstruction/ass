@@ -433,7 +433,7 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, BrainActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("My tools", "Slot, portfolio, news, weather, goals and more",
+        sheet.addView(menuItem("My tools", "Slot, Block Drop, alerts, portfolio, weather and more",
                 new Runnable() {
                     @Override
                     public void run() {

@@ -1,11 +1,7 @@
 package app.easywake;
 
-import java.util.Random;
-
 /** Strange-but-true facts for the Brain gym. */
 final class Facts {
-    private static final Random RND = new Random();
-    private static int last = -1;
 
     private static final String[] ALL = {
             "Octopuses have three hearts and blue blood.",
@@ -90,10 +86,8 @@ final class Facts {
 
     private Facts() {}
 
+    /** The next fact from a shuffled deck: every fact comes up once before any repeats. */
     static String next() {
-        int i = RND.nextInt(ALL.length);
-        if (i == last) i = (i + 1) % ALL.length;
-        last = i;
-        return ALL[i];
+        return ALL[Deck.next(App.ctx, "facts", ALL.length)];
     }
 }

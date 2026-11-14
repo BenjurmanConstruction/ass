@@ -10,5 +10,6 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context c, Intent in) {
         Scheduler.rescheduleAll(c);
         Reminders.scheduleAll(c);
+        Alerts.schedule(c);
     }
 }

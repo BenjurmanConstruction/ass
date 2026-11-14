@@ -1,11 +1,7 @@
 package app.easywake;
 
-import java.util.Random;
-
 /** A pile of corny dad jokes, with some dark humor mixed in, for the home screen. */
 final class Jokes {
-    private static final Random RND = new Random();
-    private static int last = -1;
 
     private static final String[] ALL = {
             "I'm reading a book about anti-gravity. It's impossible to put down.",
@@ -260,11 +256,20 @@ final class Jokes {
 
     private Jokes() {}
 
-    /** A random joke, never the same one twice in a row. */
+    private static String[] all;
+
+    static String[] all() {
+        if (all == null) {
+            all = new String[ALL.length + Jokes2.ALL.length];
+            System.arraycopy(ALL, 0, all, 0, ALL.length);
+            System.arraycopy(Jokes2.ALL, 0, all, ALL.length, Jokes2.ALL.length);
+        }
+        return all;
+    }
+
+    /** The next joke from a shuffled deck: every joke comes up once before any repeats. */
     static String next() {
-        int i = RND.nextInt(ALL.length);
-        if (i == last) i = (i + 1) % ALL.length;
-        last = i;
-        return ALL[i];
+        String[] a = all();
+        return a[Deck.next(App.ctx, "jokes", a.length)];
     }
 }

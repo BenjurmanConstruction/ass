@@ -52,12 +52,15 @@ final class Tree {
     private static final Node[] BASE = {
             // ----- Casino -----
             new Node("slot", 0, FEATURE, "Lucky Sevens slot",
-                    "A progressive penny slot with Mini, Major and Grand jackpots.",
+                    "Classic bars and sevens with a 3x wild, up to five lines and three jackpots.",
                     30, 2, null, null),
             new Node("freespins", 0, PERK, "Daily free spins",
                     "Five free spins every day.", 50, 3, "slot", null),
             new Node("highroller", 0, PERK, "High roller",
                     "Unlocks 50 and 100 coupon bets.", 90, 5, "slot", null),
+            new Node("blocks", 0, FEATURE, "Block Drop",
+                    "A falling-blocks puzzle. Clearing rows earns Knowledge Points.",
+                    40, 3, null, null),
             new Node("casino_more", 0, SOON, "More games",
                     "Blackjack and video poker.", 0, 0, null, null),
 
@@ -150,8 +153,12 @@ final class Tree {
             new Node("m_paper", 1, FEATURE, "Paper trading",
                     "Practice with $10,000 of pretend cash. Add more with Knowledge Points.",
                     60, 4, "m_risk", null),
-            new Node("m_alerts", 1, SOON, "Alerts and economic calendar",
-                    "Price alerts and the dates of big economic reports.", 0, 0, null, null),
+            new Node("m_econ", 1, FEATURE, "Economic calendar",
+                    "Dates of Fed decisions, inflation reports and jobs reports.", 25, 2,
+                    null, null),
+            new Node("m_alerts", 1, FEATURE, "Price alerts",
+                    "A notification when a ticker reaches the price you set.", 40, 3, null,
+                    null),
 
             // ----- Wealth -----
             new Node("w_rate", 2, PERK, "Better exchange rate",
@@ -173,8 +180,10 @@ final class Tree {
                     null),
 
             // ----- Helper -----
-            new Node("h_lookup", 4, SOON, "Safe lookups",
-                    "The helper fetches text answers from trusted sources.", 0, 0, null, null),
+            new Node("h_lookup", 4, PERK, "Safe lookups",
+                    "Ask the helper \"look up...\" or \"who was...\" and it reads you the "
+                            + "Wikipedia summary. Plain text only: nothing is downloaded "
+                            + "or opened.", 30, 2, null, null),
             new Node("h_market", 4, PERK, "Market Q&A",
                     "Ask the helper things like 'how do I find support and resistance?'",
                     30, 2, null, null),
@@ -283,6 +292,9 @@ final class Tree {
     /** The screen a FEATURE node opens, or null. */
     static Class<?> screen(String id) {
         if ("slot".equals(id)) return SlotActivity.class;
+        if ("blocks".equals(id)) return BlocksActivity.class;
+        if ("m_econ".equals(id)) return EconActivity.class;
+        if ("m_alerts".equals(id)) return AlertsActivity.class;
         if ("m_portfolio".equals(id)) return PortfolioActivity.class;
         if ("m_paper".equals(id)) return PaperActivity.class;
         if ("m_news".equals(id)) return NewsActivity.class;

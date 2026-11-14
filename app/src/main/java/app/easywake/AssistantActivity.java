@@ -187,6 +187,16 @@ public class AssistantActivity extends Activity {
     private String answer(String raw) {
         String q = " " + raw.toLowerCase(Locale.US).replaceAll("[?!.,]", " ") + " ";
 
+        // ----- calculator -----
+        String sum = Calc.answer(raw);
+        if (sum != null) return sum;
+
+        // ----- lookups that were asked for by name -----
+        Matcher look = Pattern.compile("(?i)^\\s*(?:look ?up|search for|search|wiki|"
+                + "wikipedia|who is|who was|who are|who were)\\s+(.+?)\\s*\\??$")
+                .matcher(raw);
+        if (look.find()) return lookup(look.group(1));
+
         // ----- alarms -----
         if (has(q, "set", "wake me", "new alarm", "add alarm", "create")
                 && has(q, "alarm", "wake")) {
@@ -223,6 +233,33 @@ public class AssistantActivity extends Activity {
                 sb.append("\n• ").append(memos.get(i).text);
             }
             return sb.toString();
+        }
+
+        // ----- newer tools -----
+        if (has(q, "block drop", "blocks", "tetris", "falling block")) {
+            if (Tree.owned(this, "blocks")) {
+                open(BlocksActivity.class);
+                return "Opening Block Drop.";
+            }
+            return "Block Drop is locked. It's on the Casino branch of the skill tree (40 "
+                    + "Knowledge Points, level 3).";
+        }
+        if (has(q, "price alert", "alerts", "alert me", "set an alert", "set alert")) {
+            if (Tree.owned(this, "m_alerts")) {
+                open(AlertsActivity.class);
+                return "Opening price alerts. Tap New alert to add one.";
+            }
+            return "Price alerts are locked. They're on the Market branch of the skill tree "
+                    + "(40 Knowledge Points, level 3).";
+        }
+        if (has(q, "economic calendar", "fed meeting", "fomc", "cpi report", "jobs report",
+                "inflation report", "next fed", "rate decision")) {
+            if (Tree.owned(this, "m_econ")) {
+                open(EconActivity.class);
+                return "Opening the economic calendar.";
+            }
+            return "The economic calendar is locked. It's on the Market branch of the skill "
+                    + "tree (25 Knowledge Points, level 2).";
         }
 
         // ----- market questions (needs the Market Q&A unlock) -----
@@ -461,7 +498,61 @@ public class AssistantActivity extends Activity {
         if (has(q, "help", "what can you", "can you do", "commands")) {
             return help();
         }
+        // Anything else phrased as "what is ..." goes to the encyclopedia.
+        Matcher what = Pattern.compile("(?i)^\\s*(?:what is|what's|what are|what was|"
+                + "what were|define|meaning of|tell me about|where is|when was|when did)\\s+(.+?)\\s*\\??$")
+                .matcher(raw);
+        if (what.find()) return lookup(what.group(1));
         return "I didn't catch that. I'm a simple helper, so try one of these:\n" + help();
+    }
+
+    /** Fetches a short plain-text summary from Wikipedia. Needs the Safe lookups unlock. */
+    private String lookup(final String topicRaw) {
+        final String topic = topicRaw.replaceAll("(?i)^(a|an|the)\\s+", "").trim();
+        if (topic.isEmpty()) return "Look up what? Try \"look up the Hoover Dam\".";
+        if (!Tree.owned(this, "h_lookup")) {
+            return "I can look that up once you unlock Safe lookups on the Helper branch of "
+                    + "the skill tree (30 Knowledge Points, level 2).";
+        }
+        if (MarketData.netOff) {
+            return "Internet is switched off in Settings, so I can't look things up.";
+        }
+        final TextView pending = bubble("Looking up \"" + topic + "\"...", false);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String out;
+                try {
+                    String url = "https://en.wikipedia.org/w/api.php?action=query"
+                            + "&generator=search&gsrlimit=1&prop=extracts&exintro=1"
+                            + "&explaintext=1&redirects=1&format=json&gsrsearch="
+                            + java.net.URLEncoder.encode(topic, "UTF-8");
+                    org.json.JSONObject pages = new org.json.JSONObject(MarketData.http(url))
+                            .getJSONObject("query").getJSONObject("pages");
+                    org.json.JSONObject page = pages.getJSONObject(pages.keys().next());
+                    String title = page.optString("title");
+                    String text = page.optString("extract").trim();
+                    if (text.isEmpty()) throw new Exception("empty");
+                    if (text.length() > 700) {
+                        int cut = text.lastIndexOf(". ", 700);
+                        text = text.substring(0, cut > 200 ? cut + 1 : 700) + " ...";
+                    }
+                    out = title + "\n\n" + text + "\n\nSource: Wikipedia. Anyone can edit "
+                            + "it, so double-check anything important.";
+                } catch (Exception e) {
+                    out = "I couldn't find anything for \"" + topic + "\". Try different "
+                            + "words, or check your internet.";
+                }
+                final String reply = out;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!isFinishing()) pending.setText(reply);
+                    }
+                });
+            }
+        }).start();
+        return null;
     }
 
     private String help() {
@@ -470,6 +561,9 @@ public class AssistantActivity extends Activity {
                 + "• \"Memo call the bank\" or \"Remind me to bring lunch\"\n"
                 + "• \"Show my memos\"\n"
                 + "• \"How's the market?\" or \"Price of AAPL\"\n"
+                + "• \"15% of 240\" or \"(40 + 15) / 5\" (calculator)\n"
+                + "• \"Look up the Hoover Dam\" or \"Who was Nikola Tesla?\" (needs Safe "
+                + "lookups)\n"
                 + "• \"How do I find support and resistance?\" (needs Market Q&A)\n"
                 + "• \"Play the fan\", \"Play white noise\", \"Stop the fan\"\n"
                 + "• \"Tell me a joke\", \"Crazy fact\"\n"

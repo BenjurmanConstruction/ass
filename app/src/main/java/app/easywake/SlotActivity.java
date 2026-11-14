@@ -2,74 +2,83 @@ package app.easywake;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
 /**
- * Lucky Sevens: a three-reel progressive slot played with Fun Coupons (play money only).
+ * Lucky Sevens: a classic three-reel slot with bars, sevens and a 3x wild diamond, played
+ * with Fun Coupons (play money only).
  *
- * Each spin's result is drawn from the odds table in {@link #roll()}, and the reels are
- * then set to show it. The three jackpots grow with every spin and are saved between visits.
+ * Each reel is a fixed strip of 61 stops. A spin picks a random stop on each reel, the
+ * three rows around it are shown, and every line you bet on is paid from the table in
+ * {@link #linePay}. The odds on the pay table screen come from counting every possible
+ * combination of this strip.
  */
 public class SlotActivity extends Activity {
-    // Symbols, weakest to strongest.
-    private static final String CHERRY = "🍒";
-    private static final String LEMON = "🍋";
-    private static final String BELL = "🔔";
-    private static final String STAR = "⭐";
-    private static final String DIAMOND = "💎";
-    private static final String SEVEN = "7";
-    private static final String CROWN = "👑";
-    private static final String[] ALL = {CHERRY, LEMON, BELL, STAR, DIAMOND, SEVEN, CROWN};
+    // Symbol codes used on the strip.
+    static final char WILD = 'W';
+    static final char SEVEN = '7';
+    static final char BAR3 = '3';
+    static final char BAR2 = '2';
+    static final char BAR1 = '1';
+    static final char CHERRY = 'C';
+    static final char BLANK = 'X';
 
-    private static final int[] BETS = {1, 5, 10, 25};
-    private static final int[] BETS_HIGH = {1, 5, 10, 25, 50, 100};
-    /** Jackpots are sized for a 25-coupon bet; smaller bets win a matching share. */
+    /** The reel strip: 2 wilds, 3 sevens, 4 triple bars, 6 double, 7 single, 3 cherries. */
+    private static final String STRIP =
+            "XX3XXXCX23XXX2XXC2XXWXX1X2X1X31XXX12X1XX37XX7X1XWXXX1XX27XXCX";
+
+    /** Which row (0 top, 1 middle, 2 bottom) each line uses on reels 1, 2 and 3. */
+    static final int[][] LINES = {
+            {1, 1, 1}, {0, 0, 0}, {2, 2, 2}, {0, 1, 2}, {2, 1, 0}
+    };
+    private static final int[] LINE_CHOICES = {1, 3, 5};
+    private static final int[] BETS = {1, 2, 5, 10, 25};
+    private static final int[] BETS_HIGH = {1, 2, 5, 10, 25, 50, 100};
+    /** Jackpots are sized for a 25-coupon line bet; smaller bets win a matching share. */
     private static final int FULL_BET = 25;
 
     // Jackpot pots are stored in hundredths of a coupon so small bets still feed them.
-    private static final String[] POT_KEYS = {"potMini", "potMajor", "potGrand"};
+    // New keys, so pots from the older single-line machine don't carry over.
+    private static final String[] POT_KEYS = {"pot2Mini", "pot2Major", "pot2Grand"};
     private static final String[] POT_NAMES = {"MINI", "MAJOR", "GRAND"};
-    private static final int[] POT_SEEDS = {25000, 250000, 2500000};
+    private static final int[] POT_SEEDS = {100000, 500000, 5000000};
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
     private final Random rnd = new Random();
     private final ReelView[] reels = new ReelView[3];
     private final TextView[] pots = new TextView[3];
+    private LinesView linesView;
     private TextView balance;
     private TextView message;
     private TextView betText;
     private TextView freeText;
     private Button spinBtn;
-    private int betIndex = 1;
+    private Button linesBtn;
+    private int betIndex = 0;
+    private int lineChoice = 1;
     private boolean spinning;
     private int token;
-
-    /** What a spin came to. */
-    private static final class Result {
-        String[] show = new String[3];
-        /** Payout as a multiple of the bet (0 for a loss or a jackpot). */
-        int multiple;
-        /** 0 mini, 1 major, 2 grand, or -1. */
-        int jackpot = -1;
-        String text = "";
-    }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -80,6 +89,7 @@ public class SlotActivity extends Activity {
             finish();
             return;
         }
+        lineChoice = Math.max(0, Math.min(2, Prefs.getInt(this, "slotLines", 1)));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -115,24 +125,34 @@ public class SlotActivity extends Activity {
         }
         root.addView(meters, Ui.full(this, 14));
 
-        // Reels.
-        LinearLayout frame = new LinearLayout(this);
-        frame.setOrientation(LinearLayout.HORIZONTAL);
+        // Reels, with the pay lines drawn over the top.
+        FrameLayout cabinet = new FrameLayout(this);
         android.graphics.drawable.GradientDrawable fg = Ui.card(this, 24);
         fg.setStroke(Ui.dp(this, 2), Ui.ACCENT);
-        frame.setBackground(fg);
-        frame.setPadding(Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14));
+        cabinet.setBackground(fg);
+        int inset = Ui.dp(this, 12);
+        cabinet.setPadding(inset, inset, inset, inset);
+        LinearLayout frame = new LinearLayout(this);
+        frame.setOrientation(LinearLayout.HORIZONTAL);
         for (int i = 0; i < 3; i++) {
             ReelView r = new ReelView(this);
-            r.setBackground(Ui.round(this, 0x33000000, 16));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, Ui.dp(this, 210),
-                    1f);
-            int g = Ui.dp(this, 5);
-            rp.setMargins(g, 0, g, 0);
+            r.setBackground(Ui.round(this, 0x33000000, 14));
+            int at = rnd.nextInt(STRIP.length());
+            r.show(sym(at - 1), sym(at), sym(at + 1));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.MATCH_PARENT, 1f);
             frame.addView(r, rp);
             reels[i] = r;
         }
-        root.addView(frame, Ui.full(this, 14));
+        cabinet.addView(frame, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        linesView = new LinesView(this);
+        cabinet.addView(linesView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 250));
+        cp.topMargin = Ui.dp(this, 14);
+        root.addView(cabinet, cp);
 
         message = Ui.text(this, "Good luck.", 18, Ui.TEXT);
         message.setGravity(Gravity.CENTER);
@@ -146,12 +166,26 @@ public class SlotActivity extends Activity {
         freeText.setGravity(Gravity.CENTER);
         root.addView(freeText, Ui.full(this, 2));
 
-        // Bet selector.
+        // Lines and bet-per-line selectors.
         LinearLayout betRow = new LinearLayout(this);
         betRow.setOrientation(LinearLayout.HORIZONTAL);
         betRow.setGravity(Gravity.CENTER_VERTICAL);
+        linesBtn = Ui.button(this, "", false);
+        linesBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        linesBtn.setPadding(0, 0, 0, 0);
+        linesBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (spinning) return;
+                lineChoice = (lineChoice + 1) % LINE_CHOICES.length;
+                Prefs.putInt(SlotActivity.this, "slotLines", lineChoice);
+                linesView.setWins(null);
+                paint();
+            }
+        });
         Button less = Ui.button(this, "−", false);
         less.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        less.setPadding(0, 0, 0, 0);
         less.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -161,6 +195,7 @@ public class SlotActivity extends Activity {
         });
         Button more = Ui.button(this, "+", false);
         more.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        more.setPadding(0, 0, 0, 0);
         more.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -168,12 +203,17 @@ public class SlotActivity extends Activity {
                 paint();
             }
         });
-        betText = Ui.text(this, "", 18, Ui.TEXT);
+        betText = Ui.text(this, "", 15, Ui.TEXT);
         betText.setGravity(Gravity.CENTER);
-        betRow.addView(less, new LinearLayout.LayoutParams(Ui.dp(this, 64), Ui.dp(this, 56)));
+        betRow.addView(linesBtn, new LinearLayout.LayoutParams(Ui.dp(this, 92),
+                Ui.dp(this, 56)));
+        LinearLayout.LayoutParams lessP = new LinearLayout.LayoutParams(Ui.dp(this, 52),
+                Ui.dp(this, 56));
+        lessP.leftMargin = Ui.dp(this, 8);
+        betRow.addView(less, lessP);
         betRow.addView(betText, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        betRow.addView(more, new LinearLayout.LayoutParams(Ui.dp(this, 64), Ui.dp(this, 56)));
+        betRow.addView(more, new LinearLayout.LayoutParams(Ui.dp(this, 52), Ui.dp(this, 56)));
         root.addView(betRow, Ui.full(this, 12));
 
         spinBtn = Ui.button(this, "SPIN", true);
@@ -222,12 +262,20 @@ public class SlotActivity extends Activity {
     @Override
     protected void onDestroy() {
         token++;
-        handler.removeCallbacksAndMessages(null);
         super.onDestroy();
+    }
+
+    private static char sym(int i) {
+        int n = STRIP.length();
+        return STRIP.charAt(((i % n) + n) % n);
     }
 
     private int[] bets() {
         return Tree.owned(this, "highroller") ? BETS_HIGH : BETS;
+    }
+
+    private int lines() {
+        return LINE_CHOICES[lineChoice];
     }
 
     private int pot(int i) {
@@ -255,162 +303,243 @@ public class SlotActivity extends Activity {
         }
         balance.setText(String.format(Locale.US, "%,d Fun Coupons", Wallet.coupons(this)));
         int free = freeSpins();
-        freeText.setText(free > 0 ? free + " free spins left today (played at a bet of 5)"
+        freeText.setText(free > 0 ? free + " free spins left today (all 5 lines at 1 each)"
                 : (Tree.owned(this, "freespins") ? "Free spins used. More tomorrow." : ""));
         int bet = bets()[betIndex];
-        betText.setText("Bet " + bet + (bet < FULL_BET ? "\njackpots pay " + (bet * 100
-                / FULL_BET) + "%" : "\nfull jackpots"));
+        linesBtn.setText(lines() == 1 ? "1 line" : lines() + " lines");
+        betText.setText(bet + " per line • total " + bet * lines() + "\n"
+                + (bet < FULL_BET ? "jackpots pay " + (bet * 100 / FULL_BET) + "%"
+                : "full jackpots"));
         spinBtn.setText(free > 0 ? "FREE SPIN" : "SPIN");
+        if (!spinning) linesView.setActive(free > 0 ? 5 : lines());
     }
 
     private void spin() {
         if (spinning) return;
         final boolean free = freeSpins() > 0;
-        final int bet = free ? 5 : bets()[betIndex];
+        final int bet = free ? 1 : bets()[betIndex];
+        final int lineCount = free ? 5 : lines();
+        final int total = bet * lineCount;
         if (!free) {
-            if (Wallet.coupons(this) < bet) {
-                message.setText("Not enough coupons.\nGet more in the Wallet.");
+            if (Wallet.coupons(this) < total) {
+                message.setText("Not enough coupons for a bet of " + total
+                        + ".\nLower the bet or get more in the Wallet.");
                 return;
             }
-            Wallet.addCoupons(this, -bet);
+            Wallet.addCoupons(this, -total);
         } else {
             useFreeSpin();
         }
-        // Every spin feeds the jackpots: 1% of the bet to each.
+        // Every spin feeds the jackpots: 1% of the total bet to each.
         for (int i = 0; i < 3; i++) {
-            Prefs.putInt(this, POT_KEYS[i], pot(i) + bet);
+            Prefs.putInt(this, POT_KEYS[i], pot(i) + total);
         }
 
-        final Result res = roll();
+        // Pick where each reel stops. Everything else follows from these three numbers.
+        final char[][] grid = new char[3][3];
+        for (int r = 0; r < 3; r++) {
+            int stop = rnd.nextInt(STRIP.length());
+            grid[0][r] = sym(stop - 1);
+            grid[1][r] = sym(stop);
+            grid[2][r] = sym(stop + 1);
+        }
+
+        linesView.setActive(lineCount);
+        linesView.setWins(null);
         spinning = true;
         spinBtn.setAlpha(0.5f);
         message.setText("");
         paint();
 
-        // Each reel scrolls and slows to a stop, left to right.
         final int mine = ++token;
         long[] durations = {1900, 2700, 3600};
         for (int i = 0; i < 3; i++) {
             final boolean last = i == 2;
-            reels[i].spinTo(res.show[i], durations[i], new Runnable() {
+            reels[i].spinTo(grid[0][i], grid[1][i], grid[2][i], durations[i], new Runnable() {
                 @Override
                 public void run() {
-                    if (last && mine == token) settle(res, bet);
+                    if (last && mine == token) settle(grid, bet, lineCount);
                 }
             });
         }
     }
 
-    private void settle(Result res, int bet) {
+    /**
+     * What one line pays, as a multiple of the line bet. Jackpots are returned as
+     * negative numbers: -1 mini, -2 major, -3 grand.
+     */
+    static int linePay(char a, char b, char c) {
+        char[] s = {a, b, c};
+        int wilds = 0;
+        List<Character> rest = new ArrayList<>();
+        for (char x : s) {
+            if (x == WILD) wilds++;
+            else rest.add(x);
+        }
+        if (wilds == 3) return -3;
+        if (wilds > 0) {
+            int mult = wilds == 1 ? 3 : 9;
+            boolean same = rest.size() == 1 || rest.get(0).equals(rest.get(1));
+            if (same) {
+                char x = rest.get(0);
+                if (x == BLANK) return wilds == 1 ? 1 : 5;
+                return base(x) * mult;
+            }
+            if (isBar(rest.get(0)) && isBar(rest.get(1))) return 3 * mult;
+            if (rest.contains(CHERRY)) return 3 * mult;
+            return 1;
+        }
+        if (a == b && b == c) {
+            if (a == SEVEN) return -2;
+            if (a == BAR3) return -1;
+            if (a == BLANK) return 0;
+            return base(a);
+        }
+        if (isBar(a) && isBar(b) && isBar(c)) return 3;
+        int cherries = 0;
+        for (char x : s) {
+            if (x == CHERRY) cherries++;
+        }
+        if (cherries == 2) return 3;
+        if (cherries == 1) return 1;
+        return 0;
+    }
+
+    private static boolean isBar(char x) {
+        return x == BAR1 || x == BAR2 || x == BAR3;
+    }
+
+    /** Pay for three of a kind (when a wild helps complete it, for sevens and triple bars). */
+    private static int base(char x) {
+        switch (x) {
+            case SEVEN:
+                return 60;
+            case BAR3:
+                return 30;
+            case BAR2:
+                return 15;
+            case BAR1:
+            case CHERRY:
+                return 8;
+            default:
+                return 0;
+        }
+    }
+
+    private void settle(char[][] grid, int bet, int lineCount) {
         spinning = false;
         spinBtn.setAlpha(1f);
         int won = 0;
-        if (res.jackpot >= 0) {
-            // Smaller bets win a matching share of the pot; the rest stays in it.
-            int share = (int) ((long) pot(res.jackpot) * Math.min(bet, FULL_BET) / FULL_BET);
-            won = Math.max(1, share / 100);
-            int left = pot(res.jackpot) - share;
-            Prefs.putInt(this, POT_KEYS[res.jackpot], Math.max(POT_SEEDS[res.jackpot], left));
-            message.setText(POT_NAMES[res.jackpot] + " JACKPOT!\n+" + String.format(Locale.US,
+        int bestJackpot = -1;
+        boolean[] wins = new boolean[LINES.length];
+        int winLines = 0;
+        for (int l = 0; l < lineCount; l++) {
+            int[] rows = LINES[l];
+            int p = linePay(grid[rows[0]][0], grid[rows[1]][1], grid[rows[2]][2]);
+            if (p == 0) continue;
+            wins[l] = true;
+            winLines++;
+            if (p < 0) {
+                int which = -p - 1;
+                // Smaller bets win a matching share of the pot; the rest stays in it.
+                int share = (int) ((long) pot(which) * Math.min(bet, FULL_BET) / FULL_BET);
+                won += Math.max(1, share / 100);
+                Prefs.putInt(this, POT_KEYS[which],
+                        Math.max(POT_SEEDS[which], pot(which) - share));
+                bestJackpot = Math.max(bestJackpot, which);
+            } else {
+                won += p * bet;
+            }
+        }
+        linesView.setWins(winLines > 0 ? wins : null);
+        if (bestJackpot >= 0) {
+            message.setText(POT_NAMES[bestJackpot] + " JACKPOT!\n+" + String.format(Locale.US,
                     "%,d", won) + " coupons");
-        } else if (res.multiple > 0) {
-            won = res.multiple * bet;
-            message.setText(res.text + "\n+" + won + " coupons");
+        } else if (won > 0) {
+            message.setText((winLines == 1 ? "Winner on 1 line" : "Winner on " + winLines
+                    + " lines") + "\n+" + String.format(Locale.US, "%,d", won) + " coupons");
         } else {
-            message.setText(res.text.isEmpty() ? "No win." : res.text);
+            message.setText("No win.");
         }
         if (won > 0) Wallet.addCoupons(this, won);
         paint();
     }
 
-    private String other(String... not) {
-        for (int guard = 0; guard < 50; guard++) {
-            String s = ALL[rnd.nextInt(4)];
-            boolean clash = false;
-            for (String n : not) {
-                if (n.equals(s)) clash = true;
-            }
-            if (!clash) return s;
-        }
-        return LEMON;
-    }
-
-    private static Result three(String sym, int multiple, String text) {
-        Result r = new Result();
-        r.show = new String[]{sym, sym, sym};
-        r.multiple = multiple;
-        r.text = text;
-        return r;
-    }
-
-    /**
-     * Draws one spin. The chances below are the real odds shown in the pay table.
-     * Out of 60,000: grand 3, major 24, mini 200, stars 150, bells 500, lemons 1000,
-     * cherries 2000, two cherries 5000, one cherry 7500, and the rest lose.
-     */
-    private Result roll() {
-        int n = rnd.nextInt(60000);
-        if (n < 3) {
-            Result r = three(CROWN, 0, "");
-            r.jackpot = 2;
-            return r;
-        }
-        if (n < 27) {
-            Result r = three(SEVEN, 0, "");
-            r.jackpot = 1;
-            return r;
-        }
-        if (n < 227) {
-            Result r = three(DIAMOND, 0, "");
-            r.jackpot = 0;
-            return r;
-        }
-        if (n < 377) return three(STAR, 40, "Three stars! 40x");
-        if (n < 877) return three(BELL, 15, "Three bells! 15x");
-        if (n < 1877) return three(LEMON, 8, "Three lemons. 8x");
-        if (n < 3877) return three(CHERRY, 5, "Three cherries. 5x");
-        Result r = new Result();
-        if (n < 8877) {
-            r.show = new String[]{CHERRY, CHERRY, other(CHERRY)};
-            r.multiple = 2;
-            r.text = "Two cherries. 2x";
-            return r;
-        }
-        if (n < 16377) {
-            String second = other(CHERRY);
-            r.show = new String[]{CHERRY, second, ALL[rnd.nextInt(ALL.length)]};
-            r.multiple = 1;
-            r.text = "A cherry. Bet back.";
-            return r;
-        }
-        // A loss: three reels that don't line up, with no staged near misses.
-        String a = other(CHERRY);
-        String b = other(CHERRY, a);
-        r.show = new String[]{a, b, ALL[rnd.nextInt(ALL.length)]};
-        return r;
-    }
-
     private void showTable() {
-        String t = CROWN + CROWN + CROWN + "   GRAND jackpot   (1 in 20,000)\n"
-                + SEVEN + " " + SEVEN + " " + SEVEN + "   MAJOR jackpot   (1 in 2,500)\n"
-                + DIAMOND + DIAMOND + DIAMOND + "   MINI jackpot   (1 in 300)\n"
-                + STAR + STAR + STAR + "   40x your bet   (1 in 400)\n"
-                + BELL + BELL + BELL + "   15x   (1 in 120)\n"
-                + LEMON + LEMON + LEMON + "   8x   (1 in 60)\n"
-                + CHERRY + CHERRY + CHERRY + "   5x   (1 in 30)\n"
-                + CHERRY + CHERRY + " on the first two reels   2x   (1 in 12)\n"
-                + CHERRY + " on the first reel   bet back   (1 in 8)\n\n"
-                + "Every spin adds 1% of the bet to each jackpot, and they never drop below "
-                + "their starting size. Jackpots are sized for a 25-coupon bet: a smaller "
-                + "bet wins the same share of the pot (a bet of 5 wins 20%).\n\n"
-                + "A bit more than 1 spin in 4 pays something. Over a long run the machine pays "
-                + "back roughly 97 coupons for every 100 bet, so like any slot it slowly "
-                + "wins. It's for fun, with play money only.";
+        String t = "Pays are multiples of your bet per line.\n\n"
+                + "💎 💎 💎   GRAND jackpot\n"
+                + "7 7 7   MAJOR jackpot\n"
+                + "Three triple BARs   MINI jackpot\n"
+                + "Three double BARs   15x\n"
+                + "Three single BARs   8x\n"
+                + "Three cherries   8x\n"
+                + "Any three BARs, mixed   3x\n"
+                + "Any two cherries   3x\n"
+                + "Any one cherry   1x\n\n"
+                + "The diamond is wild. It stands in for any symbol, and it multiplies the "
+                + "win: one diamond pays 3 times the normal amount, two diamonds pay 9 "
+                + "times. With a diamond helping, three 7s pay 60x and three triple BARs "
+                + "30x before the multiplier (the jackpots need the real symbols). One "
+                + "diamond on a line with nothing else pays 1x; two pay 5x.\n\n"
+                + "Lines: 1 line is the middle row. 3 lines adds the top and bottom rows. "
+                + "5 lines adds both diagonals. Your total bet is the line bet times the "
+                + "number of lines.\n\n"
+                + "Odds per line, per spin: Grand 1 in 28,373. Major 1 in 8,407. Mini 1 in "
+                + "3,547. About 1 line in 4 pays something.\n\n"
+                + "Every spin adds 1% of the total bet to each jackpot, and they never drop "
+                + "below their starting size. Jackpots are sized for a 25-coupon line bet: "
+                + "a smaller line bet wins the same share of the pot.\n\n"
+                + "Over a long run the machine pays back roughly 96 coupons for every 100 "
+                + "bet, so like any slot it slowly wins. It's for fun, with play money only.";
         new AlertDialog.Builder(this)
                 .setTitle("Pay table and odds")
                 .setMessage(t)
                 .setPositiveButton("Close", (DialogInterface.OnClickListener) null)
                 .show();
+    }
+
+    /** Draws the pay lines over the reels: faint for lines in play, bright for winners. */
+    static final class LinesView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private int active = 1;
+        private boolean[] wins;
+
+        LinesView(Context c) {
+            super(c);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+        }
+
+        void setActive(int n) {
+            active = n;
+            invalidate();
+        }
+
+        void setWins(boolean[] w) {
+            wins = w;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            float w = getWidth();
+            float h = getHeight();
+            float d = getResources().getDisplayMetrics().density;
+            float[] rowY = {h / 6f, h / 2f, h * 5f / 6f};
+            float[] colX = {w / 6f, w / 2f, w * 5f / 6f};
+            for (int l = 0; l < LINES.length && l < active; l++) {
+                boolean win = wins != null && wins[l];
+                if (!win && wins != null) continue;
+                paint.setStrokeWidth((win ? 4f : 1.2f) * d);
+                paint.setColor(win ? 0xCCFFFFFF : (Ui.ACCENT & 0x00FFFFFF) | 0x44000000);
+                int[] rows = LINES[l];
+                float edge = 4 * d;
+                cv.drawLine(edge, rowY[rows[0]], colX[0], rowY[rows[0]], paint);
+                cv.drawLine(colX[0], rowY[rows[0]], colX[1], rowY[rows[1]], paint);
+                cv.drawLine(colX[1], rowY[rows[1]], colX[2], rowY[rows[2]], paint);
+                cv.drawLine(colX[2], rowY[rows[2]], w - edge, rowY[rows[2]], paint);
+            }
+        }
     }
 
     /**
@@ -420,11 +549,14 @@ public class SlotActivity extends Activity {
      * animations switched off.
      */
     static final class ReelView extends View {
+        private static final char[] FILL = {BLANK, BAR1, BLANK, BAR2, CHERRY, BLANK, BAR3,
+                BLANK, SEVEN, BAR1, BLANK, WILD, BLANK, BAR2};
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint box = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
         private final Random rnd = new Random();
-        private String[] strip;
-        /** Which strip position sits on the pay line; fractions are mid-scroll. */
+        private char[] strip = {BLANK, BLANK, BLANK};
+        /** Which strip position sits on the middle row; fractions are mid-scroll. */
         private float pos = 1f;
         private boolean spinning;
         private long startAt;
@@ -433,41 +565,42 @@ public class SlotActivity extends Activity {
         private float to;
         private Runnable done;
 
-        ReelView(android.content.Context c) {
+        ReelView(Context c) {
             super(c);
             paint.setTextAlign(Paint.Align.CENTER);
-            paint.setColor(Ui.ACCENT);
-            paint.setTypeface(Ui.medium());
-            line.setColor((Ui.ACCENT & 0x00FFFFFF) | 0x55000000);
-            line.setStrokeWidth(Ui.dp(c, 2));
-            strip = new String[]{pick(), pick(), pick()};
+            box.setStyle(Paint.Style.STROKE);
         }
 
-        private String pick() {
-            return ALL[rnd.nextInt(ALL.length)];
+        /** Shows three symbols without spinning. */
+        void show(char top, char middle, char bottom) {
+            strip = new char[]{bottom, middle, top};
+            pos = 1f;
+            invalidate();
         }
 
-        /** Scrolls to show {@code target} on the pay line, then calls {@code whenDone}. */
-        void spinTo(String target, long millis, Runnable whenDone) {
+        /** Scrolls until the given three symbols fill the window, then calls back. */
+        void spinTo(char top, char middle, char bottom, long millis, Runnable whenDone) {
             // Keep what is showing now at the start of the new strip so nothing jumps.
             int at = Math.round(pos);
-            String above = get(at + 1);
-            String center = get(at);
-            String below = get(at - 1);
+            char above = get(at + 1);
+            char center = get(at);
+            char below = get(at - 1);
             // About 14 symbols a second at full speed.
-            int length = 6 + (int) (millis * 14 / 1000);
-            String[] next = new String[length];
-            for (int i = 0; i < length; i++) next[i] = pick();
+            int length = 7 + (int) (millis * 14 / 1000);
+            char[] next = new char[length];
+            for (int i = 0; i < length; i++) next[i] = FILL[rnd.nextInt(FILL.length)];
             next[0] = below;
             next[1] = center;
             next[2] = above;
-            next[length - 2] = target;
+            next[length - 3] = bottom;
+            next[length - 2] = middle;
+            next[length - 1] = top;
             strip = next;
             from = 1f;
             to = length - 2;
             pos = from;
             duration = Math.max(200, millis);
-            startAt = android.os.SystemClock.uptimeMillis();
+            startAt = SystemClock.uptimeMillis();
             done = whenDone;
             spinning = true;
             invalidate();
@@ -476,22 +609,16 @@ public class SlotActivity extends Activity {
         /** Progress 0..1 to distance 0..1: steady speed, then braking to a stop. */
         private static float ease(float t) {
             float brakeAt = 0.62f;
-            // Speed is constant until brakeAt, then falls to zero; this is its integral,
-            // scaled so the total distance comes out as 1.
             float full = brakeAt + (1 - brakeAt) / 2f;
-            float d;
-            if (t < brakeAt) {
-                d = t / full;
-            } else {
-                float u = (t - brakeAt) / (1 - brakeAt);
-                d = (brakeAt + (1 - brakeAt) * (u - u * u / 2f)) / full;
-            }
-            return d;
+            if (t < brakeAt) return t / full;
+            float u = (t - brakeAt) / (1 - brakeAt);
+            return (brakeAt + (1 - brakeAt) * (u - u * u / 2f)) / full;
         }
 
-        private String get(int i) {
-            if (strip.length == 0) return "";
-            return strip[((i % strip.length) + strip.length) % strip.length];
+        private char get(int i) {
+            // Past either end of the strip, show blanks.
+            if (i < 0 || i >= strip.length) return BLANK;
+            return strip[i];
         }
 
         @Override
@@ -499,6 +626,62 @@ public class SlotActivity extends Activity {
             spinning = false;
             done = null;
             super.onDetachedFromWindow();
+        }
+
+        private void drawSymbol(Canvas cv, char s, float cx, float cy, float cell, int alpha) {
+            float d = getResources().getDisplayMetrics().density;
+            paint.setFakeBoldText(false);
+            if (s == BLANK) return;
+            if (s == SEVEN) {
+                paint.setColor(0xFFFF5252);
+                paint.setAlpha(alpha);
+                paint.setFakeBoldText(true);
+                paint.setTextSize(cell * 0.78f);
+                cv.drawText("7", cx, cy - (paint.ascent() + paint.descent()) / 2f, paint);
+                paint.setFakeBoldText(false);
+                return;
+            }
+            if (s == CHERRY || s == WILD) {
+                paint.setColor(0xFFFFFFFF);
+                paint.setAlpha(alpha);
+                paint.setTextSize(cell * (s == WILD ? 0.5f : 0.56f));
+                float lift = (paint.ascent() + paint.descent()) / 2f;
+                float y = s == WILD ? cy - cell * 0.1f : cy;
+                cv.drawText(s == WILD ? "💎" : "🍒", cx, y - lift, paint);
+                if (s == WILD) {
+                    paint.setColor(Ui.ACCENT);
+                    paint.setAlpha(alpha);
+                    paint.setFakeBoldText(true);
+                    paint.setTextSize(cell * 0.2f);
+                    cv.drawText("WILD 3x", cx, cy + cell * 0.4f, paint);
+                    paint.setFakeBoldText(false);
+                }
+                return;
+            }
+            // Bars: one, two or three stacked plates.
+            int n = s == BAR1 ? 1 : (s == BAR2 ? 2 : 3);
+            float plateH = cell * 0.2f;
+            float gap = cell * 0.045f;
+            float totalH = n * plateH + (n - 1) * gap;
+            float halfW = Math.min(getWidth() * 0.36f, cell * 0.55f);
+            paint.setTextSize(plateH * 0.74f);
+            paint.setFakeBoldText(true);
+            box.setStrokeWidth(1.5f * d);
+            for (int i = 0; i < n; i++) {
+                float top = cy - totalH / 2f + i * (plateH + gap);
+                rect.set(cx - halfW, top, cx + halfW, top + plateH);
+                paint.setColor(0xFF10141F);
+                paint.setAlpha(alpha);
+                cv.drawRoundRect(rect, 4 * d, 4 * d, paint);
+                box.setColor(Ui.ACCENT);
+                box.setAlpha(alpha);
+                cv.drawRoundRect(rect, 4 * d, 4 * d, box);
+                paint.setColor(Ui.ACCENT_HI);
+                paint.setAlpha(alpha);
+                cv.drawText("BAR", cx, top + plateH / 2f
+                        - (paint.ascent() + paint.descent()) / 2f, paint);
+            }
+            paint.setFakeBoldText(false);
         }
 
         @Override
@@ -509,7 +692,7 @@ public class SlotActivity extends Activity {
 
             boolean finished = false;
             if (spinning) {
-                float t = (android.os.SystemClock.uptimeMillis() - startAt) / (float) duration;
+                float t = (SystemClock.uptimeMillis() - startAt) / (float) duration;
                 if (t >= 1f) {
                     pos = to;
                     spinning = false;
@@ -524,29 +707,22 @@ public class SlotActivity extends Activity {
             }
 
             float cell = h / 3f;
-            paint.setTextSize(Math.min(cell * 0.62f, w * 0.6f));
             float mid = h / 2f;
-            float lift = (paint.ascent() + paint.descent()) / 2f;
             int base = (int) Math.floor(pos);
             cv.save();
             cv.clipRect(0, 0, w, h);
             for (int i = base - 2; i <= base + 3; i++) {
                 // Higher strip positions enter from the top and travel down.
                 float y = mid - (i - pos) * cell;
-                float away = Math.min(1f, Math.abs(y - mid) / cell);
-                paint.setAlpha((int) (255 - 150 * away));
-                cv.drawText(get(i), w / 2f, y - lift, paint);
+                drawSymbol(cv, get(i), w / 2f, y, cell, 255);
             }
             cv.restore();
-            // Pay line markers on either side of the middle row.
-            cv.drawLine(0, mid - cell / 2f, w, mid - cell / 2f, line);
-            cv.drawLine(0, mid + cell / 2f, w, mid + cell / 2f, line);
 
             if (spinning) {
                 postInvalidateOnAnimation();
             } else if (finished) {
                 // A small thud as the reel lands.
-                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
                 Runnable r = done;
                 done = null;
                 if (r != null) post(r);

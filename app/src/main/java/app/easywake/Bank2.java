@@ -307,15 +307,32 @@ final class Bank2 {
         return out;
     }
 
+    private static String[][] trivia;
+    private static String[][] vocab;
+    private static String[][] logic;
+
+    /** Drops any question whose wording already appeared earlier in the list. */
+    private static String[][] unique(String[][] all) {
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String[] q : all) {
+            if (seen.add(q[0].toLowerCase(java.util.Locale.US))) out.add(q);
+        }
+        return out.toArray(new String[0][]);
+    }
+
     static String[][] trivia() {
-        return join(Bank.TRIVIA, TRIVIA);
+        if (trivia == null) trivia = unique(join(join(Bank.TRIVIA, TRIVIA), Bank3.TRIVIA));
+        return trivia;
     }
 
     static String[][] vocab() {
-        return join(Bank.VOCAB, VOCAB);
+        if (vocab == null) vocab = unique(join(join(Bank.VOCAB, VOCAB), Bank3.VOCAB));
+        return vocab;
     }
 
     static String[][] logic() {
-        return join(Bank.LOGIC, LOGIC);
+        if (logic == null) logic = unique(join(join(Bank.LOGIC, LOGIC), Bank3.LOGIC));
+        return logic;
     }
 }

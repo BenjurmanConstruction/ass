@@ -92,8 +92,16 @@ public class AlarmService extends Service {
         Store.put(this, a);
         Scheduler.rescheduleAll(this);
 
+        // Sleep sounds give way to the alarm.
+        try {
+            stopService(new Intent(this, NoiseService.class));
+        } catch (Exception e) {
+            // Not running.
+        }
+
         goForeground(a);
         ensureAudible();
+        if (a.vibrateMode == 2) startVibration();
         player.start(this, a, true, new Runnable() {
             @Override
             public void run() {
@@ -152,10 +160,11 @@ public class AlarmService extends Service {
     }
 
     private void startVibration() {
-        if (current == null || !current.vibrate) return;
+        if (current == null || current.vibrateMode == 0 || vibrator != null) return;
         try {
-            vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-            if (vibrator == null || !vibrator.hasVibrator()) return;
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v == null || !v.hasVibrator()) return;
+            vibrator = v;
             long[] pattern = {0, 400, 1200};
             AudioAttributes attrs = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)

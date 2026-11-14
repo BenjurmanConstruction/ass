@@ -19,7 +19,8 @@ public class Alarm {
     public String uri = null;
     public String soundName = null;
     public int fadeSec = 60;
-    public boolean vibrate = false;
+    /** 0 = off, 1 = start vibrating after the fade-in, 2 = vibrate from the start. */
+    public int vibrateMode = 0;
     public int snoozeMin = 10;
     public String label = "";
     /** If in the future, the alarm is snoozed until this time (epoch ms). */
@@ -48,7 +49,7 @@ public class Alarm {
         if (uri != null) o.put("uri", uri);
         if (soundName != null) o.put("soundName", soundName);
         o.put("fadeSec", fadeSec);
-        o.put("vibrate", vibrate);
+        o.put("vibrateMode", vibrateMode);
         o.put("snoozeMin", snoozeMin);
         o.put("label", label == null ? "" : label);
         o.put("snoozeUntil", snoozeUntil);
@@ -66,7 +67,9 @@ public class Alarm {
         a.uri = o.has("uri") ? o.optString("uri", "") : null;
         a.soundName = o.has("soundName") ? o.optString("soundName", "") : null;
         a.fadeSec = o.optInt("fadeSec", 60);
-        a.vibrate = o.optBoolean("vibrate", false);
+        // Older versions stored a simple on/off; treat "on" as "after the fade-in".
+        a.vibrateMode = o.has("vibrateMode") ? o.optInt("vibrateMode", 0)
+                : (o.optBoolean("vibrate", false) ? 1 : 0);
         a.snoozeMin = o.optInt("snoozeMin", 10);
         a.label = o.optString("label", "");
         a.snoozeUntil = o.optLong("snoozeUntil", 0);

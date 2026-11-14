@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
@@ -14,8 +13,8 @@ import android.text.format.DateFormat;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -34,11 +33,12 @@ public class EditActivity extends Activity {
 
     private TimePicker picker;
     private final TextView[] dayViews = new TextView[7];
-    private Button soundBtn;
+    private TextView repeatHint;
+    private Ui.Row soundRow;
+    private Ui.Row fadeRow;
+    private Ui.Row vibrateRow;
+    private Ui.Row snoozeRow;
     private Button previewBtn;
-    private Button fadeBtn;
-    private Button snoozeBtn;
-    private CheckBox vibrateBox;
     private EditText labelEdit;
 
     private final SoundPlayer preview = new SoundPlayer();
@@ -53,7 +53,7 @@ public class EditActivity extends Activity {
         if (isNew) alarm = new Alarm();
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Ui.BG);
+        scroll.setVerticalScrollBarEnabled(false);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(this, 18);
@@ -61,27 +61,29 @@ public class EditActivity extends Activity {
         scroll.addView(root, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
-        TextView title = Ui.text(this, isNew ? "New alarm" : "Edit alarm", 26, Ui.TEXT);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        root.addView(title, full(0));
+        root.addView(Ui.topBar(this, isNew ? "New alarm" : "Edit alarm"), Ui.full(this, 0));
 
-        picker = (TimePicker) getLayoutInflater().inflate(R.layout.time_picker, root, false);
+        // Time picker sits on its own panel so it stays readable over any background.
+        FrameLayout timeCard = new FrameLayout(this);
+        timeCard.setBackground(Ui.card(this, 22));
+        picker = (TimePicker) getLayoutInflater().inflate(R.layout.time_picker, timeCard, false);
         picker.setIs24HourView(DateFormat.is24HourFormat(this));
         picker.setHour(alarm.hour);
         picker.setMinute(alarm.minute);
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         pp.gravity = Gravity.CENTER_HORIZONTAL;
-        root.addView(picker, pp);
+        timeCard.addView(picker, pp);
+        root.addView(timeCard, Ui.full(this, 14));
 
-        root.addView(heading("Repeat (leave all off to ring once)"), full(10));
+        root.addView(Ui.heading(this, "Repeat"), Ui.full(this, 22));
         LinearLayout days = new LinearLayout(this);
         days.setOrientation(LinearLayout.HORIZONTAL);
         for (int i = 0; i < 7; i++) {
             final int bit = i;
-            TextView d = Ui.text(this, DAY_LETTERS[i], 17, Ui.TEXT);
+            TextView d = Ui.text(this, DAY_LETTERS[i], 16, Ui.TEXT);
             d.setGravity(Gravity.CENTER);
-            d.setTypeface(Typeface.DEFAULT_BOLD);
+            d.setTypeface(Ui.medium());
             d.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -95,60 +97,66 @@ public class EditActivity extends Activity {
             days.addView(d, dp);
             dayViews[i] = d;
         }
-        root.addView(days, full(6));
+        root.addView(days, Ui.full(this, 10));
+        repeatHint = Ui.text(this, "", 13, Ui.SUB);
+        root.addView(repeatHint, Ui.full(this, 8));
         paintDays();
 
-        root.addView(heading("Wake-up sound"), full(18));
-        soundBtn = Ui.button(this, "", false);
-        soundBtn.setOnClickListener(new View.OnClickListener() {
+        root.addView(Ui.heading(this, "Sound"), Ui.full(this, 22));
+        soundRow = Ui.row(this, "Wake-up sound", "");
+        soundRow.view.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 chooseSound();
             }
         });
-        root.addView(soundBtn, full(6));
+        root.addView(soundRow.view, Ui.full(this, 10));
 
-        previewBtn = Ui.button(this, "Play preview", false);
+        previewBtn = Ui.button(this, "▶  Play preview", false);
         previewBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 togglePreview();
             }
         });
-        root.addView(previewBtn, full(8));
+        root.addView(previewBtn, Ui.full(this, 10));
 
-        TextView volNote = Ui.text(this,
-                "Loudness follows your phone's alarm volume.", 13, Ui.SUB);
-        root.addView(volNote, full(6));
-
-        root.addView(heading("Volume fade-in"), full(18));
-        fadeBtn = Ui.button(this, "", false);
-        fadeBtn.setOnClickListener(new View.OnClickListener() {
+        fadeRow = Ui.row(this, "Volume fade-in", "");
+        fadeRow.view.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 chooseFade();
             }
         });
-        root.addView(fadeBtn, full(6));
+        root.addView(fadeRow.view, Ui.full(this, 10));
 
-        root.addView(heading("Snooze length"), full(18));
-        snoozeBtn = Ui.button(this, "", false);
-        snoozeBtn.setOnClickListener(new View.OnClickListener() {
+        root.addView(Ui.text(this, "Loudness follows your phone's alarm volume.", 13, Ui.SUB),
+                Ui.full(this, 8));
+
+        root.addView(Ui.heading(this, "Options"), Ui.full(this, 22));
+        vibrateRow = Ui.row(this, "Vibrate", "");
+        vibrateRow.view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                chooseVibrate();
+            }
+        });
+        root.addView(vibrateRow.view, Ui.full(this, 10));
+
+        snoozeRow = Ui.row(this, "Snooze length", "");
+        snoozeRow.view.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 chooseSnooze();
             }
         });
-        root.addView(snoozeBtn, full(6));
+        root.addView(snoozeRow.view, Ui.full(this, 10));
 
-        vibrateBox = new CheckBox(this);
-        vibrateBox.setText("Also vibrate (starts after the fade-in)");
-        vibrateBox.setTextColor(Ui.TEXT);
-        vibrateBox.setTextSize(16);
-        vibrateBox.setChecked(alarm.vibrate);
-        root.addView(vibrateBox, full(16));
-
-        root.addView(heading("Label (optional)"), full(16));
+        LinearLayout labelCard = new LinearLayout(this);
+        labelCard.setOrientation(LinearLayout.VERTICAL);
+        labelCard.setBackground(Ui.card(this, 18));
+        labelCard.setPadding(Ui.dp(this, 18), Ui.dp(this, 12), Ui.dp(this, 18), Ui.dp(this, 6));
+        labelCard.addView(Ui.text(this, "Label (optional)", 13, Ui.SUB));
         labelEdit = new EditText(this);
         labelEdit.setSingleLine(true);
         labelEdit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -156,56 +164,51 @@ public class EditActivity extends Activity {
         labelEdit.setHintTextColor(Ui.SUB);
         labelEdit.setHint("Work, gym, ...");
         labelEdit.setText(alarm.label == null ? "" : alarm.label);
-        root.addView(labelEdit, full(2));
+        labelCard.addView(labelEdit, Ui.full(this, 0));
+        root.addView(labelCard, Ui.full(this, 10));
 
-        Button save = Ui.button(this, "Save", true);
+        Button save = Ui.button(this, "Save alarm", true);
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 save();
             }
         });
-        root.addView(save, full(22));
+        root.addView(save, Ui.full(this, 24));
 
         if (!isNew) {
             Button del = Ui.button(this, "Delete alarm", false);
-            del.setTextColor(0xFFEF9A9A);
+            del.setTextColor(Ui.DANGER);
             del.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     confirmDelete();
                 }
             });
-            root.addView(del, full(10));
+            root.addView(del, Ui.full(this, 10));
         }
 
         setContentView(scroll);
-        paintButtons();
-    }
-
-    private LinearLayout.LayoutParams full(int topDp) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.topMargin = Ui.dp(this, topDp);
-        return p;
-    }
-
-    private TextView heading(String s) {
-        return Ui.text(this, s, 14, Ui.SUB);
+        Bg.apply(this, scroll);
+        paintRows();
     }
 
     private void paintDays() {
         for (int i = 0; i < 7; i++) {
             boolean on = (alarm.days & (1 << i)) != 0;
-            dayViews[i].setBackground(Ui.round(this, on ? Ui.ACCENT : Ui.CARD, 23));
+            dayViews[i].setBackground(on ? Ui.gold(this, 23) : Ui.card(this, 23));
             dayViews[i].setTextColor(on ? Ui.ON_ACCENT : Ui.SUB);
         }
+        repeatHint.setText(alarm.days == 0
+                ? "Rings once. Tap days to repeat every week."
+                : "Repeats: " + Ui.daysText(alarm.days));
     }
 
-    private void paintButtons() {
-        soundBtn.setText(alarm.soundText());
-        fadeBtn.setText(Ui.fadeText(alarm.fadeSec));
-        snoozeBtn.setText(alarm.snoozeMin + " minutes");
+    private void paintRows() {
+        soundRow.value.setText(alarm.soundText());
+        fadeRow.value.setText(Ui.fadeText(alarm.fadeSec));
+        vibrateRow.value.setText(Ui.vibrateText(alarm.vibrateMode));
+        snoozeRow.value.setText(alarm.snoozeMin + " minutes");
     }
 
     private void chooseSound() {
@@ -222,7 +225,7 @@ public class EditActivity extends Activity {
                             alarm.tone = which;
                             alarm.uri = null;
                             alarm.soundName = null;
-                            paintButtons();
+                            paintRows();
                         } else {
                             pickFile();
                         }
@@ -259,7 +262,7 @@ public class EditActivity extends Activity {
         }
         alarm.uri = uri.toString();
         alarm.soundName = displayName(uri);
-        paintButtons();
+        paintRows();
     }
 
     private String displayName(Uri uri) {
@@ -277,14 +280,35 @@ public class EditActivity extends Activity {
 
     private void chooseFade() {
         final String[] items = new String[FADE_OPTIONS.length];
-        for (int i = 0; i < items.length; i++) items[i] = Ui.fadeText(FADE_OPTIONS[i]);
+        for (int i = 0; i < items.length; i++) {
+            items[i] = FADE_OPTIONS[i] == 0 ? "Off (full volume right away)"
+                    : Ui.fadeText(FADE_OPTIONS[i]);
+        }
         new AlertDialog.Builder(this)
                 .setTitle("Volume fade-in")
                 .setItems(items, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         alarm.fadeSec = FADE_OPTIONS[which];
-                        paintButtons();
+                        paintRows();
+                    }
+                })
+                .show();
+    }
+
+    private void chooseVibrate() {
+        final String[] items = {
+                "Off",
+                "After the fade-in (gentler)",
+                "From the start, while the alarm rings"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Vibrate")
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        alarm.vibrateMode = which;
+                        paintRows();
                     }
                 })
                 .show();
@@ -299,7 +323,7 @@ public class EditActivity extends Activity {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         alarm.snoozeMin = SNOOZE_OPTIONS[which];
-                        paintButtons();
+                        paintRows();
                     }
                 })
                 .show();
@@ -312,7 +336,7 @@ public class EditActivity extends Activity {
         }
         preview.start(this, alarm, false, null);
         if (preview.isPlaying()) {
-            previewBtn.setText("Stop preview");
+            previewBtn.setText("■  Stop preview");
         } else {
             Toast.makeText(this, "Couldn't play that sound.", Toast.LENGTH_SHORT).show();
         }
@@ -320,14 +344,13 @@ public class EditActivity extends Activity {
 
     private void stopPreview() {
         preview.stop();
-        if (previewBtn != null) previewBtn.setText("Play preview");
+        if (previewBtn != null) previewBtn.setText("▶  Play preview");
     }
 
     private void save() {
         stopPreview();
         alarm.hour = picker.getHour();
         alarm.minute = picker.getMinute();
-        alarm.vibrate = vibrateBox.isChecked();
         alarm.label = labelEdit.getText().toString().trim();
         alarm.enabled = true;
         alarm.snoozeUntil = 0;

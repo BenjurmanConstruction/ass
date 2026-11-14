@@ -32,6 +32,19 @@
             android:windowSoftInputMode="stateHidden" />
 
         <activity
+            android:name=".SleepActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".BackgroundActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".DrawActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".RingActivity"
             android:excludeFromRecents="true"
             android:exported="false"
@@ -40,6 +53,11 @@
 
         <service
             android:name=".AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name=".NoiseService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 

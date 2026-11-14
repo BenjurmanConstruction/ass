@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
     private LinearLayout root;
     private LinearLayout list;
     private TextView subtitle;
+    private TextView joke;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -73,6 +74,23 @@ public class MainActivity extends Activity {
         header.addView(menu, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         root.addView(header, Ui.full(this, 0));
 
+        // Dad joke of the moment. Tap it for another.
+        LinearLayout jokeCard = new LinearLayout(this);
+        jokeCard.setOrientation(LinearLayout.VERTICAL);
+        jokeCard.setBackground(Ui.ripple(this, Ui.card(this, 18), 18));
+        jokeCard.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
+        joke = Ui.text(this, "", 15, Ui.TEXT);
+        jokeCard.addView(joke);
+        TextView jokeHint = Ui.text(this, "Dad joke  \u2022  tap for another", 11, Ui.SUB);
+        jokeCard.addView(jokeHint, Ui.full(this, 4));
+        jokeCard.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                joke.setText(Jokes.next());
+            }
+        });
+        root.addView(jokeCard, Ui.full(this, 14));
+
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         list = new LinearLayout(this);
@@ -81,7 +99,7 @@ public class MainActivity extends Activity {
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        sp.topMargin = Ui.dp(this, 18);
+        sp.topMargin = Ui.dp(this, 12);
         root.addView(scroll, sp);
 
         Button add = Ui.button(this, "+  New alarm", true);
@@ -112,6 +130,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Bg.apply(this, root);
+        joke.setText(Jokes.next());
         refresh();
     }
 
@@ -244,13 +263,27 @@ public class MainActivity extends Activity {
         gp.bottomMargin = Ui.dp(this, 14);
         sheet.addView(grip, gp);
 
-        sheet.addView(menuItem("Sleep sounds", "Fan, white, pink and brown noise",
+        sheet.addView(menuItem("Sleep sounds", "Fan, noise, or your own recording",
                 new Runnable() {
                     @Override
                     public void run() {
                         startActivity(new Intent(MainActivity.this, SleepActivity.class));
                     }
                 }, d), Ui.full(this, 0));
+        sheet.addView(menuItem("Calendar", "Month view with your alarm days marked",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, CalendarActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("Market", "S&P 500, Dow and Nasdaq charts",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, MarketActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Background studio", "Color themes, your pictures, drawing",
                 new Runnable() {
                     @Override
@@ -259,7 +292,7 @@ public class MainActivity extends Activity {
                     }
                 }, d), Ui.full(this, 10));
         sheet.addView(menuItem("About", "Easy Wake " + versionName()
-                        + "  •  no ads, no internet access",
+                        + "  \u2022  no ads. Only Market uses the internet.",
                 null, d), Ui.full(this, 10));
 
         sheet.addView(menuItem("Uninstall Easy Wake", "Removes the app and all its alarms",
@@ -270,7 +303,10 @@ public class MainActivity extends Activity {
                     }
                 }, d), Ui.full(this, 10));
 
-        d.setContentView(sheet);
+        // Scrolls on small screens now that the menu is longer.
+        ScrollView sheetScroll = new ScrollView(this);
+        sheetScroll.addView(sheet);
+        d.setContentView(sheetScroll);
         Window w = d.getWindow();
         if (w != null) {
             w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));

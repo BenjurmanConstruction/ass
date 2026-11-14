@@ -18,4 +18,12 @@ final class Prefs {
     static void putInt(Context c, String key, int value) {
         p(c).edit().putInt(key, value).apply();
     }
+
+    static String getString(Context c, String key) {
+        return p(c).getString(key, null);
+    }
+
+    static void putString(Context c, String key, String value) {
+        p(c).edit().putString(key, value).apply();
+    }
 }

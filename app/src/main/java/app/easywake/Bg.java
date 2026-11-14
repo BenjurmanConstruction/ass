@@ -48,6 +48,34 @@ final class Bg {
         return new File(c.getFilesDir(), "bg.jpg");
     }
 
+    /** The untouched imported picture, kept so it can be adjusted again later. */
+    static File sourceFile(Context c) {
+        return new File(c.getFilesDir(), "bg_src.jpg");
+    }
+
+    static boolean hasSource(Context c) {
+        File f = sourceFile(c);
+        return f.exists() && f.length() > 0;
+    }
+
+    static boolean saveSource(Context c, Bitmap bm) {
+        try (FileOutputStream out = new FileOutputStream(sourceFile(c))) {
+            bm.compress(Bitmap.CompressFormat.JPEG, 92, out);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static Bitmap loadSource(Context c) {
+        try {
+            return hasSource(c) ? BitmapFactory.decodeFile(sourceFile(c).getAbsolutePath())
+                    : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     static boolean hasPicture(Context c) {
         File f = file(c);
         return f.exists() && f.length() > 0;

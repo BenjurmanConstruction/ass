@@ -26,6 +26,7 @@ public class BackgroundActivity extends Activity {
     private LinearLayout swatches;
     private LinearLayout dimCard;
     private Button drawOnBtn;
+    private Button adjustBtn;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -72,6 +73,15 @@ public class BackgroundActivity extends Activity {
             }
         });
         root.addView(importBtn, Ui.full(this, 10));
+
+        adjustBtn = Ui.button(this, "Crop / adjust my picture", false);
+        adjustBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(BackgroundActivity.this, CropActivity.class));
+            }
+        });
+        root.addView(adjustBtn, Ui.full(this, 10));
 
         Button drawBtn = Ui.button(this, "Draw your own", false);
         drawBtn.setOnClickListener(new View.OnClickListener() {
@@ -138,6 +148,7 @@ public class BackgroundActivity extends Activity {
         boolean picture = Bg.usingPicture(this);
         dimCard.setVisibility(picture ? View.VISIBLE : View.GONE);
         drawOnBtn.setVisibility(Bg.hasPicture(this) ? View.VISIBLE : View.GONE);
+        adjustBtn.setVisibility(Bg.hasSource(this) ? View.VISIBLE : View.GONE);
 
         swatches.removeAllViews();
         int current = picture ? -1 : Bg.themeIndex(this);
@@ -201,14 +212,15 @@ public class BackgroundActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                Bitmap bm = Bg.decodeUri(BackgroundActivity.this, uri, 1600);
-                final boolean ok = bm != null && Bg.saveBitmap(BackgroundActivity.this, bm);
+                Bitmap bm = Bg.decodeUri(BackgroundActivity.this, uri, 2000);
+                final boolean ok = bm != null && Bg.saveSource(BackgroundActivity.this, bm);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         if (ok) {
-                            Prefs.putInt(BackgroundActivity.this, "bgMode", Bg.MODE_PICTURE);
-                            paint();
+                            // Next: position, zoom and rotate it.
+                            startActivity(new Intent(BackgroundActivity.this,
+                                    CropActivity.class));
                         } else {
                             Toast.makeText(BackgroundActivity.this,
                                     "Couldn't open that picture.", Toast.LENGTH_LONG).show();

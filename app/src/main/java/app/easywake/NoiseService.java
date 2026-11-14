@@ -12,16 +12,21 @@ import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 
-/** Plays a sleep sound (fan / noise) in the background, with an optional sleep timer. */
+/** Plays a sleep sound (fan / noise / your own recording) in the background. */
 public class NoiseService extends Service {
     static final String ACTION_START = "app.easywake.NOISE_START";
     static final String ACTION_STOP = "app.easywake.NOISE_STOP";
+
+    /** Sound type meaning "the user's own audio file". */
+    static final int TYPE_CUSTOM = 99;
 
     private static final String CHANNEL = "noise";
     private static final int NOTIF_ID = 2;
@@ -32,12 +37,17 @@ public class NoiseService extends Service {
     static volatile long endAt = 0;
     /** 0..1 loudness, changed live by the volume slider. */
     static volatile float volume = 0.7f;
+    /** 0..100, deep to bright. Changed live by the Tone slider. */
+    static volatile int tone = 40;
+    /** 0..100 strength of the fan's motor hum. */
+    static volatile int hum = 35;
     /** Lets the Sleep sounds screen refresh when playback starts or stops. */
     static Runnable onChange;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private volatile Object token;
     private Thread thread;
+    private MediaPlayer filePlayer;
     private PowerManager.WakeLock wakeLock;
 
     private final Runnable timerDone = new Runnable() {
@@ -46,6 +56,29 @@ public class NoiseService extends Service {
             stopNoise();
         }
     };
+
+    /** Keeps the own-recording player's loudness in step with the slider. */
+    private final Runnable fileVolumeTick = new Runnable() {
+        @Override
+        public void run() {
+            if (filePlayer == null) return;
+            try {
+                filePlayer.setVolume(volume, volume);
+            } catch (IllegalStateException e) {
+                return;
+            }
+            handler.postDelayed(this, 200);
+        }
+    };
+
+    static String nameOf(Context c, int type) {
+        if (type == TYPE_CUSTOM) {
+            String n = Prefs.getString(c, "noiseName");
+            return n == null || n.isEmpty() ? "My recording" : n;
+        }
+        if (type < 0 || type >= NoiseGen.NAMES.length) type = 0;
+        return NoiseGen.NAMES[type];
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -66,9 +99,7 @@ public class NoiseService extends Service {
     }
 
     private void start(int type, int minutes) {
-        if (type < 0 || type >= NoiseGen.NAMES.length) type = 0;
-        playingType = type;
-        endAt = minutes > 0 ? System.currentTimeMillis() + minutes * 60000L : 0;
+        if (type != TYPE_CUSTOM && (type < 0 || type >= NoiseGen.NAMES.length)) type = 0;
 
         Notification n = buildNotification(type);
         if (Build.VERSION.SDK_INT >= 29) {
@@ -90,8 +121,43 @@ public class NoiseService extends Service {
         handler.removeCallbacks(timerDone);
         if (minutes > 0) handler.postDelayed(timerDone, minutes * 60000L);
 
-        startThread(type);
+        stopPlayers();
+        boolean ok = true;
+        if (type == TYPE_CUSTOM) {
+            ok = startFile();
+        } else {
+            startThread(type);
+        }
+        if (!ok) {
+            stopNoise();
+            return;
+        }
+        playingType = type;
+        endAt = minutes > 0 ? System.currentTimeMillis() + minutes * 60000L : 0;
         notifyChange();
+    }
+
+    private boolean startFile() {
+        String uri = Prefs.getString(this, "noiseUri");
+        if (uri == null || uri.isEmpty()) return false;
+        MediaPlayer p = new MediaPlayer();
+        try {
+            p.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build());
+            p.setDataSource(this, Uri.parse(uri));
+            p.setLooping(true);
+            p.prepare();
+            p.setVolume(volume, volume);
+            p.start();
+            filePlayer = p;
+            handler.postDelayed(fileVolumeTick, 200);
+            return true;
+        } catch (Exception e) {
+            p.release();
+            return false;
+        }
     }
 
     private void startThread(final int type) {
@@ -121,9 +187,13 @@ public class NoiseService extends Service {
                     NoiseGen gen = new NoiseGen(type);
                     short[] buf = new short[2048];
                     float gain = 0f;
+                    // Let the loudness leveller settle before anything is heard.
+                    gen.setParams(tone, hum);
+                    for (int i = 0; i < 12; i++) gen.fill(buf, buf.length, 0f, 0f);
                     track.play();
                     while (token == mine) {
-                        float next = Math.min(1f, gain + 0.08f);
+                        gen.setParams(tone, hum);
+                        float next = Math.min(1f, gain + 0.05f);
                         gen.fill(buf, buf.length, gain, next);
                         gain = next;
                         track.setVolume(volume);
@@ -153,9 +223,23 @@ public class NoiseService extends Service {
         thread.start();
     }
 
+    private void stopPlayers() {
+        token = null;
+        handler.removeCallbacks(fileVolumeTick);
+        if (filePlayer != null) {
+            try {
+                filePlayer.stop();
+            } catch (Exception e) {
+                // Already stopped.
+            }
+            filePlayer.release();
+            filePlayer = null;
+        }
+    }
+
     private void stopNoise() {
         handler.removeCallbacks(timerDone);
-        token = null;
+        stopPlayers();
         playingType = -1;
         endAt = 0;
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
@@ -167,7 +251,7 @@ public class NoiseService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(timerDone);
-        token = null;
+        stopPlayers();
         playingType = -1;
         endAt = 0;
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
@@ -201,7 +285,7 @@ public class NoiseService extends Service {
 
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_alarm)
-                .setContentTitle(NoiseGen.NAMES[type] + " playing")
+                .setContentTitle(nameOf(this, type) + " playing")
                 .setContentText("Tap to open, or press Stop")
                 .setOngoing(true)
                 .setContentIntent(open)

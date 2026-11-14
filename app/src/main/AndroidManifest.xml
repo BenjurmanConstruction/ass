@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <application
@@ -31,6 +32,19 @@
             android:name=".EditActivity"
             android:exported="false"
             android:windowSoftInputMode="stateHidden" />
+
+        <activity
+            android:name=".CalendarActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MarketActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".CropActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".TrimActivity"

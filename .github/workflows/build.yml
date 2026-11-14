@@ -23,6 +23,16 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Check market data sources (information only)
+        continue-on-error: true
+        run: |
+          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
+          echo "--- Yahoo ---"
+          curl -sS -m 20 -A "$UA" -w "\nHTTP %{http_code}\n" "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=1d&interval=5m" | head -c 900 || true
+          echo
+          echo "--- FRED ---"
+          curl -sS -m 20 -A "$UA" -w "\nHTTP %{http_code}\n" "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500&cosd=2026-10-25" | head -c 500 || true
+
       - name: Build APK
         run: gradle --no-daemon assembleRelease
 

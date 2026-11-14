@@ -2,7 +2,7 @@ package app.easywake;
 
 import java.util.Random;
 
-/** A pile of corny dad jokes for the home screen. */
+/** A pile of corny dad jokes, with some dark humor mixed in, for the home screen. */
 final class Jokes {
     private static final Random RND = new Random();
     private static int last = -1;
@@ -128,7 +128,68 @@ final class Jokes {
             "What do you call a line of rabbits walking backwards? A receding hare line.",
             "How did the hipster burn his tongue? He drank his coffee before it was cool.",
             "Dad, can you put my shoes on? No, I don't think they'll fit me.",
-            "I'm hungry. Hi Hungry, I'm Dad."
+            "I'm hungry. Hi Hungry, I'm Dad.",
+
+            // Darker ones.
+            "I have a stepladder. I never knew my real ladder.",
+            "My grandfather has the heart of a lion and a lifetime ban from the zoo.",
+            "I'll never forget my grandfather's last words: \"Stop shaking the ladder.\"",
+            "The cemetery is so crowded. People are dying to get in.",
+            "I told my doctor I broke my arm in two places. He told me to stop "
+                    + "going to those places.",
+            "They say you are what you eat. I don't remember eating a disappointment.",
+            "My boss told me to have a good day. So I went home.",
+            "I was going to get a brain transplant, but I changed my mind.",
+            "Why don't cannibals eat clowns? They taste funny.",
+            "I bought my friend an elephant for his room. He said thanks. I said "
+                    + "don't mention it.",
+            "My wife told me to stop impersonating a flamingo. I had to put my foot down.",
+            "I visited my friend at his new house. He said make yourself at home, "
+                    + "so I threw him out. I hate visitors.",
+            "The doctor gave me one year to live, so I shot him. The judge gave me "
+                    + "fifteen. Problem solved.",
+            "Give a man a match and he's warm for a few hours. Set him on fire and "
+                    + "he's warm for the rest of his life.",
+            "I have a clean conscience. It's never been used.",
+            "My therapist says I have a preoccupation with revenge. We'll see about that.",
+            "Today I gave my dead batteries away. Free of charge.",
+            "What's the difference between a hippo and a zippo? One's really "
+                    + "heavy, the other's a little lighter.",
+            "I hate it when people say age is just a number. Age is clearly a word.",
+            "Light travels faster than sound. That's why some people look bright "
+                    + "until they speak.",
+            "My parents raised me as an only child, which really annoyed my sister.",
+            "I started a band called 999 Megabytes. We still haven't gotten a gig.",
+            "Why did the old man fall in the well? He couldn't see that well. "
+                    + "Nobody checked for days.",
+            "The inventor of the throat lozenge died last week. There was no "
+                    + "coffin at his funeral.",
+            "I want to die peacefully in my sleep like my grandfather, not "
+                    + "screaming like the passengers in his car.",
+            "Never trust an undertaker. Sooner or later he'll let you down.",
+            "My uncle the taxidermist died. He's been stuffed with regret ever since.",
+            "I asked the librarian for a book on paranoia. She whispered, \"It's "
+                    + "right behind you.\"",
+            "Life is short. Smile while you still have teeth.",
+            "What do you call a cheap circumcision? A rip-off.",
+            "I have a fear of speed bumps, but I'm slowly getting over it.",
+            "The graveyard shift pays well, but the coworkers are dead quiet.",
+            "Why did the skeleton go to the party alone? He had no body. Hasn't for years.",
+            "I was addicted to the hokey pokey, but I turned myself around.",
+            "My will says to spread my ashes at the mall, so my kids will visit "
+                    + "twice a week.",
+            "I told my suitcases there'd be no vacation this year. Now I'm dealing "
+                    + "with emotional baggage.",
+            "Someone stole my mood ring. I don't know how I feel about that.",
+            "I'd tell you a joke about my retirement fund, but there's nothing in it.",
+            "Morning is the worst time to wake up. Somebody should move it to later.",
+            "Good morning. Another day closer to the weekend, and to everything else.",
+            "The early bird gets the worm. The early worm gets eaten. Choose your "
+                    + "role model.",
+            "Alarm clocks: because every morning should begin with a small heart attack.",
+            "I'm at the age where my back goes out more than I do.",
+            "Dark humor is like food. Not everybody gets it.",
+            "What's worse than finding a worm in your apple? Finding half a worm."
     };
 
     private Jokes() {}

@@ -36,11 +36,15 @@ public class MainActivity extends Activity {
     private LinearLayout list;
     private TextView subtitle;
     private TextView joke;
+    private LinearLayout strip;
+    private int builtTheme;
+    private int stripGen;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
 
+        builtTheme = Ui.themeVersion;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(this, 18);
@@ -74,6 +78,20 @@ public class MainActivity extends Activity {
         header.addView(menu, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         root.addView(header, Ui.full(this, 0));
 
+        // The three indexes at a glance. Tap to open the Market screen.
+        strip = new LinearLayout(this);
+        strip.setOrientation(LinearLayout.HORIZONTAL);
+        strip.setBackground(Ui.ripple(this, Ui.card(this, 18), 18));
+        strip.setPadding(Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10));
+        strip.setVisibility(View.GONE);
+        strip.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, MarketActivity.class));
+            }
+        });
+        root.addView(strip, Ui.full(this, 14));
+
         // Dad joke of the moment. Tap it for another.
         LinearLayout jokeCard = new LinearLayout(this);
         jokeCard.setOrientation(LinearLayout.VERTICAL);
@@ -81,7 +99,7 @@ public class MainActivity extends Activity {
         jokeCard.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         joke = Ui.text(this, "", 15, Ui.TEXT);
         jokeCard.addView(joke);
-        TextView jokeHint = Ui.text(this, "Dad joke  \u2022  tap for another", 11, Ui.SUB);
+        TextView jokeHint = Ui.text(this, "Joke  \u2022  tap for another", 11, Ui.SUB);
         jokeCard.addView(jokeHint, Ui.full(this, 4));
         jokeCard.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -89,7 +107,7 @@ public class MainActivity extends Activity {
                 joke.setText(Jokes.next());
             }
         });
-        root.addView(jokeCard, Ui.full(this, 14));
+        root.addView(jokeCard, Ui.full(this, 10));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -129,9 +147,68 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (builtTheme != Ui.themeVersion) {
+            // Colors changed while another screen was open: rebuild with the new ones.
+            recreate();
+            return;
+        }
         Bg.apply(this, root);
         joke.setText(Jokes.next());
         refresh();
+        loadStrip();
+    }
+
+    /** Fetches the three indexes in the background and fills the strip. */
+    private void loadStrip() {
+        if (Prefs.getInt(this, "marketHome", 1) != 1) {
+            strip.setVisibility(View.GONE);
+            return;
+        }
+        final int gen = ++stripGen;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final MarketData.Series[] out = new MarketData.Series[MarketData.INDEXES.length];
+                for (int i = 0; i < out.length; i++) {
+                    out[i] = MarketData.fetch(MarketData.INDEXES[i], 0);
+                }
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (gen == stripGen && !isFinishing()) paintStrip(out);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void paintStrip(MarketData.Series[] data) {
+        strip.removeAllViews();
+        boolean any = false;
+        for (int i = 0; i < data.length; i++) {
+            MarketData.Series s = data[i];
+            LinearLayout col = new LinearLayout(this);
+            col.setOrientation(LinearLayout.VERTICAL);
+            col.setGravity(Gravity.CENTER_HORIZONTAL);
+            col.addView(Ui.text(this, MarketData.INDEXES[i].name, 11, Ui.SUB));
+            if (s.ok()) {
+                any = true;
+                TextView v = Ui.text(this, MarketData.fmt(s.last), 15, Ui.TEXT);
+                v.setTypeface(Ui.medium());
+                col.addView(v);
+                double pct = s.pct();
+                if (!Double.isNaN(pct)) {
+                    col.addView(Ui.text(this, (pct >= 0 ? "\u25B2 +" : "\u25BC ")
+                                    + MarketData.fmt(pct) + "%", 12,
+                            pct >= 0 ? MarketData.UP : MarketData.DOWN));
+                }
+            } else {
+                col.addView(Ui.text(this, "--", 15, Ui.SUB));
+            }
+            strip.addView(col, new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        strip.setVisibility(any ? View.VISIBLE : View.GONE);
     }
 
     @Override
@@ -210,6 +287,7 @@ public class MainActivity extends Activity {
 
         Switch sw = new Switch(this);
         sw.setChecked(a.enabled);
+        Ui.tint(sw);
         sw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton button, boolean on) {
@@ -277,11 +355,18 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, CalendarActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("Market", "S&P 500, Dow and Nasdaq charts",
+        sheet.addView(menuItem("Market", "Indexes, gold, oil, Bitcoin and your watchlist",
                 new Runnable() {
                     @Override
                     public void run() {
                         startActivity(new Intent(MainActivity.this, MarketActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("Colors & night mode", "Accent color and dim modes for late nights",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, ThemeActivity.class));
                     }
                 }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Background studio", "Color themes, your pictures, drawing",
@@ -292,7 +377,7 @@ public class MainActivity extends Activity {
                     }
                 }, d), Ui.full(this, 10));
         sheet.addView(menuItem("About", "Easy Wake " + versionName()
-                        + "  \u2022  no ads. Only Market uses the internet.",
+                        + "  \u2022  no ads. Internet is used only for market data.",
                 null, d), Ui.full(this, 10));
 
         sheet.addView(menuItem("Uninstall Easy Wake", "Removes the app and all its alarms",

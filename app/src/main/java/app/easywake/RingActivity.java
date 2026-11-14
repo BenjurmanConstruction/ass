@@ -68,6 +68,37 @@ public class RingActivity extends Activity {
         labelView.setGravity(Gravity.CENTER);
         root.addView(labelView, wrap());
 
+        if (Prefs.getInt(this, "marketRing", 1) == 1) {
+            final TextView market = Ui.text(this, "", 15, Ui.SUB);
+            market.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams mp = wrap();
+            mp.topMargin = Ui.dp(this, 14);
+            root.addView(market, mp);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final StringBuilder sb = new StringBuilder();
+                    for (MarketData.Sym sym : MarketData.INDEXES) {
+                        MarketData.Series s = MarketData.fetch(sym, 0);
+                        if (!s.ok()) continue;
+                        if (sb.length() > 0) sb.append("\n");
+                        sb.append(sym.name).append("  ").append(MarketData.fmt(s.last));
+                        double pct = s.pct();
+                        if (!Double.isNaN(pct)) {
+                            sb.append(pct >= 0 ? "  \u25B2 +" : "  \u25BC ")
+                                    .append(MarketData.fmt(pct)).append("%");
+                        }
+                    }
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (!isFinishing()) market.setText(sb.toString());
+                        }
+                    });
+                }
+            }).start();
+        }
+
         View spacerTop = new View(this);
         root.addView(spacerTop, new LinearLayout.LayoutParams(1, 0, 1f));
 

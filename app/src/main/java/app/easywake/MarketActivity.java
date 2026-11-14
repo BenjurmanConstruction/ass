@@ -1,7 +1,9 @@
 package app.easywake;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
@@ -11,60 +13,49 @@ import android.graphics.Shader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.text.format.DateFormat;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/** S&P 500, Dow and Nasdaq with line charts. Needs an internet connection. */
+/** Indexes, other markets and your own watchlist, each with a line chart. */
 public class MarketActivity extends Activity {
-    private static final String[] NAMES = {"S&P 500", "Dow Jones", "Nasdaq"};
-    private static final String[] YAHOO = {"%5EGSPC", "%5EDJI", "%5EIXIC"};
-    private static final String[] FRED = {"SP500", "DJIA", "NASDAQCOM"};
-    private static final String[] RANGE_LABELS = {"1 day", "1 month", "1 year"};
-    private static final String[] RANGE_Q = {"range=1d&interval=5m", "range=1mo&interval=1d",
-            "range=1y&interval=1d"};
-    private static final int[] FRED_DAYS = {12, 35, 370};
-    private static final int UP = 0xFF66D19E;
-    private static final int DOWN = 0xFFFF7A7A;
-    private static final String AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 "
-            + "(KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36";
 
-    /** Result of loading one index. */
-    private static final class Series {
-        double[] values = new double[0];
-        double last = Double.NaN;
-        double prev = Double.NaN;
-        boolean live;
-        String error;
+    /** The views for one symbol. */
+    private static final class Card {
+        MarketData.Sym sym;
+        TextView value;
+        TextView change;
+        TextView range;
+        ChartView chart;
     }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final TextView[] valueViews = new TextView[3];
-    private final TextView[] changeViews = new TextView[3];
-    private final ChartView[] charts = new ChartView[3];
-    private final Button[] rangeBtns = new Button[3];
+    private final ExecutorService pool = Executors.newFixedThreadPool(4);
+    private final List<Card> cards = new ArrayList<>();
+    private final Button[] rangeBtns = new Button[MarketData.RANGE_LABELS.length];
+    private LinearLayout body;
+    private ScrollView scroll;
     private TextView footer;
     private int range;
     private int generation;
+    private int pending;
+    private int okCount;
+    private int dailyCount;
+    private String firstError = "";
     private boolean visible;
 
     private final Runnable autoRefresh = new Runnable() {
@@ -80,9 +71,9 @@ public class MarketActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         range = Prefs.getInt(this, "marketRange", 0);
-        if (range < 0 || range > 2) range = 0;
+        if (range < 0 || range >= MarketData.RANGE_LABELS.length) range = 0;
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -93,15 +84,19 @@ public class MarketActivity extends Activity {
 
         root.addView(Ui.topBar(this, "Market"), Ui.full(this, 0));
 
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
         LinearLayout ranges = new LinearLayout(this);
         ranges.setOrientation(LinearLayout.HORIZONTAL);
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < rangeBtns.length; i++) {
             final int idx = i;
-            Button rb = Ui.button(this, RANGE_LABELS[i], false);
+            Button rb = Ui.button(this, MarketData.RANGE_LABELS[i], false);
             rb.setTextSize(14);
-            rb.setMinHeight(Ui.dp(this, 42));
-            rb.setMinimumHeight(Ui.dp(this, 42));
-            rb.setPadding(0, 0, 0, 0);
+            rb.setMinHeight(Ui.dp(this, 40));
+            rb.setMinimumHeight(Ui.dp(this, 40));
+            rb.setMinWidth(0);
+            rb.setMinimumWidth(0);
+            rb.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
             rb.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -111,46 +106,21 @@ public class MarketActivity extends Activity {
                     load();
                 }
             });
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1f);
-            int m = Ui.dp(this, 4);
-            rp.setMargins(m, 0, m, 0);
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40));
+            rp.rightMargin = Ui.dp(this, 8);
             ranges.addView(rb, rp);
             rangeBtns[i] = rb;
         }
-        root.addView(ranges, Ui.full(this, 14));
+        hs.addView(ranges);
+        root.addView(hs, Ui.full(this, 14));
 
-        for (int i = 0; i < 3; i++) {
-            LinearLayout card = new LinearLayout(this);
-            card.setOrientation(LinearLayout.VERTICAL);
-            card.setBackground(Ui.card(this, 22));
-            card.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
-
-            LinearLayout head = new LinearLayout(this);
-            head.setOrientation(LinearLayout.HORIZONTAL);
-            head.setGravity(Gravity.BOTTOM);
-            TextView name = Ui.text(this, NAMES[i], 16, Ui.SUB);
-            name.setTypeface(Ui.medium());
-            head.addView(name, new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-            changeViews[i] = Ui.text(this, "", 15, Ui.SUB);
-            head.addView(changeViews[i]);
-            card.addView(head);
-
-            valueViews[i] = Ui.text(this, "Loading...", 30, Ui.TEXT);
-            valueViews[i].setTypeface(Ui.light());
-            card.addView(valueViews[i]);
-
-            charts[i] = new ChartView(this);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 120));
-            cp.topMargin = Ui.dp(this, 8);
-            card.addView(charts[i], cp);
-
-            root.addView(card, Ui.full(this, 12));
-        }
+        body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        root.addView(body, Ui.full(this, 0));
 
         footer = Ui.text(this, "", 12, Ui.SUB);
-        root.addView(footer, Ui.full(this, 14));
+        root.addView(footer, Ui.full(this, 16));
 
         Button refresh = Ui.button(this, "Refresh", false);
         refresh.setOnClickListener(new View.OnClickListener() {
@@ -164,6 +134,200 @@ public class MarketActivity extends Activity {
         setContentView(scroll);
         Bg.apply(this, scroll);
         paintRanges();
+        rebuild();
+    }
+
+    /** Rebuilds the list of cards from the saved choices. */
+    private void rebuild() {
+        body.removeAllViews();
+        cards.clear();
+
+        body.addView(Ui.heading(this, "Indexes"), Ui.full(this, 18));
+        for (MarketData.Sym s : MarketData.INDEXES) addCard(s, true, false);
+
+        body.addView(Ui.heading(this, "More markets"), Ui.full(this, 24));
+        List<String> extras = MarketData.list(this, "marketExtras", MarketData.DEFAULT_EXTRAS);
+        for (MarketData.Sym s : MarketData.EXTRAS) {
+            if (extras.contains(s.symbol)) addCard(s, false, false);
+        }
+        Button choose = Ui.button(this, "Choose markets", false);
+        choose.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                chooseExtras();
+            }
+        });
+        body.addView(choose, Ui.full(this, 10));
+
+        body.addView(Ui.heading(this, "My watchlist"), Ui.full(this, 24));
+        List<String> watch = MarketData.list(this, "marketWatch", "");
+        if (watch.isEmpty()) {
+            body.addView(Ui.text(this, "Add any stock, ETF or crypto ticker, like AAPL, SPY "
+                    + "or ETH-USD.", 13, Ui.SUB), Ui.full(this, 8));
+        }
+        for (String t : watch) addCard(new MarketData.Sym(t, t, null), false, true);
+        Button add = Ui.button(this, "+  Add a ticker", false);
+        add.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                addTicker();
+            }
+        });
+        body.addView(add, Ui.full(this, 10));
+        if (!watch.isEmpty()) {
+            body.addView(Ui.text(this, "Hold a watchlist card to remove it.", 12, Ui.SUB),
+                    Ui.full(this, 6));
+        }
+
+        body.addView(Ui.heading(this, "Show the three indexes"), Ui.full(this, 24));
+        body.addView(toggle("On the home screen", "marketHome"), Ui.full(this, 10));
+        body.addView(toggle("On the alarm screen", "marketRing"), Ui.full(this, 10));
+    }
+
+    private View toggle(String title, final String key) {
+        final Ui.Row row = Ui.row(this, title, Prefs.getInt(this, key, 1) == 1 ? "On" : "Off");
+        row.view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int now = Prefs.getInt(MarketActivity.this, key, 1) == 1 ? 0 : 1;
+                Prefs.putInt(MarketActivity.this, key, now);
+                row.value.setText(now == 1 ? "On" : "Off");
+            }
+        });
+        return row.view;
+    }
+
+    private void addCard(final MarketData.Sym sym, boolean big, boolean removable) {
+        Card c = new Card();
+        c.sym = sym;
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(Ui.card(this, 22));
+        card.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 12));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.BOTTOM);
+        TextView name = Ui.text(this, sym.name, 16, Ui.SUB);
+        name.setTypeface(Ui.medium());
+        head.addView(name, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        c.change = Ui.text(this, "", 14, Ui.SUB);
+        head.addView(c.change);
+        card.addView(head);
+
+        c.value = Ui.text(this, "Loading...", big ? 30 : 24, Ui.TEXT);
+        c.value.setTypeface(Ui.light());
+        card.addView(c.value);
+
+        c.chart = new ChartView(this);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, big ? 120 : 80));
+        cp.topMargin = Ui.dp(this, 8);
+        card.addView(c.chart, cp);
+
+        c.range = Ui.text(this, "", 12, Ui.SUB);
+        card.addView(c.range, Ui.full(this, 6));
+
+        if (removable) {
+            card.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    confirmRemove(sym.symbol);
+                    return true;
+                }
+            });
+        }
+        body.addView(card, Ui.full(this, 12));
+        cards.add(c);
+    }
+
+    private void chooseExtras() {
+        final List<String> current = MarketData.list(this, "marketExtras",
+                MarketData.DEFAULT_EXTRAS);
+        final String[] names = new String[MarketData.EXTRAS.length];
+        final boolean[] checked = new boolean[names.length];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = MarketData.EXTRAS[i].name;
+            checked[i] = current.contains(MarketData.EXTRAS[i].symbol);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Choose markets")
+                .setMultiChoiceItems(names, checked,
+                        new DialogInterface.OnMultiChoiceClickListener() {
+                            @Override
+                            public void onClick(DialogInterface d, int which, boolean on) {
+                                checked[which] = on;
+                            }
+                        })
+                .setPositiveButton("Done", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        List<String> out = new ArrayList<>();
+                        for (int i = 0; i < checked.length; i++) {
+                            if (checked[i]) out.add(MarketData.EXTRAS[i].symbol);
+                        }
+                        MarketData.saveList(MarketActivity.this, "marketExtras", out);
+                        rebuild();
+                        load();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void addTicker() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        input.setHint("AAPL, SPY, ETH-USD ...");
+        LinearLayout wrap = new LinearLayout(this);
+        int pad = Ui.dp(this, 20);
+        wrap.setPadding(pad, Ui.dp(this, 8), pad, 0);
+        wrap.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(this)
+                .setTitle("Add a ticker")
+                .setView(wrap)
+                .setPositiveButton("Add", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        String t = MarketData.clean(input.getText().toString());
+                        if (t == null) {
+                            Toast.makeText(MarketActivity.this,
+                                    "That doesn't look like a ticker symbol.",
+                                    Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        List<String> watch = MarketData.list(MarketActivity.this,
+                                "marketWatch", "");
+                        if (!watch.contains(t)) watch.add(t);
+                        MarketData.saveList(MarketActivity.this, "marketWatch", watch);
+                        rebuild();
+                        load();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void confirmRemove(final String symbol) {
+        new AlertDialog.Builder(this)
+                .setMessage("Remove " + symbol + " from your watchlist?")
+                .setPositiveButton("Remove", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        List<String> watch = MarketData.list(MarketActivity.this,
+                                "marketWatch", "");
+                        watch.remove(symbol);
+                        MarketData.saveList(MarketActivity.this, "marketWatch", watch);
+                        rebuild();
+                        load();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     @Override
@@ -181,11 +345,17 @@ public class MarketActivity extends Activity {
         super.onPause();
     }
 
+    @Override
+    protected void onDestroy() {
+        pool.shutdownNow();
+        super.onDestroy();
+    }
+
     private void paintRanges() {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < rangeBtns.length; i++) {
             boolean on = i == range;
-            rangeBtns[i].setBackground(on ? Ui.gold(this, 21)
-                    : Ui.ripple(this, Ui.card(this, 21), 21));
+            rangeBtns[i].setBackground(on ? Ui.gold(this, 20)
+                    : Ui.ripple(this, Ui.card(this, 20), 20));
             rangeBtns[i].setTextColor(on ? Ui.ON_ACCENT : Ui.TEXT);
         }
     }
@@ -193,171 +363,75 @@ public class MarketActivity extends Activity {
     private void load() {
         final int gen = ++generation;
         final int r = range;
+        pending = cards.size();
+        okCount = 0;
+        dailyCount = 0;
+        firstError = "";
         footer.setText("Loading...");
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                final Series[] out = new Series[3];
-                for (int i = 0; i < 3; i++) out[i] = fetch(i, r);
-                handler.post(new Runnable() {
+        for (final Card c : new ArrayList<>(cards)) {
+            try {
+                pool.execute(new Runnable() {
                     @Override
                     public void run() {
-                        if (gen == generation) show(out, r);
+                        final MarketData.Series s = MarketData.fetch(c.sym, r);
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (gen != generation) return;
+                                show(c, s, r);
+                                pending--;
+                                if (pending <= 0) paintFooter(r);
+                            }
+                        });
                     }
                 });
+            } catch (Exception e) {
+                // Screen is closing.
             }
-        }).start();
+        }
     }
 
-    private void show(Series[] data, int r) {
-        DecimalFormat num = new DecimalFormat("#,##0.00");
-        boolean anyLive = false;
-        boolean anyDaily = false;
-        boolean anyFail = false;
-        for (int i = 0; i < 3; i++) {
-            Series s = data[i];
-            if (s.values.length < 2 || Double.isNaN(s.last)) {
-                anyFail = true;
-                valueViews[i].setText("No data");
-                changeViews[i].setText("");
-                charts[i].setData(new double[0], Double.NaN, Ui.SUB);
-                continue;
-            }
-            if (s.live) anyLive = true;
-            else anyDaily = true;
-            valueViews[i].setText(num.format(s.last));
-            int color = Ui.SUB;
-            if (!Double.isNaN(s.prev) && s.prev != 0) {
-                double diff = s.last - s.prev;
-                double pct = diff / s.prev * 100;
-                color = diff >= 0 ? UP : DOWN;
-                changeViews[i].setText((diff >= 0 ? "▲ +" : "▼ ") + num.format(diff)
-                        + "  (" + (diff >= 0 ? "+" : "") + num.format(pct) + "%)");
-                changeViews[i].setTextColor(color);
-            } else {
-                changeViews[i].setText("");
-            }
-            charts[i].setData(s.values, r == 0 && s.live ? s.prev : Double.NaN, color);
+    private void show(Card c, MarketData.Series s, int r) {
+        if (!s.ok()) {
+            if (firstError.isEmpty()) firstError = s.error;
+            c.value.setText("No data");
+            c.change.setText("");
+            c.range.setText("");
+            c.chart.setData(new double[0], Double.NaN, Ui.SUB);
+            return;
         }
-        String when = DateFormat.getTimeFormat(this).format(new Date());
+        okCount++;
+        if (!s.live) dailyCount++;
+        c.value.setText(MarketData.fmt(s.last));
+        int color = Ui.SUB;
+        if (!Double.isNaN(s.prev) && s.prev != 0) {
+            color = s.change() >= 0 ? MarketData.UP : MarketData.DOWN;
+        }
+        c.change.setText(MarketData.changeText(s));
+        c.change.setTextColor(color);
+        c.range.setText("Low " + MarketData.fmt(s.low) + "   •   High "
+                + MarketData.fmt(s.high));
+        c.chart.setData(s.values, r == 0 && s.live ? s.prev : Double.NaN, color);
+    }
+
+    private void paintFooter(int r) {
         StringBuilder sb = new StringBuilder();
-        if (anyFail && !anyLive && !anyDaily) {
+        if (okCount == 0) {
             sb.append("Couldn't load market data. Check your internet connection and tap "
                     + "Refresh.");
+            if (!firstError.isEmpty()) sb.append(" (Details: ").append(firstError).append(")");
         } else {
-            sb.append("Updated ").append(when).append(". ");
-            if (anyLive) {
-                sb.append("Data from Yahoo Finance; it can run a few minutes behind. "
-                        + "Change is versus the ")
-                        .append(r == 0 ? "previous close. " : "start of the period. ");
-            }
-            if (anyDaily) {
-                sb.append("Live data was unavailable, so some charts show daily closing "
-                        + "values from FRED (St. Louis Fed), up to a day old. ");
+            sb.append("Updated ").append(DateFormat.getTimeFormat(this).format(new Date()))
+                    .append(". Data from Yahoo Finance; it can run a few minutes behind. "
+                            + "Change is versus the ")
+                    .append(r == 0 ? "previous close. " : "start of the period. ");
+            if (dailyCount > 0) {
+                sb.append("Live data was unavailable for some indexes, so those show daily "
+                        + "closing values from the St. Louis Fed. ");
             }
             sb.append("For information only, not investment advice.");
         }
         footer.setText(sb.toString());
-    }
-
-    private Series fetch(int index, int r) {
-        Series s = fetchYahoo(index, r);
-        if (s.values.length >= 2) return s;
-        Series f = fetchFred(index, r);
-        return f.values.length >= 2 ? f : s;
-    }
-
-    private Series fetchYahoo(int index, int r) {
-        Series s = new Series();
-        s.live = true;
-        String[] hosts = {"query1.finance.yahoo.com", "query2.finance.yahoo.com"};
-        for (String host : hosts) {
-            try {
-                String body = http("https://" + host + "/v8/finance/chart/" + YAHOO[index]
-                        + "?" + RANGE_Q[r]);
-                JSONObject res = new JSONObject(body).getJSONObject("chart")
-                        .getJSONArray("result").getJSONObject(0);
-                JSONObject meta = res.getJSONObject("meta");
-                JSONArray closes = res.getJSONObject("indicators").getJSONArray("quote")
-                        .getJSONObject(0).getJSONArray("close");
-                List<Double> vals = new ArrayList<>();
-                for (int i = 0; i < closes.length(); i++) {
-                    if (!closes.isNull(i)) vals.add(closes.getDouble(i));
-                }
-                if (vals.size() < 2) continue;
-                s.values = toArray(vals);
-                s.last = meta.optDouble("regularMarketPrice", s.values[s.values.length - 1]);
-                s.prev = meta.optDouble("chartPreviousClose",
-                        meta.optDouble("previousClose", Double.NaN));
-                if (r != 0) s.prev = s.values[0];
-                return s;
-            } catch (Exception e) {
-                s.error = e.getMessage();
-            }
-        }
-        s.values = new double[0];
-        return s;
-    }
-
-    private Series fetchFred(int index, int r) {
-        Series s = new Series();
-        s.live = false;
-        try {
-            Calendar c = Calendar.getInstance();
-            c.add(Calendar.DAY_OF_YEAR, -FRED_DAYS[r]);
-            String start = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.getTime());
-            String body = http("https://fred.stlouisfed.org/graph/fredgraph.csv?id="
-                    + FRED[index] + "&cosd=" + start);
-            List<Double> vals = new ArrayList<>();
-            String[] lines = body.split("\n");
-            for (int i = 1; i < lines.length; i++) {
-                String[] parts = lines[i].trim().split(",");
-                if (parts.length < 2) continue;
-                try {
-                    vals.add(Double.parseDouble(parts[1]));
-                } catch (NumberFormatException e) {
-                    // Holidays are listed with a "." instead of a number.
-                }
-            }
-            if (vals.size() >= 2) {
-                s.values = toArray(vals);
-                s.last = s.values[s.values.length - 1];
-                s.prev = r == 0 ? s.values[s.values.length - 2] : s.values[0];
-            }
-        } catch (Exception e) {
-            s.error = e.getMessage();
-        }
-        return s;
-    }
-
-    private static double[] toArray(List<Double> list) {
-        double[] out = new double[list.size()];
-        for (int i = 0; i < out.length; i++) out[i] = list.get(i);
-        return out;
-    }
-
-    private static String http(String url) throws Exception {
-        HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-        try {
-            con.setConnectTimeout(10000);
-            con.setReadTimeout(12000);
-            con.setRequestProperty("User-Agent", AGENT);
-            con.setRequestProperty("Accept", "application/json,text/csv,*/*");
-            int code = con.getResponseCode();
-            if (code != 200) throw new Exception("HTTP " + code);
-            try (InputStream in = con.getInputStream()) {
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    out.write(buf, 0, n);
-                    if (out.size() > 4000000) break;
-                }
-                return out.toString("UTF-8");
-            }
-        } finally {
-            con.disconnect();
-        }
     }
 
     /** Simple line chart with a soft fill under the line. */

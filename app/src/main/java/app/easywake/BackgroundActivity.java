@@ -111,6 +111,7 @@ public class BackgroundActivity extends Activity {
                 Ui.SUB));
         SeekBar dim = new SeekBar(this);
         dim.setMax(85);
+        Ui.tint(dim);
         dim.setProgress(Prefs.getInt(this, "bgDim", 45));
         dim.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override

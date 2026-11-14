@@ -92,6 +92,7 @@ public class DrawActivity extends Activity {
         sizeRow.addView(Ui.text(this, "Brush", 14, Ui.SUB));
         SeekBar size = new SeekBar(this);
         size.setMax(56);
+        Ui.tint(size);
         size.setProgress(10);
         canvas.strokeWidth = Ui.dp(this, 4 + 10);
         size.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {

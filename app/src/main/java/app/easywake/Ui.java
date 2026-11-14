@@ -23,13 +23,87 @@ final class Ui {
     static final int BG = 0xFF0B0F1A;
     static final int CARD = 0xD91A2030;
     static final int STROKE = 0x26FFFFFF;
-    static final int ACCENT = 0xFFE6B869;
-    static final int ACCENT_HI = 0xFFF3D08E;
-    static final int ACCENT_LO = 0xFFD49B45;
-    static final int TEXT = 0xFFF4F1EA;
-    static final int SUB = 0xFFA7ADBB;
+    // These follow the chosen accent color and night mode (see loadTheme).
+    static int ACCENT = 0xFFE6B869;
+    static int ACCENT_HI = 0xFFF3D08E;
+    static int ACCENT_LO = 0xFFD49B45;
+    static int TEXT = 0xFFF4F1EA;
+    static int SUB = 0xFFA7ADBB;
     static final int WARN = 0xE65D4037;
-    static final int ON_ACCENT = 0xFF20160A;
+    static final int ON_ACCENT = 0xFF17120B;
+
+    static final String[] ACCENT_NAMES = {
+            "Gold", "Amber", "Ember", "Night red", "Rose",
+            "Lavender", "Ice blue", "Teal", "Sage", "Silver"
+    };
+    /** Each: main color, lighter top of buttons, darker bottom of buttons. */
+    static final int[][] ACCENTS = {
+            {0xFFE6B869, 0xFFF3D08E, 0xFFD49B45},
+            {0xFFFFA726, 0xFFFFBD5C, 0xFFEF8C00},
+            {0xFFE8824A, 0xFFF0A070, 0xFFCC6630},
+            {0xFFC94A44, 0xFFD96560, 0xFFA83832},
+            {0xFFE08AA0, 0xFFEBA8B8, 0xFFC76C84},
+            {0xFFB39DDB, 0xFFC9B8E8, 0xFF957DC4},
+            {0xFF7FB8E6, 0xFFA3CEF0, 0xFF5F9BCB},
+            {0xFF5CC2B8, 0xFF84D6CE, 0xFF3FA398},
+            {0xFF8FCB9B, 0xFFACDDB5, 0xFF6FAF7D},
+            {0xFFC8CCD4, 0xFFDDE0E6, 0xFFA9AEB8},
+    };
+    static final String[] NIGHT_NAMES = {"Off", "Dim", "Red night"};
+
+    /** Goes up whenever colors change, so open screens know to redraw. */
+    static int themeVersion = 0;
+    private static int night = 0;
+
+    static int accentIndex(Context c) {
+        int i = Prefs.getInt(c, "accent", 0);
+        return (i >= 0 && i < ACCENTS.length) ? i : 0;
+    }
+
+    static int nightLevel(Context c) {
+        int n = Prefs.getInt(c, "night", 0);
+        return (n >= 0 && n < NIGHT_NAMES.length) ? n : 0;
+    }
+
+    /** Reads the saved color choices into the fields above. */
+    static void loadTheme(Context c) {
+        int[] a = ACCENTS[accentIndex(c)];
+        ACCENT = a[0];
+        ACCENT_HI = a[1];
+        ACCENT_LO = a[2];
+        night = nightLevel(c);
+        if (night == 2) {
+            TEXT = 0xFFCF8A80;
+            SUB = 0xFF8A5F5A;
+        } else if (night == 1) {
+            TEXT = 0xFFC9C2B5;
+            SUB = 0xFF858A96;
+        } else {
+            TEXT = 0xFFF4F1EA;
+            SUB = 0xFFA7ADBB;
+        }
+        themeVersion++;
+    }
+
+    /** Dims the screen while this app is showing, according to the night mode. */
+    static void applyNight(Activity a) {
+        android.view.WindowManager.LayoutParams lp = a.getWindow().getAttributes();
+        lp.screenBrightness = night == 2 ? 0.03f : (night == 1 ? 0.10f : -1f);
+        a.getWindow().setAttributes(lp);
+    }
+
+    static void tint(android.widget.SeekBar s) {
+        ColorStateList c = ColorStateList.valueOf(ACCENT);
+        s.setProgressTintList(c);
+        s.setThumbTintList(c);
+    }
+
+    static void tint(android.widget.Switch s) {
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        s.setThumbTintList(new ColorStateList(states, new int[]{ACCENT, 0xFFB0B4BC}));
+        s.setTrackTintList(new ColorStateList(states,
+                new int[]{(ACCENT & 0x00FFFFFF) | 0x80000000, 0x55FFFFFF}));
+    }
     static final int DANGER = 0xFFEF9A9A;
 
     private static final String[] DAY_SHORT = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};

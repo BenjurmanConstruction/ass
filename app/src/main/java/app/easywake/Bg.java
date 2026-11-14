@@ -118,6 +118,7 @@ final class Bg {
         }
         a.getWindow().setStatusBarColor(top);
         a.getWindow().setNavigationBarColor(bottom);
+        Ui.applyNight(a);
     }
 
     static synchronized Bitmap bitmap(Context c) {

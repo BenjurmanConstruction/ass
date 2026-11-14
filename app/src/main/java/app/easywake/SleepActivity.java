@@ -180,6 +180,7 @@ public class SleepActivity extends Activity {
         SeekBar bar = new SeekBar(this);
         bar.setMax(100);
         bar.setProgress(value);
+        Ui.tint(bar);
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {

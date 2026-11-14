@@ -81,7 +81,7 @@ public class RingActivity extends Activity {
             root.addView(memos, mm);
         }
 
-        if (Prefs.getInt(this, "marketRing", 1) == 1) {
+        if (Prefs.getInt(this, "marketRing", 1) == 1 && !MarketData.netOff) {
             final TextView market = Ui.text(this, "", 15, Ui.SUB);
             market.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams mp = wrap();

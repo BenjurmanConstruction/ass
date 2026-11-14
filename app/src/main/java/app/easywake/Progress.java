@@ -141,6 +141,8 @@ final class Progress {
             points += bonus;
             a.notes.add(streak == 1 ? "First test today: +" + bonus
                     : streak + "-day streak: +" + bonus);
+            int interest = Wallet.payInterest(c);
+            if (interest > 0) a.notes.add("Gold interest paid: +" + interest + " Gold");
         }
 
         // Play counts.

@@ -28,6 +28,18 @@ final class Lessons {
             "The Fermi paradox",
             "Why 0.999... equals 1",
             "Compound growth",
+            "Inflation in plain English",
+            "What the Federal Reserve does",
+            "Stocks vs bonds",
+            "Opportunity cost",
+            "Loss aversion",
+            "The anchoring effect",
+            "How a credit score works",
+            "How vaccines train your body",
+            "Why the Moon shows one face",
+            "Why we have leap years",
+            "How your memory stores things",
+            "How the internet finds a website",
     };
 
     static final String[] BODIES = {
@@ -164,6 +176,93 @@ final class Lessons {
                     + "$96,000. Most of the total arrives in the final years, which is why "
                     + "starting early matters more than the amount. Returns are never "
                     + "guaranteed; this just shows the arithmetic.",
+
+            "Inflation means prices in general rise over time, so each dollar buys a "
+                    + "little less. At 3% inflation, something that costs $100 today costs about "
+                    + "$103 next year and about $134 in ten years. It's measured by tracking the "
+                    + "price of a fixed basket of everyday goods and services. A little inflation "
+                    + "is normal; the trouble starts when wages and savings grow slower than "
+                    + "prices. That's why cash sitting idle quietly loses buying power, and why "
+                    + "the return that matters is what you earn above inflation.",
+
+            "The Federal Reserve is the central bank of the United States. Its main "
+                    + "lever is a short-term interest rate that banks charge each other. When the "
+                    + "Fed raises it, borrowing gets more expensive across the economy, which "
+                    + "cools spending and inflation. When it lowers it, borrowing gets cheaper, "
+                    + "which encourages spending and hiring. Its two goals are stable prices and "
+                    + "high employment. Markets watch every Fed meeting closely because interest "
+                    + "rates affect what almost every investment is worth.",
+
+            "A stock is a small piece of ownership in a company: if the company grows, "
+                    + "your piece is worth more, and if it fails, it can go to zero. A bond is a "
+                    + "loan: you lend money and get it back with interest on a set schedule, as "
+                    + "long as the borrower can pay. Stocks have historically grown more over "
+                    + "long periods but swing far more along the way. Bonds usually pay less but "
+                    + "move less. Mixing the two is the most common way people set how bumpy a "
+                    + "ride they're willing to take.",
+
+            "Every choice costs you the best thing you gave up to make it. That's "
+                    + "opportunity cost. An hour spent scrolling isn't free; it cost you an hour "
+                    + "of sleep, exercise or work. Money left in a drawer costs you what it could "
+                    + "have earned elsewhere. Thinking this way changes the question from 'is "
+                    + "this worth it?' to 'is this better than my next best option?', which is "
+                    + "usually the more honest one.",
+
+            "Losing $100 hurts about twice as much as gaining $100 feels good. This "
+                    + "quirk, called loss aversion, makes people do odd things: hold a falling "
+                    + "investment far too long to avoid 'making the loss real', refuse a fair "
+                    + "bet, or pay extra for insurance on cheap items. Knowing about it helps. "
+                    + "When you feel a strong urge to avoid a loss, ask what you'd do if you were "
+                    + "starting fresh today with no history.",
+
+            "The first number you hear sticks, and later judgments get pulled toward "
+                    + "it. That first number is an anchor. A shirt marked 'was $80, now $40' "
+                    + "feels like a bargain even if it was never worth $80. In salary talks, "
+                    + "whoever names a figure first tends to set the range. Anchors work even "
+                    + "when they're obviously random. The defense is to decide what something is "
+                    + "worth to you before you look at the price tag.",
+
+            "In the United States, a credit score is a number from 300 to 850 that "
+                    + "estimates how likely you are to repay debt. The biggest factor, about a "
+                    + "third of the score, is whether you pay on time. Next is how much of your "
+                    + "available credit you're using; keeping it under about 30% helps. The rest "
+                    + "comes from how long you've had credit, how often you apply for new credit, "
+                    + "and the mix of account types. Checking your own score doesn't lower it.",
+
+            "A vaccine shows your immune system a harmless piece or weakened form of a "
+                    + "germ. Your body responds as if it were under attack: it makes antibodies "
+                    + "and, more importantly, memory cells that remember what the germ looks "
+                    + "like. If the real germ shows up later, those memory cells recognize it and "
+                    + "launch a fast, strong defense before you get seriously ill. Boosters exist "
+                    + "because that memory can fade or the germ can change.",
+
+            "The Moon spins exactly once for every trip around the Earth, so the same "
+                    + "side always faces us. That isn't a coincidence. Long ago Earth's gravity "
+                    + "raised a bulge in the Moon and tugged on it, slowing the Moon's spin until "
+                    + "it matched its orbit. This is called tidal locking, and most large moons "
+                    + "in the solar system are locked to their planets the same way. The far side "
+                    + "isn't dark; it gets just as much sunlight.",
+
+            "Earth takes about 365 and a quarter days to circle the Sun, not exactly "
+                    + "365. Without a fix, the calendar would drift about a day every four years, "
+                    + "and eventually summer would fall in December. Adding February 29 every "
+                    + "fourth year corrects most of it. Because the real figure is slightly less "
+                    + "than a quarter day, century years are skipped unless they divide by 400. "
+                    + "So 1900 wasn't a leap year, but 2000 was.",
+
+            "Short-term memory holds a handful of items for seconds; that's what you "
+                    + "use to keep a phone number in your head. Long-term memory has no known "
+                    + "limit. To move something from one to the other, the brain needs "
+                    + "repetition, meaning, or emotion, and much of that filing happens during "
+                    + "sleep. That's why cramming all night works badly: you skip the step where "
+                    + "the brain actually stores what you studied.",
+
+            "Computers find each other by number, not by name. When you type a web "
+                    + "address, your device asks a directory service called DNS to look up the "
+                    + "number for that name, a bit like looking up a contact to get the phone "
+                    + "number. Your device then connects to that number and asks for the page. "
+                    + "The whole lookup usually takes a few thousandths of a second, and results "
+                    + "are remembered for a while so the next visit is faster.",
     };
 
     static final String[] VAULT = {
@@ -213,6 +312,53 @@ final class Lessons {
                     + "eye.",
             "Trees in a forest can pass nutrients to each other through underground fungal "
                     + "threads.",
+            "The Statue of Liberty was the color of a new penny when it was built. "
+                    + "Weather turned the copper green.",
+            "Astronomers estimate there are more stars in the universe than grains of "
+                    + "sand on all of Earth's beaches.",
+            "Cashews grow on the outside of a fruit, hanging from the bottom of what's "
+                    + "called a cashew apple.",
+            "Sound travels more than four times faster through water than through air.",
+            "Your heart beats about 100,000 times a day.",
+            "Polar bears have black skin, and their fur is see-through, not white.",
+            "Lightning flashes somewhere on Earth dozens of times every second.",
+            "Some of the ashes of the man who perfected the Frisbee were molded into "
+                    + "Frisbees.",
+            "The point on Earth's surface farthest from its center is not Everest but "
+                    + "Chimborazo, a mountain in Ecuador.",
+            "Hawaii drifts about three inches closer to Japan every year.",
+            "A lake in Massachusetts has a 45-letter name, the longest place name in "
+                    + "the United States.",
+            "Sea otters have the thickest fur of any animal: up to a million hairs per "
+                    + "square inch.",
+            "A group of crows is called a murder.",
+            "An ostrich's eye is bigger than its brain.",
+            "Starfish have no brain and no blood. They pump seawater through their "
+                    + "bodies instead.",
+            "Dolphins sleep with half of their brain at a time, so the other half can "
+                    + "keep them breathing.",
+            "A sloth can take up to a month to digest a single meal.",
+            "On Mercury, the time from one sunrise to the next is about 176 Earth days.",
+            "The Sun holds about 99.8 percent of all the mass in the solar system.",
+            "Some neutron stars spin hundreds of times every second.",
+            "Astronomers think one distant planet has sideways rain made of molten "
+                    + "glass.",
+            "The first product ever scanned with a barcode, in 1974, was a pack of "
+                    + "chewing gum.",
+            "Nintendo's Mario was named after the landlord of the company's American "
+                    + "warehouse.",
+            "When the Apollo 11 astronauts came home from the Moon, they signed a "
+                    + "customs form.",
+            "Before rubber erasers, people rubbed out pencil marks with bread.",
+            "Napoleon was about average height for a Frenchman of his time.",
+            "There is no evidence that Vikings wore horned helmets into battle.",
+            "For about two centuries, many Europeans believed tomatoes were poisonous.",
+            "The word 'salary' comes from the Latin word for salt.",
+            "In the Middle Ages, a 'moment' was a unit of time equal to 90 seconds.",
+            "Stock 'tickers' are named after the ticking sound of the machines that "
+                    + "once printed prices on paper tape.",
+            "The New York Stock Exchange traces back to an agreement signed under a "
+                    + "buttonwood tree in 1792.",
     };
 
     private Lessons() {}

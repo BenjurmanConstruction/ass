@@ -359,34 +359,56 @@ public class ChartActivity extends Activity {
         void pick(int index);
     }
 
+    /** A block of toggle buttons that wraps onto extra rows so none hide off-screen. */
     private View pills(String[] names, Button[] out, final Pick pick) {
-        HorizontalScrollView hs = new HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        int perRow = names.length <= 6 && names[0].length() <= 2 ? names.length
+                : (names.length <= 4 ? names.length : (names.length + 1) / 2);
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout row = null;
         for (int i = 0; i < names.length; i++) {
+            if (i % perRow == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                if (i > 0) rowParams.topMargin = Ui.dp(this, 8);
+                block.addView(row, rowParams);
+            }
             final int idx = i;
             Button bt = Ui.button(this, names[i], false);
-            bt.setTextSize(14);
+            bt.setTextSize(13);
             bt.setMinHeight(Ui.dp(this, 40));
             bt.setMinimumHeight(Ui.dp(this, 40));
             bt.setMinWidth(0);
             bt.setMinimumWidth(0);
-            bt.setPadding(Ui.dp(this, 16), 0, Ui.dp(this, 16), 0);
+            bt.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
             bt.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     pick.pick(idx);
                 }
             });
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 40));
-            p.rightMargin = Ui.dp(this, 8);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,
+                    Ui.dp(this, 40), 1f);
+            int g = Ui.dp(this, 3);
+            p.setMargins(g, 0, g, 0);
             row.addView(bt, p);
             out[i] = bt;
         }
-        hs.addView(row);
-        return hs;
+        // Pad a short last row so its buttons stay the same width as the rows above.
+        int leftover = names.length % perRow;
+        if (leftover != 0 && row != null) {
+            for (int i = leftover; i < perRow; i++) {
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,
+                        Ui.dp(this, 40), 1f);
+                int g = Ui.dp(this, 3);
+                p.setMargins(g, 0, g, 0);
+                row.addView(new View(this), p);
+            }
+        }
+        return block;
     }
 
     private void paintPill(Button bt, boolean on) {

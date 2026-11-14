@@ -48,7 +48,7 @@ public class LearnActivity extends Activity {
         root.removeAllViews();
         root.addView(Ui.topBar(this, "Learn"), Ui.full(this, 0));
 
-        TextView pts = Ui.text(this, Scores.points(this) + " points to spend", 22, Ui.ACCENT);
+        TextView pts = Ui.text(this, Scores.points(this) + " Knowledge Points", 22, Ui.ACCENT);
         pts.setTypeface(Ui.light());
         root.addView(pts, Ui.full(this, 12));
         root.addView(Ui.text(this, "Earn more by playing the Brain gym tests.", 13, Ui.SUB),

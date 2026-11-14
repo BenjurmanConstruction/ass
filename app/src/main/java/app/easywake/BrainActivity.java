@@ -96,7 +96,7 @@ public class BrainActivity extends Activity {
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
         int streak = Progress.streak(this);
-        stats.addView(stat(String.valueOf(Scores.points(this)), "points to spend"), third());
+        stats.addView(stat(String.valueOf(Scores.points(this)), "Knowledge Points"), third());
         stats.addView(stat(streak + (streak == 1 ? " day" : " days"), "streak"), third());
         stats.addView(stat(String.valueOf(Prefs.getInt(this, "plays", 0)), "tests done"),
                 third());
@@ -111,14 +111,32 @@ public class BrainActivity extends Activity {
                     + "grows by 5 points each day, up to +50.", 13, Ui.SUB), Ui.full(this, 10));
         }
 
-        Button spend = Ui.button(this, "Cash in: vault facts and lessons", true);
+        Button tree = Ui.button(this, "Skill tree: unlock games, lessons and perks", true);
+        tree.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(BrainActivity.this, TreeActivity.class));
+            }
+        });
+        hero.addView(tree, Ui.full(this, 14));
+        Button walletBtn = Ui.button(this, "Wallet: " + Wallet.gold(this) + " Gold, "
+                + Wallet.coupons(this) + " coupons", false);
+        walletBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(BrainActivity.this, WalletActivity.class));
+            }
+        });
+        hero.addView(walletBtn, Ui.full(this, 10));
+
+        Button spend = Ui.button(this, "Vault facts and lessons", false);
         spend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 startActivity(new Intent(BrainActivity.this, LearnActivity.class));
             }
         });
-        hero.addView(spend, Ui.full(this, 14));
+        hero.addView(spend, Ui.full(this, 10));
         root.addView(hero, Ui.full(this, 14));
 
         // ----- daily challenge -----

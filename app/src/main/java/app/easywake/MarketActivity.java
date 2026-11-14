@@ -433,7 +433,10 @@ public class MarketActivity extends Activity {
     private void paintFooter(int r) {
         StringBuilder sb = new StringBuilder();
         if (okCount == 0) {
-            sb.append("Couldn't load market data. Check your internet connection and tap "
+            sb.append(MarketData.netOff
+                    ? "Internet is switched off for this app. Turn it on in Menu, Settings "
+                    + "to load market data."
+                    : "Couldn't load market data. Check your internet connection and tap "
                     + "Refresh.");
             if (!firstError.isEmpty()) sb.append(" (Details: ").append(firstError).append(")");
         } else {

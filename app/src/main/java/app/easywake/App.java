@@ -8,5 +8,6 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         Ui.loadTheme(this);
+        MarketData.netOff = Prefs.getInt(this, "netOff", 0) == 1;
     }
 }

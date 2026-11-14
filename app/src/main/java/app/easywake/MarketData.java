@@ -28,6 +28,9 @@ final class MarketData {
     private static final String AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 "
             + "(KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36";
 
+    /** Set from Settings. When true the app makes no network connections at all. */
+    static volatile boolean netOff = false;
+
     static final int UP = 0xFF66D19E;
     static final int DOWN = 0xFFFF7A7A;
 
@@ -362,6 +365,7 @@ final class MarketData {
     }
 
     private static String http(String url) throws Exception {
+        if (netOff) throw new Exception("internet is switched off in Settings");
         HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
         try {
             con.setConnectTimeout(10000);

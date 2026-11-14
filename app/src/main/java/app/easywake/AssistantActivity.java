@@ -258,12 +258,36 @@ public class AssistantActivity extends Activity {
         if (has(q, "joke", "funny", "laugh")) return Jokes.next();
         if (has(q, "fact", "teach me", "something cool", "learn something")) return Facts.next();
 
+        // ----- wallet, tree and casino -----
+        if (has(q, "slot", "casino", "gamble", "spin", "jackpot")) {
+            if (Tree.owned(this, "slot")) {
+                open(SlotActivity.class);
+                return "Opening Lucky Sevens. You have " + Wallet.coupons(this)
+                        + " Fun Coupons.";
+            }
+            return "The slot is locked. Unlock \"Lucky Sevens slot\" in the skill tree "
+                    + "(30 Knowledge Points, level 2).";
+        }
+        if (has(q, "wallet", "gold", "coupon", "balance", "exchange")) {
+            return "You have " + Wallet.kp(this) + " Knowledge Points, " + Wallet.gold(this)
+                    + " Gold and " + Wallet.coupons(this) + " Fun Coupons. Open the Wallet "
+                    + "from Brain gym or the skill tree to move between them.";
+        }
+        if (has(q, "skill", "tree", "unlock")) {
+            open(TreeActivity.class);
+            return "Opening the skill tree.";
+        }
+        if (has(q, "setting", "internet", "offline", "wifi")) {
+            open(SettingsActivity.class);
+            return "Opening Settings. The internet switch is at the top.";
+        }
+
         // ----- brain gym -----
         if (has(q, "point", "level", "streak", "badge", "xp", "score")) {
             int level = Progress.level(this);
             int streak = Progress.streak(this);
             return "You're level " + level + " (" + Progress.title(level) + ") with "
-                    + Scores.points(this) + " points to spend and a " + streak + "-day streak. "
+                    + Scores.points(this) + " Knowledge Points and a " + streak + "-day streak. "
                     + (Progress.threshold(level + 1) - Progress.xp(this))
                     + " more points gets you to level " + (level + 1) + ". Today's daily "
                     + "challenge is " + Games.TITLES[Progress.challengeMode()]

@@ -105,7 +105,7 @@ public class GameActivity extends Activity {
         col.addView(Ui.text(this, Games.TRAINS[mode], 15, Ui.TEXT), Ui.full(this, 6));
 
         col.addView(Ui.heading(this, "Points"), Ui.full(this, 20));
-        col.addView(Ui.text(this, "The better you do, the more points you earn. Extra for a "
+        col.addView(Ui.text(this, "The better you do, the more Knowledge Points you earn. Extra for a "
                 + "new #1, the daily challenge, your first test of the day, and a growing "
                 + "bonus for every day in a row you play.", 15, Ui.TEXT), Ui.full(this, 6));
 
@@ -245,7 +245,7 @@ public class GameActivity extends Activity {
         pay.setOrientation(LinearLayout.VERTICAL);
         pay.setBackground(Ui.card(this, 18));
         pay.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
-        TextView total = Ui.text(this, "+" + award.earned + " points", 24, Ui.ACCENT);
+        TextView total = Ui.text(this, "+" + award.earned + " Knowledge Points", 24, Ui.ACCENT);
         total.setTypeface(Ui.medium());
         pay.addView(total);
         for (String line : award.notes) {
@@ -254,7 +254,7 @@ public class GameActivity extends Activity {
             if (bigNews) t.setTypeface(Ui.medium());
             pay.addView(t, Ui.full(this, 3));
         }
-        pay.addView(Ui.text(this, "Balance: " + Scores.points(this) + " points", 14, Ui.TEXT),
+        pay.addView(Ui.text(this, "Balance: " + Scores.points(this) + " Knowledge Points", 14, Ui.TEXT),
                 Ui.full(this, 8));
         col.addView(pay, Ui.full(this, 14));
 

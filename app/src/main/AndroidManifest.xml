@@ -59,6 +59,23 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".TreeActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".WalletActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SlotActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".MemoActivity"
             android:exported="false" />
 

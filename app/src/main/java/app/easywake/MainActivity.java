@@ -160,7 +160,7 @@ public class MainActivity extends Activity {
 
     /** Fetches the three indexes in the background and fills the strip. */
     private void loadStrip() {
-        if (Prefs.getInt(this, "marketHome", 1) != 1) {
+        if (Prefs.getInt(this, "marketHome", 1) != 1 || MarketData.netOff) {
             strip.setVisibility(View.GONE);
             return;
         }
@@ -383,6 +383,13 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, BrainActivity.class));
                     }
                 }, d), Ui.full(this, 10));
+        sheet.addView(menuItem("Skill tree", "Spend Knowledge Points on games, lessons, perks",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        startActivity(new Intent(MainActivity.this, TreeActivity.class));
+                    }
+                }, d), Ui.full(this, 10));
         sheet.addView(menuItem("Colors & night mode", "Accent color and dim modes for late nights",
                 new Runnable() {
                     @Override
@@ -397,15 +404,11 @@ public class MainActivity extends Activity {
                         startActivity(new Intent(MainActivity.this, BackgroundActivity.class));
                     }
                 }, d), Ui.full(this, 10));
-        sheet.addView(menuItem("About", "Easy Wake " + versionName()
-                        + "  \u2022  no ads. Internet is used only for market data.",
-                null, d), Ui.full(this, 10));
-
-        sheet.addView(menuItem("Uninstall Easy Wake", "Removes the app and all its alarms",
+        sheet.addView(menuItem("Settings", "Internet switch, your name, about, uninstall",
                 new Runnable() {
                     @Override
                     public void run() {
-                        uninstall();
+                        startActivity(new Intent(MainActivity.this, SettingsActivity.class));
                     }
                 }, d), Ui.full(this, 10));
 

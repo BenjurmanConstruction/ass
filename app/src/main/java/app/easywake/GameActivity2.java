@@ -83,13 +83,13 @@ public class GameActivity2 extends GameActivity {
                 startChain();
                 break;
             case TRIVIA:
-                startQuiz(Bank.TRIVIA, null);
+                startQuiz(Bank2.trivia(), null, "seenTrivia");
                 break;
             case VOCAB:
-                startQuiz(Bank.VOCAB, "What does this word mean?");
+                startQuiz(Bank2.vocab(), "What does this word mean?", "seenVocab");
                 break;
             case LOGIC:
-                startQuiz(Bank.LOGIC, null);
+                startQuiz(Bank2.logic(), null, "seenLogic");
                 break;
             default:
                 super.startOther();
@@ -1175,11 +1175,25 @@ public class GameActivity2 extends GameActivity {
     private TextView quizText;
     private Button[] quizBtns;
 
-    private void startQuiz(String[][] bank, final String prompt) {
-        List<String[]> all = new ArrayList<>();
-        Collections.addAll(all, bank);
-        Collections.shuffle(all, rnd);
-        quizSet = all.subList(0, Math.min(10, all.size()));
+    private void startQuiz(String[][] bank, final String prompt, String seenKey) {
+        // Draw from questions not seen yet; start over once the pool runs dry.
+        List<String> seen = MarketData.list(this, seenKey, "");
+        List<Integer> fresh = new ArrayList<>();
+        for (int i = 0; i < bank.length; i++) {
+            if (!seen.contains(String.valueOf(i))) fresh.add(i);
+        }
+        if (fresh.size() < 10) {
+            seen.clear();
+            fresh.clear();
+            for (int i = 0; i < bank.length; i++) fresh.add(i);
+        }
+        Collections.shuffle(fresh, rnd);
+        quizSet = new ArrayList<>();
+        for (int i = 0; i < 10 && i < fresh.size(); i++) {
+            quizSet.add(bank[fresh.get(i)]);
+            seen.add(String.valueOf(fresh.get(i)));
+        }
+        MarketData.saveList(this, seenKey, seen);
         quizRound = 0;
         quizCorrect = 0;
         quizLocked = false;

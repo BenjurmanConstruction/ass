@@ -27,7 +27,9 @@ jobs:
         run: gradle --no-daemon assembleRelease
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk EasyWake.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk EasyWake.apk
+          cp EasyWake.apk "EasyWake-v${{ github.run_number }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -38,6 +40,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ github.run_number }}" EasyWake.apk \
+          gh release create "v${{ github.run_number }}" EasyWake.apk "EasyWake-v${{ github.run_number }}.apk" \
             --title "Easy Wake build ${{ github.run_number }}" \
             --notes "Download EasyWake.apk below and open it on your Android phone to install."

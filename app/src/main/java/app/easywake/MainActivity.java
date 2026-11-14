@@ -93,6 +93,11 @@ public class MainActivity extends Activity {
         });
         root.addView(add, Ui.full(this, 12));
 
+        // Small version stamp so it is easy to tell which build is installed.
+        TextView version = Ui.text(this, "Version " + versionName(), 12, Ui.SUB);
+        version.setGravity(Gravity.CENTER);
+        root.addView(version, Ui.full(this, 8));
+
         setContentView(root);
 
         if (Build.VERSION.SDK_INT >= 33
@@ -257,6 +262,14 @@ public class MainActivity extends Activity {
                         + "  •  no ads, no internet access",
                 null, d), Ui.full(this, 10));
 
+        sheet.addView(menuItem("Uninstall Easy Wake", "Removes the app and all its alarms",
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        uninstall();
+                    }
+                }, d), Ui.full(this, 10));
+
         d.setContentView(sheet);
         Window w = d.getWindow();
         if (w != null) {
@@ -285,6 +298,22 @@ public class MainActivity extends Activity {
             }
         });
         return item;
+    }
+
+    /** Opens Android's own "uninstall this app?" prompt. */
+    private void uninstall() {
+        try {
+            startActivity(new Intent(Intent.ACTION_DELETE,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception ignored) {
+                Toast.makeText(this, "Hold the app icon on your home screen and tap Uninstall.",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private String versionName() {

@@ -1,0 +1,101 @@
+# Easy Wake: handoff notes
+
+Paste this into a new chat to carry on: *"Continue my Android app Easy Wake. Repo is
+BenjurmanConstruction/ass on GitHub. Read HANDOFF.md first."*
+
+## What it is
+
+A free, ad-free Android alarm clock that grew into an "everything" app. I'm not a
+coder; Claude writes all of it. The brain gym tests are the engine: they earn
+Knowledge Points (KP) that unlock things on a skill tree.
+
+## How builds work
+
+- Pure Java, no AndroidX, no libraries. Package `app.easywake`, minSdk 26, target 34.
+  All screens are built in code (only `res/layout/time_picker.xml` is XML).
+- GitHub Actions (`.github/workflows/build.yml`) builds on every push to `main`,
+  signs with `signing/easywake.jks` (password `easywake`, alias `easywake`) and
+  publishes release `vN` with `EasyWake-vN.apk`. Version name is `1.N`.
+- Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
+- Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
+- Commit with a message ending in `[skip ci]` to push without making a new release.
+- Latest release: **v20**.
+
+## Standing rules
+
+- Fun Coupons, Gold and KP are play money only. Never bought or cashed out for real
+  money; no real-money gambling version.
+- Market features are information only, not financial advice.
+- Existing features stay unlocked; only new ones go behind the skill tree.
+- Don't copy trademarked games' names or art (Tetris, Peggle, Triple Diamond): make
+  original versions under our own names.
+- Show the odds/payback for every casino game.
+- Keep my email private.
+
+## What's in v20
+
+**Alarms and sleep:** alarms with MP3 or tones, pick a section of a song, fade-in,
+vibrate modes, big snooze, wake screen with today's events. Sleep sounds generated
+live in stereo with no loop: box fan, white, pink, brown, big floor fan, rain,
+airplane cabin, or my own recording (blends the join). Sliders for tone, hum and
+rumble.
+
+**Look:** 10 accent colors, night dim and red night mode, background studio (draw,
+or import a photo and crop, filter, brightness, text, save to gallery).
+
+**Brain gym:** 24 tests (`Games`, `GameActivity`, `GameActivity2`), top-5 boards,
+levels, streaks, daily challenge, badges, lessons and a facts vault, Sudoku.
+Trivia and Word smarts have Normal/Hard/Expert levels (score 8/10 to unlock the next).
+- Trivia: about 1,170 questions. Words: about 1,080.
+- Banks: `Bank`–`Bank5` are written by hand; `Bank6` (trivia) and `Bank7` (words)
+  are generated from fact tables. `Bank2.trivia()/triviaHard()/triviaExpert()` and
+  `vocab()...` join them and remove duplicates.
+- Jokes (about 560 in `Jokes`–`Jokes4`) and facts (about 300 in `Facts`–`Facts3`)
+  are dealt from a shuffled deck (`Deck`) so nothing repeats until the pile is used.
+- Speed math and dot count start easy with a 3-2-1 countdown. Number grid race has
+  four races (Classic, Backwards, 6x6, Shuffle).
+
+**Skill tree** (`Tree`, `TreeView`, `TreeActivity`): branches Casino, Market, Wealth,
+Life tools, Helper, Sleep, Tables, Arcade.
+- Casino: Lucky Sevens slot (3 reels, 1/3/5/7 lines, wild diamond, three jackpots,
+  about 95%), Royal Riches (5 reels, 10 lines, free spins, about 92%), free-spins and
+  high-roller perks.
+- Tables: Blackjack, Texas Hold'em vs a computer player named Rusty, Video poker
+  (about 99.5% with good play), Roulette (single zero, about 97%).
+- Arcade: Block Drop (falling blocks), Peg Pop (8 patterned boards).
+- Market: portfolio, paper trading (1 KP = $10), price alerts (background check
+  about every 15 min), economic calendar (Fed, minutes, CPI, PPI, PCE, GDP, jobs
+  through Dec 2027, with live numbers from FRED), market Q&A.
+- Life tools: weather (Open-Meteo), goals, reminders, recipes, water reminder.
+- Helper: safe lookups (Wikipedia and a dictionary).
+- Removed: the market news feed (its 40 KP is refunded automatically).
+
+**Helper** (`AssistantActivity`, `Helper2`, `Calc`): keyword matching, not an AI.
+Opens with nine topic buttons, and number questions open a small form. It does
+alarms, memos, timers, sums, unit conversions, job-site sums (concrete, drywall,
+paint, stairs, board feet), tips, dates, dice, market quotes, lookups and app
+progress.
+
+**Other:** profile with stats, activity log, 14-day chart and a weekly verdict from
+"Scholar" to "Degenerate gambler" (`Stats`, `ProfileActivity`). Game sounds made in
+code (`Sfx`), with on / wins only / off. Settings has an internet switch, game sounds,
+player name and uninstall.
+
+## Ideas not built yet
+
+- Backup and restore of points, unlocks and stats (recommended next).
+- Daily brain workout, achievements wall, sleep log, habit tracker.
+- Home-screen widget.
+- Slot bonus rounds; pass-and-play two-player mode.
+- Themed trivia packs; more Expert trivia (it's the smallest pool).
+- Multiplayer online would need a paid server; a real AI chatbot needs a paid key.
+- Publishing on the Play Store ($25, plus a testing period).
+
+## Notes for Claude
+
+- The workspace has no Android SDK and no network installs, so builds only happen
+  on GitHub. Check syntax locally with `javac -proc:none` and ignore the
+  missing-Android-class errors.
+- Edit with small Python patch scripts that assert each match. Files hold real
+  characters like `•`, not `•` escapes, so match on those.
+- After pushing, poll `gh api repos/BenjurmanConstruction/ass/actions/runs`.

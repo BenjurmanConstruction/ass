@@ -20,7 +20,9 @@
     { id: 'ltom', name: 'Low Tom' }, { id: 'mtom', name: 'Mid Tom' }, { id: 'htom', name: 'High Tom' },
     { id: 'cow', name: 'Cowbell' }, { id: 'crash', name: 'Crash' }, { id: 'ride', name: 'Ride' },
   ];
-  DAW.KITS = ['808 Deep', '909 Punch', 'Lo-Fi Dust'];
+  DAW.KITS = ['Rock Kit', '808 Deep', '909 Punch', 'Lo-Fi Dust'];
+  DAW.SAMPLE_KITS = {}; // sampled kits register themselves here (see kit-rock.js)
+  DAW.padName = (inst, i) => { const k = DAW.SAMPLE_KITS[inst.kit], p = DAW.DRUM_PADS[i]; return k && k.pads[p.id] ? k.pads[p.id].name : p.name; };
   DAW.DELAY_TIMES = { '1/4': 1, '1/8d': 0.75, '1/8': 0.5, '1/8t': 1 / 3, '1/16': 0.25 };
   DAW.SNAPS = [['1 bar', 4], ['1/2', 2], ['1/4', 1], ['1/8', 0.5], ['1/16', 0.25], ['1/32', 0.125], ['1/8T', 1 / 3], ['1/16T', 1 / 6], ['Off', 0]];
 
@@ -34,6 +36,7 @@
     amp: { a: 0.005, d: 0.2, s: 0.7, r: 0.2 },
     fenv: { a: 0.005, d: 0.25, s: 0.3, r: 0.2 },
     lfo: { rate: 5, pitch: 0, filter: 0 },
+    unison: { voices: 1, detune: 18, spread: 0.6 },
     gain: 0.7,
   });
   function merge(base, over) {
@@ -46,9 +49,12 @@
   const PRESETS = {
     'Saw Lead': { osc2: { detune: 12, level: 0.6 }, filter: { cutoff: 3200, q: 2 }, amp: { r: 0.18 }, lfo: { rate: 5.5, pitch: 6 } },
     'Square Lead': { osc1: { wave: 'square' }, osc2: { wave: 'square', oct: 1, detune: 4, level: 0.25 }, filter: { cutoff: 4200, q: 1.2, env: 0.8 }, lfo: { rate: 6, pitch: 9 } },
+    'Super Saw': { osc2: { oct: 1, detune: 6, level: 0.35 }, unison: { voices: 5, detune: 24, spread: 0.85 }, filter: { cutoff: 5200, q: 0.8, env: 0.6 }, amp: { a: 0.01, d: 0.3, s: 0.8, r: 0.35 }, gain: 0.6 },
+    'Brass': { osc2: { detune: 5, level: 0.6 }, unison: { voices: 3, detune: 10, spread: 0.4 }, filter: { cutoff: 900, q: 1.2, env: 2.2 }, fenv: { a: 0.06, d: 0.3, s: 0.55, r: 0.2 }, amp: { a: 0.03, d: 0.2, s: 0.85, r: 0.18 }, gain: 0.6 },
+    'Reese Bass': { osc1: { oct: -1, level: 0.9 }, osc2: { oct: -1, detune: 22, level: 0.9 }, unison: { voices: 3, detune: 14, spread: 0.5 }, filter: { cutoff: 520, q: 1.5, env: 0.8 }, amp: { a: 0.006, d: 0.2, s: 0.9, r: 0.12 }, gain: 0.6 },
     'Sub Bass': { osc1: { wave: 'sine', oct: -1, level: 1 }, osc2: { wave: 'triangle', oct: -1, detune: 0, level: 0.3 }, filter: { cutoff: 900, q: 0.7, env: 0.5 }, amp: { a: 0.004, d: 0.15, s: 0.85, r: 0.08 }, gain: 0.9 },
     'Acid Bass': { osc1: { oct: -1, level: 1 }, osc2: { wave: 'square', oct: -1, detune: 0, level: 0.25 }, filter: { cutoff: 380, q: 9, env: 3.2 }, fenv: { a: 0.003, d: 0.18, s: 0.05, r: 0.1 }, amp: { a: 0.003, d: 0.2, s: 0.6, r: 0.06 }, gain: 0.6 },
-    'Warm Pad': { osc2: { detune: 14, level: 0.7 }, filter: { cutoff: 1400, q: 0.8, env: 1 }, amp: { a: 0.5, d: 0.8, s: 0.8, r: 1.2 }, fenv: { a: 0.8, d: 1, s: 0.6, r: 1 }, lfo: { rate: 0.4, filter: 200 }, gain: 0.5 },
+    'Warm Pad': { osc2: { detune: 14, level: 0.7 }, unison: { voices: 3, detune: 16, spread: 0.8 }, filter: { cutoff: 1400, q: 0.8, env: 1 }, amp: { a: 0.5, d: 0.8, s: 0.8, r: 1.2 }, fenv: { a: 0.8, d: 1, s: 0.6, r: 1 }, lfo: { rate: 0.4, filter: 200 }, gain: 0.5 },
     'Strings': { osc2: { oct: 1, detune: 9, level: 0.4 }, filter: { cutoff: 3000, q: 0.6, env: 0.4 }, amp: { a: 0.25, d: 0.4, s: 0.85, r: 0.6 }, lfo: { rate: 5, pitch: 4 }, gain: 0.5 },
     'Pluck': { osc2: { wave: 'square', detune: 5, level: 0.4 }, filter: { cutoff: 700, q: 2, env: 3.5 }, fenv: { a: 0.002, d: 0.16, s: 0, r: 0.15 }, amp: { a: 0.002, d: 0.3, s: 0, r: 0.25 } },
     'Keys': { osc1: { wave: 'triangle', level: 1 }, osc2: { wave: 'sine', oct: 1, detune: 0, level: 0.35 }, filter: { cutoff: 2600, q: 0.5, env: 1.2 }, amp: { a: 0.004, d: 0.9, s: 0.15, r: 0.3 }, fenv: { a: 0.002, d: 0.5, s: 0.1, r: 0.3 } },
@@ -64,7 +70,7 @@
   DAW.makeDrums = (kit) => {
     const pads = {};
     for (const p of DAW.DRUM_PADS) pads[p.id] = { level: 0.8, tune: 0, decay: 1 };
-    return { kit: kit || '808 Deep', pads };
+    return { kit: kit || 'Rock Kit', pads };
   };
 
   /* ---------- project ---------- */
@@ -72,7 +78,7 @@
     id: DAW.uid(), name, type, color: DAW.COLORS[(i || 0) % DAW.COLORS.length],
     instrument: type === 'drums' ? DAW.makeDrums(preset) : DAW.makeSynth(preset),
     volume: 0.75, pan: 0, mute: false, solo: false,
-    eq: { low: 0, mid: 0, high: 0 }, drive: 0, sendA: 0, sendB: 0, clips: [],
+    eq: { low: 0, mid: 0, high: 0 }, drive: 0, comp: 0, sendA: 0, sendB: 0, clips: [],
   });
   DAW.makeClip = (start, length, notes) => ({ id: DAW.uid(), start, length, notes: notes || [] });
   DAW.note = (pitch, start, length, vel) => ({ id: DAW.uid(), pitch, start, length, vel: vel == null ? 0.8 : vel });
@@ -106,22 +112,21 @@
     const p = DAW.emptyProject();
     p.name = 'Demo'; p.bpm = 112; p.loop = { on: true, start: 0, end: 32 };
     const N = DAW.note;
-    const drums = DAW.makeTrack('drums', 'Drums', '909 Punch', 0);
-    const B = DAW.DRUM_BASE;
-    const bar = (fill) => {
+    const drums = DAW.makeTrack('drums', 'Drums', 'Rock Kit', 0);
+    const B = DAW.DRUM_BASE, KICK = B, SNARE = B + 1, HAT = B + 4, OHAT = B + 5, FLOOR = B + 6, MID = B + 7, HIGH = B + 8, CRASH = B + 10;
+    const bar = (first, fill) => {
       const n = [];
-      for (let b = 0; b < 8; b++) {
-        n.push(N(B, b, 0.25, 0.95));
-        n.push(N(B + 4, b + 0.5, 0.25, 0.7));
-        if (b % 2 === 1) n.push(N(B + 2, b, 0.25, 0.85));
-        n.push(N(B + 4, b + 0.25, 0.25, 0.3), N(B + 4, b + 0.75, 0.25, 0.35));
-      }
-      n.push(N(B + 5, 7.5, 0.25, 0.7));
-      if (fill) n.push(N(B + 1, 7, 0.25, 0.6), N(B + 1, 7.25, 0.25, 0.7), N(B + 1, 7.75, 0.25, 0.9), N(B + 8, 6.5, 0.25, 0.7), N(B + 6, 6.75, 0.25, 0.7));
+      for (const k of [0, 2.5, 4, 4.75, 6.5]) n.push(N(KICK, k, 0.25, k % 1 ? 0.8 : 1));
+      for (const sn of [1, 3, 5, 7]) if (!(fill && sn === 7)) n.push(N(SNARE, sn, 0.25, 0.95));
+      n.push(N(SNARE, 3.75, 0.25, 0.3));
+      for (let h = 0; h < (fill ? 12 : 15); h++) n.push(N(HAT, h * 0.5, 0.25, h % 2 ? 0.5 : 0.8));
+      if (first) n.push(N(CRASH, 0, 0.25, 0.9));
+      if (fill) [[SNARE, 6, 0.8], [SNARE, 6.25, 0.9], [HIGH, 6.5, 0.85], [HIGH, 6.75, 0.9], [MID, 7, 0.9], [MID, 7.25, 0.95], [FLOOR, 7.5, 0.95], [FLOOR, 7.75, 1]].forEach(([p, s, v]) => n.push(N(p, s, 0.25, v)));
+      else n.push(N(OHAT, 7.5, 0.25, 0.75));
       return n;
     };
-    for (let i = 0; i < 4; i++) drums.clips.push(DAW.makeClip(i * 8, 8, bar(i === 3)));
-    drums.volume = 0.8; drums.sendA = 0.06;
+    for (let i = 0; i < 4; i++) drums.clips.push(DAW.makeClip(i * 8, 8, bar(i === 0, i === 3)));
+    drums.volume = 0.84; drums.sendA = 0.12; drums.comp = 0.5;
 
     const chords = [[57, 60, 64], [53, 57, 60], [55, 60, 64], [55, 59, 62]];
     const roots = [45, 41, 48, 43];
@@ -133,7 +138,7 @@
         bn.push(N(r, o, 0.7, 0.9), N(r, o + 0.75, 0.2, 0.7), N(r, o + 1.5, 0.45, 0.85), N(r + 12, o + 2.5, 0.2, 0.7), N(r, o + 3, 0.45, 0.85), N(r + 7, o + 3.5, 0.4, 0.7));
       }
     });
-    bass.clips.push(DAW.makeClip(0, 32, bn)); bass.volume = 0.78;
+    bass.clips.push(DAW.makeClip(0, 32, bn)); bass.volume = 0.66;
 
     const pad = DAW.makeTrack('synth', 'Pad', 'Warm Pad', 2);
     const pn = [];

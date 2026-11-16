@@ -142,10 +142,10 @@ input[type=range] { accent-color: var(--accent); }
 .strip-name { padding: 6px 10px; font-weight: 700; font-size: 11px; border-top: 3px solid var(--line); border-radius: 5px 5px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 290px; }
 .strip.fx .strip-name, .strip.master .strip-name { color: var(--dim); letter-spacing: .12em; font-size: 10px; }
 .strip-body { display: flex; gap: 10px; padding: 4px 10px 10px; align-items: center; flex: 1; }
-.strip-knobs { display: grid; grid-template-columns: repeat(4, 50px); gap: 8px 2px; align-items: center; justify-items: center; }
+.strip-knobs { display: grid; grid-template-columns: repeat(5, 50px); gap: 8px 2px; align-items: center; justify-items: center; }
 .strip-knobs.two { grid-template-columns: repeat(2, 54px); }
 .strip-knobs.two select { grid-column: span 2; }
-.strip-ms { display: flex; gap: 3px; }
+.strip-ms { display: flex; gap: 3px; grid-column: span 2; }
 .strip-fader { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .fader-row { display: flex; gap: 6px; align-items: stretch; height: 120px; }
 .vfader { writing-mode: vertical-lr; direction: rtl; width: 22px; height: 120px; margin: 0; }

@@ -88,6 +88,12 @@ ipcMain.handle('audio:export', async (_e, { name, bytes }) => {
   return res.filePath;
 });
 
+// Drum samples are read here (not fetched by the page) so it works from inside the packaged app.
+ipcMain.handle('sample:read', async (_e, rel) => {
+  if (typeof rel !== 'string' || !/^[a-z0-9_]+\/[a-z0-9_]+\.ogg$/i.test(rel)) throw new Error('Bad sample path');
+  return fs.readFile(path.join(__dirname, 'src', 'samples', rel));
+});
+
 ipcMain.on('state', (_e, { dirty: d, title }) => {
   dirty = !!d;
   if (win) { win.setTitle(title || 'Sable'); if (isMac) win.setDocumentEdited(dirty); }

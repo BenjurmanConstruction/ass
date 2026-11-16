@@ -93,9 +93,10 @@
       ch.low = c.createBiquadFilter(); ch.low.type = 'lowshelf'; ch.low.frequency.value = 180;
       ch.mid = c.createBiquadFilter(); ch.mid.type = 'peaking'; ch.mid.frequency.value = 1100; ch.mid.Q.value = 0.8;
       ch.high = c.createBiquadFilter(); ch.high.type = 'highshelf'; ch.high.frequency.value = 5000;
+      ch.comp = c.createDynamicsCompressor(); ch.comp.knee.value = 6; ch.comp.attack.value = 0.012; ch.comp.release.value = 0.16;
       ch.fader = c.createGain(); ch.pan = c.createStereoPanner(); ch.mute = c.createGain();
       ch.sendA = c.createGain(); ch.sendB = c.createGain();
-      ch.input.connect(ch.shaper).connect(ch.driveComp).connect(ch.low).connect(ch.mid).connect(ch.high).connect(ch.fader).connect(ch.pan).connect(ch.mute);
+      ch.input.connect(ch.shaper).connect(ch.driveComp).connect(ch.low).connect(ch.mid).connect(ch.high).connect(ch.comp).connect(ch.fader).connect(ch.pan).connect(ch.mute);
       ch.mute.connect(this.sum); ch.mute.connect(ch.sendA).connect(this.revIn); ch.mute.connect(ch.sendB).connect(this.dlyIn);
       if (this.live) { ch.analyser = c.createAnalyser(); ch.analyser.fftSize = 1024; ch.mute.connect(ch.analyser); }
       ch.lfo = c.createOscillator(); ch.lfoPitch = c.createGain(); ch.lfoFilter = c.createGain();
@@ -134,6 +135,8 @@
         ch.driveComp.gain.value = 1 / Math.sqrt(1 + k * 0.6);
         ch._drive = t.drive;
       }
+      const cm = t.comp || 0; // one-knob compressor: more = lower threshold, higher ratio (slow attack keeps the punch)
+      ch.comp.threshold.value = -34 * cm; ch.comp.ratio.value = 1 + 7 * cm;
       this.set(ch.low.gain, t.eq.low); this.set(ch.mid.gain, t.eq.mid); this.set(ch.high.gain, t.eq.high);
       this.set(ch.fader.gain, DAW.volGain(t.volume)); this.set(ch.pan.pan, t.pan);
       this.set(ch.mute.gain, t.mute || (anySolo && !t.solo) ? 0 : 1);
@@ -160,13 +163,19 @@
       const filt = ctx.createBiquadFilter(), vca = ctx.createGain();
       filt.type = p.filter.type; filt.frequency.value = DAW.clamp(p.filter.cutoff, 20, 20000); filt.Q.value = p.filter.q;
       vca.gain.value = 0;
+      const uni = p.unison || { voices: 1, detune: 0, spread: 0 }, nv = DAW.clamp(Math.round(uni.voices), 1, 5);
       const mkOsc = (o, det) => {
         if (o.level <= 0.001) return;
-        const osc = ctx.createOscillator(), g = ctx.createGain();
-        osc.type = o.wave; osc.frequency.value = f * Math.pow(2, o.oct); osc.detune.value = det || 0;
-        g.gain.value = o.level * 0.5;
-        osc.connect(g).connect(filt); ch.lfoPitch.connect(osc.detune);
-        osc.start(t); srcs.push(osc); oscs.push(osc);
+        for (let i = 0; i < nv; i++) { // unison: detuned copies spread across the stereo field
+          const pos = nv > 1 ? (i / (nv - 1)) * 2 - 1 : 0;
+          const osc = ctx.createOscillator(), g = ctx.createGain();
+          osc.type = o.wave; osc.frequency.value = f * Math.pow(2, o.oct); osc.detune.value = (det || 0) + pos * uni.detune;
+          g.gain.value = (o.level * 0.5) / Math.sqrt(nv);
+          if (nv > 1) { const pn = ctx.createStereoPanner(); pn.pan.value = pos * uni.spread; osc.connect(g).connect(pn).connect(filt); }
+          else osc.connect(g).connect(filt);
+          ch.lfoPitch.connect(osc.detune);
+          osc.start(t); srcs.push(osc); oscs.push(osc);
+        }
       };
       mkOsc(p.osc1, 0); mkOsc(p.osc2, p.osc2.detune);
       if (p.noise > 0.001) {
@@ -206,9 +215,33 @@
     }
 
     /* ---- synthesized drum machine ---- */
+    /* closed hat cuts off any open hat that is still ringing */
+    chokeHats(ch, t) {
+      if (!ch.openHats.length) return;
+      ch.openHats = ch.openHats.filter((o) => o.end > t - 0.5);
+      for (const o of ch.openHats) if (o.t < t && o.end > t && o.g.gain.cancelAndHoldAtTime) { o.g.gain.cancelAndHoldAtTime(t); o.g.gain.setTargetAtTime(0, t, o.fade || 0.006); }
+    }
+    /* one hit from a sampled kit: pick a velocity layer, alternate round-robins */
+    sampleHit(ch, sp, pp, padId, vel, t) {
+      const ctx = this.ctx, n = sp.layers.length, v = DAW.clamp(vel, 0.01, 1);
+      const layer = sp.layers[Math.min(n - 1, Math.floor(v * n * 0.999))];
+      ch.rr = ch.rr || {}; ch.rr[padId] = (ch.rr[padId] || 0) + 1;
+      const buf = layer.buffers[ch.rr[padId] % layer.buffers.length];
+      const src = ctx.createBufferSource(), g = ctx.createGain(), rate = Math.pow(2, pp.tune / 12);
+      src.buffer = buf; src.playbackRate.value = rate;
+      const gain = Math.min(2.5, (Math.pow(v, 1.5) * 0.89) / layer.peak) * pp.level * 1.25;
+      g.gain.setValueAtTime(gain, t);
+      if (pp.decay < 0.98) g.gain.setTargetAtTime(0, t + 0.02, 0.04 + 0.6 * pp.decay * pp.decay); // Decay below 1x tightens the hit
+      src.connect(g).connect(ch.input); src.start(t);
+      src.onended = () => g.disconnect();
+      if (padId === 'chat') this.chokeHats(ch, t);
+      if (padId === 'ohat') ch.openHats.push({ g, t, end: t + buf.duration / rate, fade: 0.03 });
+    }
     drumHit(ch, inst, idx, vel, t) {
       const pad = DAW.DRUM_PADS[idx];
       if (!pad) return;
+      const sk = DAW.SAMPLE_KITS[inst.kit], sp = sk && sk.pads[pad.id];
+      if (sp && sp.ready) return this.sampleHit(ch, sp, inst.pads[pad.id] || { level: 0.8, tune: 0, decay: 1 }, pad.id, vel, t);
       const ctx = this.ctx, pp = inst.pads[pad.id] || { level: 0.8, tune: 0, decay: 1 }, kit = KIT[inst.kit] || KIT['808 Deep'];
       const tune = Math.pow(2, pp.tune / 12), dec = pp.decay;
       const out = ctx.createGain(); out.gain.value = pp.level * (0.25 + 0.75 * vel * vel) * 1.1;
@@ -264,10 +297,7 @@
         }
         case 'chat': {
           metal(0.045 * dec, 40, 10000, kit.hatHp, 0.7);
-          if (ch.openHats.length) {
-            ch.openHats = ch.openHats.filter((o) => o.end > t - 0.5);
-            for (const o of ch.openHats) if (o.t < t && o.end > t && o.g.gain.cancelAndHoldAtTime) { o.g.gain.cancelAndHoldAtTime(t); o.g.gain.setTargetAtTime(0, t, 0.006); }
-          }
+          this.chokeHats(ch, t);
           break;
         }
         case 'ohat': { const d = 0.32 * dec; ch.openHats.push({ g: metal(d, 40, 10000, kit.hatHp, 0.6), t, end: t + d }); break; }
@@ -393,6 +423,7 @@
     noteOff(v) { if (v) v.release(); },
     /* Offline bounce through the same graph. Returns an AudioBuffer. */
     async render(o) {
+      await DAW.samplesLoaded; // sampled kits must be decoded before bouncing
       const p = DAW.state.project, spb = 60 / p.bpm, sr = o.sampleRate || 44100;
       const dur = (o.endBeat - o.startBeat) * spb + (o.tail == null ? 3 : o.tail) + 0.05;
       const octx = new OfflineAudioContext(2, Math.ceil(dur * sr), sr);
@@ -402,6 +433,28 @@
       return octx.startRendering();
     },
   });
+
+  /* ---- sampled kits: read and decode every one-shot once at startup ---- */
+  function readSample(rel) {
+    if (window.native && window.native.readSample) return window.native.readSample(rel).then((b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+    return fetch('samples/' + rel).then((r) => { if (!r.ok) throw new Error(rel + ': ' + r.status); return r.arrayBuffer(); });
+  }
+  DAW.samplesLoaded = (async () => {
+    const dctx = new OfflineAudioContext(2, 1, 44100);
+    for (const name in DAW.SAMPLE_KITS) {
+      const kit = DAW.SAMPLE_KITS[name];
+      try {
+        await Promise.all(Object.values(kit.pads).map(async (pad) => {
+          for (const layer of pad.layers) layer.buffers = await Promise.all(layer.files.map((f) => readSample(kit.dir + '/' + f).then((ab) => dctx.decodeAudioData(ab))));
+          pad.ready = true;
+        }));
+        kit.ready = true;
+      } catch (err) {
+        console.error('Could not load ' + name, err);
+        setTimeout(() => DAW.toast && DAW.toast('Could not load the ' + name + ' samples; using synthesized drums instead', 6000), 500);
+      }
+    }
+  })();
 
   DAW.encodeWav = function (buf, bits) {
     const ch = buf.numberOfChannels, n = buf.length, bps = bits === 24 ? 3 : 2, size = n * ch * bps;

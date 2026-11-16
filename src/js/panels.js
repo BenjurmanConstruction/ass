@@ -41,13 +41,14 @@
           group('FILTER', sel(s.filter, 'type', [['lowpass', 'Low-pass'], ['highpass', 'High-pass'], ['bandpass', 'Band-pass']], 'Filter type'), K('Cutoff', s.filter, 'cutoff', 40, 18000, { log: true, fmt: F.hz, def: 2400 }), K('Reso', s.filter, 'q', 0.1, 20, { def: 1 }), K('Env', s.filter, 'env', -3, 5, { fmt: (v) => F.db(v).replace('.0', '') + ' oct', def: 0 })),
           group('AMP ENVELOPE', adsr(s.amp)),
           group('FILTER ENVELOPE', adsr(s.fenv)),
+          group('UNISON', K('Voices', s.unison, 'voices', 1, 5, { step: 1, fmt: (v) => v.toFixed(0), def: 1 }), K('Detune', s.unison, 'detune', 0, 50, { fmt: (v) => v.toFixed(0) + 'c', def: 18 }), K('Spread', s.unison, 'spread', 0, 1, { fmt: F.pct, def: 0.6 })),
           group('LFO', K('Rate', s.lfo, 'rate', 0.05, 20, { log: true, fmt: (v) => v.toFixed(2) + 'Hz', def: 5 }), K('Vibrato', s.lfo, 'pitch', 0, 100, { fmt: (v) => v.toFixed(0) + 'c', def: 0 }), K('Filter', s.lfo, 'filter', 0, 2400, { fmt: (v) => v.toFixed(0) + 'c', def: 0 })),
           group('OUTPUT', K('Gain', s, 'gain', 0, 1.2, { fmt: F.pct, def: 0.7 }))));
     } else {
       const d = t.instrument;
       root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Kit ', sel(d, 'kit', DAW.KITS, 'Drum kit')), h('span', { class: 'hint', text: 'Click a pad to hear it. Keyboard: A W S E D F T G Y H U J trigger the 12 pads' })),
-        h('div', { class: 'groups' }, DAW.DRUM_PADS.map((pad, i) => {
-          const pp = d.pads[pad.id];
+        h('div', { class: 'groups' }, DAW.DRUM_PADS.map((p0, i) => {
+          const pp = d.pads[p0.id], pad = { name: DAW.padName(d, i) };
           const hit = h('button', { class: 'pad', title: 'Audition ' + pad.name, onpointerdown: () => DAW.engine.noteOn(t, DAW.DRUM_BASE + i, 0.9) }, pad.name);
           return h('div', { class: 'group pad-group' }, hit, h('div', { class: 'group-body' }, K('Level', pp, 'level', 0, 1.2, { fmt: F.pct, def: 0.8 }), K('Tune', pp, 'tune', -12, 12, { step: 1, fmt: F.int, def: 0 }), K('Decay', pp, 'decay', 0.3, 2.5, { fmt: (v) => v.toFixed(2) + 'x', def: 1 })));
         })));
@@ -81,7 +82,7 @@
         h('div', { class: 'strip-name', style: { borderColor: t.color }, text: t.name }),
         h('div', { class: 'strip-body' },
           h('div', { class: 'strip-knobs' },
-            K('High', t.eq, 'high', -15, 15, { fmt: F.db, def: 0 }), K('Mid', t.eq, 'mid', -15, 15, { fmt: F.db, def: 0 }), K('Low', t.eq, 'low', -15, 15, { fmt: F.db, def: 0 }), K('Drive', t, 'drive', 0, 1, { fmt: F.pct, def: 0 }),
+            K('High', t.eq, 'high', -15, 15, { fmt: F.db, def: 0 }), K('Mid', t.eq, 'mid', -15, 15, { fmt: F.db, def: 0 }), K('Low', t.eq, 'low', -15, 15, { fmt: F.db, def: 0 }), K('Drive', t, 'drive', 0, 1, { fmt: F.pct, def: 0 }), K('Comp', t, 'comp', 0, 1, { fmt: F.pct, def: 0 }),
             K('Reverb', t, 'sendA', 0, 1, { fmt: F.pct, def: 0 }), K('Delay', t, 'sendB', 0, 1, { fmt: F.pct, def: 0 }), K('Pan', t, 'pan', -1, 1, { fmt: F.pan, def: 0 }),
             h('div', { class: 'strip-ms' }, tb('m', 'M', 'mute'), tb('s', 'S', 'solo'))),
           h('div', { class: 'strip-fader' }, h('div', { class: 'fader-row' }, fd.f, meter(() => { const g = DAW.engine.graph, c = g && g.channels.get(t.id); return c && c.analyser; })), fd.read)));

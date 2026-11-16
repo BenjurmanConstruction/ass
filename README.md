@@ -41,9 +41,10 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 `Space` play/stop · `Home` back to start · `M` metronome · `R` record arm · `1` `2` `3` piano roll / instrument / mixer · `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+O` open · `Ctrl+N` new · `Ctrl+E` export WAV
 
 **Sound**
-- Synth: two oscillators plus noise, multimode resonant filter with its own envelope, amp envelope, LFO to pitch and filter, 10 presets.
-- Drums: 12 synthesized pads (kick, snare, clap, rim, hats, toms, cowbell, crash, ride) with level / tune / decay each, three kits. Closed hat chokes open hat.
-- Mixer: per-track 3-band EQ, drive, pan, reverb and delay sends, mute/solo, meters. Tempo-synced ping-pong delay, reverb, master limiter.
+- Synth: two oscillators plus noise, unison (up to 5 detuned voices spread in stereo), multimode resonant filter with its own envelope, amp envelope, LFO to pitch and filter, 13 presets.
+- Drums: the **Rock Kit** is a real acoustic kit (24" kick, snare, rimshot, sidestick, hats, three toms, china, crash, ride) with several velocity layers and alternating takes per drum, so soft and hard hits sound different. Three synthesized electronic kits (808, 909, lo-fi) are also included. Every pad has level / tune / decay. Closed hat chokes open hat.
+- Mixer: per-track 3-band EQ, drive, one-knob compressor, pan, reverb and delay sends, mute/solo, meters.
+- Humanize (piano roll) adds small random timing and velocity changes so programmed parts feel played. Tempo-synced ping-pong delay, reverb, master limiter.
 - Export renders offline through the exact same signal path as playback, at 44.1 or 48 kHz, 16 or 24 bit.
 
 Projects save as `.sable` files (plain JSON).
@@ -56,7 +57,9 @@ preload.js       the bridge exposed to the UI (save / open / export)
 src/index.html   UI shell
 src/styles.css
 src/js/core.js       project model, presets, undo history, knob control
-src/js/engine.js     audio graph, synth + drum voices, scheduler, offline render, WAV encoder
+src/js/engine.js     audio graph, synth + drum voices, sampler, scheduler, offline render, WAV encoder
+src/js/kit-rock.js   sample map for the Rock Kit
+src/samples/rock/    the Rock Kit one-shots (Ogg Vorbis)
 src/js/arrange.js    arrangement view
 src/js/pianoroll.js  piano roll / drum grid
 src/js/panels.js     instrument editor and mixer
@@ -65,6 +68,10 @@ src/js/app.js        transport, shortcuts, files, export dialog
 
 `src/index.html` also opens directly in Chrome for quick UI work; there, save and export fall back to browser downloads.
 
+## Credits
+
+The Rock Kit samples are made from [Big Rusty Drums](https://github.com/sfzinstruments/karoryfer.big-rusty-drums) by Karoryfer Samples, released under CC0 1.0 (public domain). The close and overhead microphones were mixed down to stereo one-shots for Sable.
+
 ## Not in this version
 
-Audio tracks / sample import, MIDI controller input, VST plugins, automation lanes and tempo changes.
+Audio tracks, loading your own samples, MIDI controller input, VST plugins, automation lanes and tempo changes.

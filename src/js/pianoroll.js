@@ -22,6 +22,7 @@
       tool('select', '⬚ Select', 'Select tool: drag a box around notes (or Shift-drag with the draw tool)'),
       h('span', { class: 'sep' }),
       h('button', { title: 'Snap selected notes (or all notes) to the grid', onclick: quantize }, 'Quantize'),
+      h('button', { title: 'Loosen selected notes (or all notes): small random shifts in timing and velocity, like a real player', onclick: humanize }, 'Humanize'),
       h('span', { class: 'sep' }),
       h('span', { class: 'pr-lab', text: 'Clip length' }),
       h('button', { class: 'mini', title: 'Shorten clip by one bar', onclick: () => clipLen(-4) }, '−'),
@@ -70,6 +71,14 @@
     const r = cur(); if (!r) return;
     const s = st().snap || 0.25;
     for (const n of r.clip.notes) if (!P.sel.size || P.sel.has(n.id)) n.start = clamp(Math.round(n.start / s) * s, 0, Math.max(0, r.clip.length - s));
+    DAW.commit();
+  }
+  function humanize() {
+    const r = cur(); if (!r) return;
+    for (const n of r.clip.notes) if (!P.sel.size || P.sel.has(n.id)) {
+      n.start = clamp(n.start + (Math.random() - 0.5) * 0.045, 0, Math.max(0, r.clip.length - 0.05));
+      n.vel = clamp(n.vel * (1 + (Math.random() - 0.5) * 0.24), 0.05, 1);
+    }
     DAW.commit();
   }
   function layout() {
@@ -176,7 +185,7 @@
       const pitch = G.hi - row;
       if (G.drum) {
         g.fillStyle = row % 2 ? '#2a2620' : '#322d26'; g.fillRect(0, y, KEY_W, G.rowH);
-        g.fillStyle = '#d8d0c0'; g.fillText(DAW.DRUM_PADS[pitch - DAW.DRUM_BASE].name, 6, y + G.rowH / 2 + 0.5);
+        g.fillStyle = '#d8d0c0'; g.fillText(DAW.padName(track.instrument, pitch - DAW.DRUM_BASE), 6, y + G.rowH / 2 + 0.5);
       } else {
         const black = DAW.isBlack(pitch);
         g.fillStyle = black ? '#191713' : '#e4dccb'; g.fillRect(0, y, black ? KEY_W * 0.62 : KEY_W, G.rowH);
@@ -213,7 +222,7 @@
       const n = noteAt(r.clip, beatAt(x), pitchAt(y, G));
       if (n) c = !G.drum && (n.start + n.length) * P.ppb - (x - KEY_W + scroller.scrollLeft) < 7 && n.length * P.ppb > 12 ? 'ew-resize' : 'move';
       else c = P.tool === 'draw' ? 'crosshair' : 'default';
-      info.textContent = G.drum ? DAW.DRUM_PADS[pitchAt(y, G) - DAW.DRUM_BASE].name : DAW.noteName(pitchAt(y, G));
+      info.textContent = G.drum ? DAW.padName(r.track.instrument, pitchAt(y, G) - DAW.DRUM_BASE) : DAW.noteName(pitchAt(y, G));
     } else if (y >= vh - VEL_H && x >= KEY_W) c = 'ns-resize';
     else if (x < KEY_W) c = 'pointer';
     canvas.style.cursor = c;

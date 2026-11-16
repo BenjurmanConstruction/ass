@@ -161,7 +161,7 @@
       inner.append(row);
     });
     const add = (type) => {
-      const n = p.tracks.length, t = DAW.makeTrack(type, type === 'drums' ? 'Drums' : 'Synth ' + (p.tracks.filter((x) => x.type === 'synth').length + 1), type === 'drums' ? '808 Deep' : 'Saw Lead', n);
+      const n = p.tracks.length, t = DAW.makeTrack(type, type === 'drums' ? 'Drums' : 'Synth ' + (p.tracks.filter((x) => x.type === 'synth').length + 1), type === 'drums' ? 'Rock Kit' : 'Saw Lead', n);
       p.tracks.push(t); s.selTrackId = t.id; s.selClipId = null; DAW.commit();
     };
     inner.append(h('div', { class: 'track-row add-row' },

@@ -21,6 +21,7 @@
       tool('draw', '✎ Draw', 'Draw tool: click to add notes, drag to set length, right-click to erase'),
       tool('select', '⬚ Select', 'Select tool: drag a box around notes (or Shift-drag with the draw tool)'),
       h('span', { class: 'sep' }),
+      h('button', { id: 'prSnap', title: 'Grid snap. ON: notes and clips lock to the grid (choose the grid size with Snap in the top bar). OFF: drag and stretch freely. Holding Alt while dragging also ignores the grid.', onclick: toggleSnap }),
       h('button', { title: 'Snap selected notes (or all notes) to the grid', onclick: quantize }, 'Quantize'),
       h('button', { title: 'Loosen selected notes (or all notes): small random shifts in timing and velocity, like a real player', onclick: humanize }, 'Humanize'),
       h('span', { class: 'sep' }),
@@ -112,8 +113,14 @@
       toggle('One-key chords', 'chordKeys', 'Keys A S D F G H J play (and record) the seven chords instead of single notes', () => { DAW.emit('change'); DAW.toast(s.chordKeys ? 'One-key chords on: A S D F G H J play the seven chords' : 'One-key chords off', 2600); }));
   }
 
+  function toggleSnap() {
+    const s = st();
+    if (s.snap) { s.lastSnap = s.snap; s.snap = 0; } else s.snap = s.lastSnap || 0.25;
+    document.getElementById('snap').value = s.snap; syncBar(); P.draw();
+  }
   function syncBar() {
     renderChordBar();
+    const sb = document.getElementById('prSnap'); sb.textContent = st().snap ? 'Grid snap: ON' : 'Grid snap: OFF'; sb.classList.toggle('on', !!st().snap);
     bar.querySelectorAll('.pr-tool').forEach((b) => b.classList.toggle('on', b.dataset.tool === P.tool));
     const r = cur();
     document.getElementById('prLen').textContent = r ? (r.clip.length / 4).toFixed(r.clip.length % 4 ? 2 : 0) + ' bars' : '—';
@@ -264,12 +271,16 @@
         g.fillStyle = row % 2 ? '#2a2620' : '#322d26'; g.fillRect(0, y, KEY_W, G.rowH);
         g.fillStyle = '#d8d0c0'; g.fillText(DAW.padName(track.instrument, pitch - DAW.DRUM_BASE), 6, y + G.rowH / 2 + 0.5);
       } else {
-        const black = DAW.isBlack(pitch);
-        g.fillStyle = black ? '#191713' : '#e4dccb'; g.fillRect(0, y, black ? KEY_W * 0.62 : KEY_W, G.rowH);
-        if (black) { g.fillStyle = '#e4dccb'; g.fillRect(KEY_W * 0.62, y, KEY_W, G.rowH); }
-        if (pitch % 12 === 0) { g.fillStyle = '#5a5347'; g.fillText(DAW.noteName(pitch), KEY_W - 24, y + G.rowH / 2 + 0.5); }
+        // a real keyboard turned on its side: wide white keys, with the black keys lying across the joins between them
+        const black = DAW.isBlack(pitch), pc = pitch % 12;
+        g.fillStyle = '#e9e1d0'; g.fillRect(0, y, KEY_W, G.rowH);
+        g.fillStyle = '#8f8676';
+        if (black) g.fillRect(0, Math.round(y + G.rowH / 2), KEY_W, 1);      // join between two white keys, under the black key
+        if (pc === 5 || pc === 0) g.fillRect(0, y + G.rowH - 1, KEY_W, 1);   // E|F and B|C sit side by side with no black key
+        if (black) { g.fillStyle = '#191713'; g.fillRect(0, y + 1, KEY_W * 0.6, G.rowH - 2); }
+        if (pc === 0) { g.fillStyle = '#5a5347'; g.fillText(DAW.noteName(pitch), KEY_W - 24, y + G.rowH / 2 + 0.5); }
       }
-      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, y, KEY_W, 1);
+      if (G.drum) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, y, KEY_W, 1); }
     }
     g.restore();
     g.fillStyle = C.panel; g.fillRect(0, gridBot, KEY_W, VEL_H); g.fillRect(0, 0, KEY_W, RULER_H);
@@ -331,7 +342,7 @@
     }
     if (x < KEY_W) return;
 
-    const beat = beatAt(x), pitch = pitchAt(y, G), hit = noteAt(clip, beat, pitch), snap = st().snap, minLen = snap || 0.0625;
+    const beat = beatAt(x), pitch = pitchAt(y, G), hit = noteAt(clip, beat, pitch), snap = st().snap, minLen = snap || 0.03;
     if (e.button === 2) { // erase
       const erase = (ev) => { const m = local(ev), n = noteAt(clip, beatAt(m.x), pitchAt(m.y, G)); if (n) { clip.notes.splice(clip.notes.indexOf(n), 1); P.sel.delete(n.id); P.draw(); } };
       erase(e); DAW.drag(e, erase, () => DAW.commit()); return;
@@ -380,7 +391,9 @@
     DAW.drag(e, (ev) => {
       if (G.drum) return;
       const b = beatAt(local(ev).x);
-      if (b - start > n.length || b < start + n.length - grid) { n.length = clamp(Math.ceil((b - start) / grid) * grid, minLen, clip.length - start); P.draw(); }
+      const free = !snap || ev.altKey; // Snap off (or Alt held): any length you like
+      if (free) { if (Math.abs(b - start - n.length) > 0.01) { n.length = clamp(b - start, 0.03, clip.length - start); P.draw(); } }
+      else if (b - start > n.length || b < start + n.length - grid) { n.length = clamp(Math.ceil((b - start) / grid) * grid, minLen, clip.length - start); P.draw(); }
     }, () => { if (!G.drum) P.lastLen = n.length; DAW.commit(); });
   }
 

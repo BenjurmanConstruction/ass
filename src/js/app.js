@@ -55,7 +55,7 @@
     const snap = $('snap');
     DAW.SNAPS.forEach(([label, v]) => snap.append(DAW.h('option', { value: v }, label)));
     snap.value = S.snap;
-    snap.addEventListener('change', () => { S.snap = +snap.value; snap.blur(); DAW.pianoroll.draw(); });
+    snap.addEventListener('change', () => { S.snap = +snap.value; snap.blur(); DAW.pianoroll.refresh(); });
     $('btnUndo').onclick = () => DAW.history.undo(); $('btnRedo').onclick = () => DAW.history.redo();
     $('btnNew').onclick = newProject; $('btnOpen').onclick = openProject; $('btnSave').onclick = () => save(false); $('btnExport').onclick = openExport;
     DAW.mixer.addFixedMeter($('masterFill'), () => E.graph && E.graph.analyser);
@@ -165,9 +165,13 @@
     const start = snap ? Math.round(b0 / snap) * snap : b0;
     let len = b1 > b0 ? Math.max(snap || 0.125, b1 - b0) : snap || 0.25; // b1 < b0 means the loop wrapped mid-note
     let clip = track.clips.find((c) => start >= c.start && start < c.start + c.length);
-    if (!clip) { // ran off the end of a clip: grow it by a bar when there is room
-      const prev = track.clips.find((c) => Math.abs(c.start + c.length - start) < 1e-6);
-      if (prev && DAW.clipFits(track, prev.start, prev.length + 4, prev)) { prev.length += 4; clip = prev; }
+    if (!clip) { // just past the end of a clip: grow that clip instead of starting lots of little ones
+      const prev = track.clips.filter((c) => c.start + c.length <= start + 1e-6).sort((a, b) => b.start + b.length - (a.start + a.length))[0];
+      if (prev && start - (prev.start + prev.length) < 4) {
+        const next = Math.min(Infinity, ...track.clips.filter((c) => c.start > start).map((c) => c.start));
+        const want = Math.min(Math.ceil((start + 0.001 - prev.start) / 4) * 4, next - prev.start);
+        if (want > start - prev.start && DAW.clipFits(track, prev.start, want, prev)) { prev.length = want; clip = prev; }
+      }
     }
     if (!clip) {
       let cs = Math.floor(start / 4) * 4, ce = cs + 4;

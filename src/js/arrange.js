@@ -9,7 +9,8 @@
   const st = () => DAW.state, proj = () => DAW.state.project;
   const totalBeats = () => Math.max(256, Math.ceil((DAW.songEnd() + 64) / 4) * 4);
   const beatAtX = (clientX, lane) => (clientX - lane.getBoundingClientRect().left) / A.ppb;
-  const gridSnap = (b, free) => (free ? Math.round(b * 4) / 4 : Math.round(b));
+  // clips snap to whole beats; Shift = 1/16 steps; with Snap set to Off they move and stretch freely
+  const gridSnap = (b, free) => (!st().snap ? Math.round(b * 100) / 100 : free ? Math.round(b * 4) / 4 : Math.round(b));
 
   A.init = function () {
     scroll = document.getElementById('arrScroll'); inner = document.getElementById('arrInner');
@@ -47,6 +48,22 @@
       h('div', { class: 'clip-name', text: track.name }), cv, h('div', { class: 'clip-resize' }));
     drawPreview(cv, track, clip);
     el.addEventListener('dblclick', (e) => { e.stopPropagation(); DAW.setTab('piano'); });
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      st().selTrackId = track.id; st().selClipId = clip.id;
+      inner.querySelectorAll('.clip.sel').forEach((c) => c.classList.remove('sel')); el.classList.add('sel');
+      const items = [
+        ['Delete clip', () => { track.clips.splice(track.clips.indexOf(clip), 1); st().selClipId = null; DAW.commit(); }],
+        ['Duplicate clip', () => A.key({ key: 'd', ctrlKey: true })],
+        ['Edit notes', () => { DAW.emit('change'); DAW.setTab('piano'); }],
+      ];
+      if (track.clips.length > 1) items.push(['Join all clips on this track into one', () => {
+        const start = Math.min(...track.clips.map((c) => c.start)), end = Math.max(...track.clips.map((c) => c.start + c.length));
+        const joined = DAW.makeClip(start, end - start, track.clips.flatMap((c) => c.notes.filter((n) => n.start < c.length).map((n) => Object.assign({}, n, { start: n.start + c.start - start, length: Math.min(n.length, c.length - n.start) }))));
+        track.clips = [joined]; st().selClipId = joined.id; DAW.commit();
+      }]);
+      DAW.menu(e.clientX, e.clientY, items);
+    });
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
@@ -60,7 +77,7 @@
         const db = (ev.clientX - startX) / A.ppb;
         if (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 6) moved = true;
         if (!moved) return;
-        if (resize) { nl = Math.max(ev.shiftKey ? 0.25 : 1, gridSnap(o.length + db, ev.shiftKey)); el.style.width = Math.max(6, nl * A.ppb - 1) + 'px'; return; }
+        if (resize) { nl = Math.max(ev.shiftKey || !st().snap ? 0.25 : 1, gridSnap(o.length + db, ev.shiftKey)); el.style.width = Math.max(6, nl * A.ppb - 1) + 'px'; return; }
         ns = Math.max(0, gridSnap(o.start + db, ev.shiftKey)); el.style.left = ns * A.ppb + 'px';
         const rows = [...inner.querySelectorAll('.track-row')];
         const row = rows.find((r) => { const b = r.getBoundingClientRect(); return ev.clientY >= b.top && ev.clientY < b.bottom; });
@@ -103,7 +120,9 @@
           btn('tbtn m' + (track.mute ? ' on' : ''), 'M', 'Mute', () => { track.mute = !track.mute; DAW.commit(); }),
           btn('tbtn s' + (track.solo ? ' on' : ''), 'S', 'Solo', () => { track.solo = !track.solo; DAW.commit(); }),
           vol)));
+    head.addEventListener('contextmenu', (e) => { e.preventDefault(); DAW.menu(e.clientX, e.clientY, [['Delete track', () => { p.tracks.splice(p.tracks.indexOf(track), 1); DAW.commit(); }]]); });
     head.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
       // controls re-render on their own commit; re-rendering here would swallow their click
       if (e.target.closest('button, input, .tcolor')) { if (s.selTrackId !== track.id) { s.selTrackId = track.id; s.selClipId = null; } return; }
       DAW.select(track.id, s.selTrackId === track.id ? s.selClipId : null);
@@ -145,7 +164,7 @@
     p.tracks.forEach((track, i) => {
       const lane = h('div', { class: 'lane', style: { width: W + 'px' } });
       for (const c of track.clips) lane.append(clipEl(track, c));
-      lane.addEventListener('pointerdown', () => DAW.select(track.id, null));
+      lane.addEventListener('pointerdown', (e) => { if (e.button === 0) DAW.select(track.id, null); });
       lane.addEventListener('dblclick', (e) => {
         const at = beatAtX(e.clientX, lane);
         let start = Math.floor(at / 4) * 4, end = start + 4;

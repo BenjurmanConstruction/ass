@@ -284,6 +284,17 @@
     };
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   };
+  /** Small right-click menu. items: [[label, fn], ...] */
+  DAW.menu = (x, y, items) => {
+    const old = document.getElementById('ctx'); if (old) old.remove();
+    const el = DAW.h('div', { id: 'ctx' }, items.map(([label, fn]) => DAW.h('button', { onclick: () => { close(); fn(); } }, label)));
+    const close = () => { el.remove(); window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', esc, true); };
+    const away = (e) => { if (!el.contains(e.target)) close(); };
+    const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    document.body.append(el);
+    el.style.left = Math.min(x, window.innerWidth - el.offsetWidth - 6) + 'px'; el.style.top = Math.min(y, window.innerHeight - el.offsetHeight - 6) + 'px';
+    setTimeout(() => { window.addEventListener('pointerdown', away, true); window.addEventListener('keydown', esc, true); }, 0);
+  };
   DAW.toast = (msg, ms) => {
     const el = document.getElementById('toast');
     el.textContent = msg; el.classList.add('show');

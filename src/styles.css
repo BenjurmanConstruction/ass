@@ -188,6 +188,9 @@ input[type=range] { accent-color: var(--accent); }
 .dialog label { display: flex; align-items: center; gap: 5px; }
 #exStatus { min-height: 18px; color: var(--accent); margin: 6px 0; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+#ctx { position: fixed; z-index: 70; background: var(--panel); border: 1px solid #4a4337; border-radius: 6px; padding: 4px; display: flex; flex-direction: column; min-width: 170px; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+#ctx button { border: none; background: transparent; text-align: left; height: 28px; border-radius: 4px; }
+#ctx button:hover { background: var(--accent); color: #1b1408; }
 #toast { position: fixed; bottom: 18px; left: 50%; transform: translate(-50%, 20px); background: #0c0b09; border: 1px solid var(--line); color: var(--text); padding: 8px 14px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 60; max-width: 80vw; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 ::-webkit-scrollbar { width: 12px; height: 12px; }

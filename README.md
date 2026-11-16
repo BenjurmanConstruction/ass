@@ -22,6 +22,8 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 
 **Arrangement**
 - Double-click an empty spot in a lane to create a clip. Drag to move (also between tracks of the same type), drag the right edge to resize, Alt-drag to copy. Hold Shift for 1/16 precision instead of whole beats.
+- Right-click a clip for a menu: delete, duplicate, edit notes, or join all the track's clips into one. Right-click a track name to delete the track.
+- Snap is optional: set Snap to Off (top bar), or click **Grid snap** in the piano roll, and clips and notes move and stretch freely. Holding Alt while dragging a note also ignores the grid.
 - `Delete` removes the selected clip, `Ctrl+D` duplicates it, `Ctrl+C` / `Ctrl+V` copy and paste at the playhead.
 - Click the bar numbers to move the playhead. Drag in the thin strip above them to set the loop region; click the strip to toggle looping.
 - `Ctrl+wheel` zooms.

@@ -4,7 +4,7 @@
   const DAW = window.DAW, h = DAW.h, clamp = DAW.clamp;
   const KEY_W = 72, RULER_H = 20, VEL_H = 62;
   const P = (DAW.pianoroll = { ppb: 96, tool: 'draw', sel: new Set(), lastLen: 0.25, clipboard: null });
-  let root, bar, scroller, spacer, canvas, g, empty, vw = 0, vh = 0, dpr = 1, lastClip = null, marquee = null, info;
+  let root, bar, chordBar, scroller, spacer, canvas, g, empty, vw = 0, vh = 0, dpr = 1, lastClip = null, marquee = null, info;
 
   const st = () => DAW.state;
   const cur = () => DAW.findClip(st().selClipId);
@@ -37,7 +37,8 @@
     spacer = h('div', { class: 'pr-spacer' }, canvas);
     scroller = h('div', { class: 'pr-scroll' }, spacer);
     empty = h('div', { class: 'pr-empty' }, 'No clip selected. Double-click an empty spot in a track lane to create one, or click an existing clip.');
-    root.append(bar, scroller, empty);
+    chordBar = h('div', { class: 'pr-bar chord-bar' });
+    root.append(bar, chordBar, scroller, empty);
     g = canvas.getContext('2d');
     scroller.addEventListener('scroll', P.draw);
     new ResizeObserver(resize).observe(scroller);
@@ -51,7 +52,68 @@
     DAW.on('change', P.refresh);
   };
 
+  /* ---------- chord helper ---------- */
+  function playChord(track, notes) {
+    const vs = notes.map((p) => DAW.engine.noteOn(track, p, 0.75));
+    setTimeout(() => vs.forEach((v) => DAW.engine.noteOff(v)), 650);
+  }
+  /* Drop a chord at the playhead (growing the clip if there is room) and step the playhead forward. */
+  function placeChord(deg, len) {
+    const r = cur(); if (!r) return null;
+    const { track, clip } = r;
+    let at = Math.round((DAW.transport.beat() - clip.start) * 4) / 4;
+    if (at < 0 || at > clip.length) at = 0;
+    if (at + len > clip.length) {
+      const need = Math.ceil((at + len) / 4) * 4;
+      if (DAW.clipFits(track, clip.start, need, clip)) clip.length = need;
+    }
+    const l = Math.min(len, clip.length - at);
+    if (l < 0.25) { DAW.toast('No room left in this clip: another clip is in the way'); return null; }
+    const notes = DAW.chordNotes(st().project.key, deg).map((p) => DAW.note(p, at, l, 0.75));
+    clip.notes.push(...notes);
+    DAW.transport.pos = clip.start + at + l;
+    return notes;
+  }
+  function addChord(deg) {
+    const r = cur(); if (!r) return;
+    playChord(r.track, DAW.chordNotes(st().project.key, deg));
+    const notes = placeChord(deg, st().chordLen);
+    if (notes) { P.sel = new Set(notes.map((n) => n.id)); if (DAW.engine.playing) DAW.transport.seek(DAW.transport.pos); DAW.commit(); }
+  }
+  function addProgression(degs) {
+    const added = [];
+    for (const d of degs) { const n = placeChord(d, st().chordLen); if (!n) break; added.push(...n); }
+    if (added.length) { P.sel = new Set(added.map((n) => n.id)); DAW.commit(); DAW.toast('Added ' + added.length / 3 + ' chords. Press Space to hear them'); }
+  }
+  function renderChordBar() {
+    const r = cur(), key = st().project.key, s = st();
+    chordBar.innerHTML = '';
+    chordBar.style.display = r && r.track.type !== 'drums' ? '' : 'none';
+    if (!r || r.track.type === 'drums') return;
+    const keySel = h('select', { title: 'Key of the song' }, DAW.KEY_NAMES.map((n, i) => h('option', { value: i }, n)));
+    keySel.value = key.root;
+    const scaleSel = h('select', { title: 'Major sounds bright, minor sounds dark' }, h('option', { value: 'major' }, 'Major'), h('option', { value: 'minor' }, 'Minor'));
+    scaleSel.value = key.scale;
+    const setKey = () => { st().project.key = { root: +keySel.value, scale: scaleSel.value }; keySel.blur(); scaleSel.blur(); DAW.commit(); };
+    keySel.addEventListener('change', setKey); scaleSel.addEventListener('change', setKey);
+    const lenSel = h('select', { title: 'How long each chord lasts' }, [[1, '1 beat'], [2, 'Half bar'], [4, '1 bar'], [8, '2 bars']].map(([v, l]) => h('option', { value: v }, l)));
+    lenSel.value = s.chordLen; lenSel.addEventListener('change', () => { s.chordLen = +lenSel.value; lenSel.blur(); });
+    const prog = h('select', { title: 'Fill in a whole chord progression starting at the playhead' }, h('option', { value: '' }, 'Add a progression…'),
+      DAW.PROGRESSIONS.map((p, i) => (p[1] === key.scale ? h('option', { value: i }, p[0]) : null)));
+    prog.addEventListener('change', () => { const p = DAW.PROGRESSIONS[+prog.value]; prog.value = ''; prog.blur(); if (p) addProgression(p[2]); });
+    const toggle = (label, prop, title, after) => h('button', { class: s[prop] ? 'on' : '', title, onclick: () => { s[prop] = !s[prop]; renderChordBar(); P.draw(); if (after) after(); } }, label);
+    chordBar.append(
+      h('span', { class: 'pr-lab', text: 'Key' }), keySel, scaleSel, h('span', { class: 'sep' }),
+      h('span', { class: 'pr-lab', text: 'Chords' }),
+      ...[0, 1, 2, 3, 4, 5, 6].map((d) => h('button', { class: 'chord', title: 'Click to hear this chord and add it at the playhead' + (s.chordKeys ? ' (key ' + 'ASDFGHJ'[d] + ')' : ''), onclick: () => addChord(d) },
+        h('b', {}, DAW.chordName(key, d)), h('i', {}, DAW.ROMAN[key.scale][d]))),
+      lenSel, prog, h('span', { class: 'sep' }),
+      toggle('Show scale', 'scaleHint', 'Dim the notes that are outside the key, so the bright rows are the ones that sound good together'),
+      toggle('One-key chords', 'chordKeys', 'Keys A S D F G H J play (and record) the seven chords instead of single notes', () => DAW.toast(s.chordKeys ? 'One-key chords on: A S D F G H J play the seven chords' : 'One-key chords off', 2600)));
+  }
+
   function syncBar() {
+    renderChordBar();
     bar.querySelectorAll('.pr-tool').forEach((b) => b.classList.toggle('on', b.dataset.tool === P.tool));
     const r = cur();
     document.getElementById('prLen').textContent = r ? (r.clip.length / 4).toFixed(r.clip.length % 4 ? 2 : 0) + ' bars' : '—';
@@ -131,6 +193,11 @@
       const y = gridTop + row * G.rowH - sy; if (y > gridBot) break;
       const pitch = G.hi - row;
       if (G.drum ? row % 2 : DAW.isBlack(pitch)) { g.fillStyle = C.black; g.fillRect(KEY_W, y, vw, G.rowH); }
+      if (!G.drum && st().scaleHint) { // scale helper: dim notes outside the key, tint the key note
+        const key = st().project.key;
+        if (!DAW.inScale(key, pitch)) { g.fillStyle = 'rgba(0,0,0,.42)'; g.fillRect(KEY_W, y, vw, G.rowH); }
+        else if ((((pitch - key.root) % 12) + 12) % 12 === 0) { g.fillStyle = 'rgba(240,166,58,.09)'; g.fillRect(KEY_W, y, vw, G.rowH); }
+      }
       g.fillStyle = !G.drum && pitch % 12 === 11 ? C.beat : C.line; g.fillRect(KEY_W, y, vw, 1);
     }
     let step = st().snap || 0.25; while (step * P.ppb < 7) step *= 2;

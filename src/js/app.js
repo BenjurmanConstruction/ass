@@ -157,7 +157,7 @@
   const KEYMAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16 };
   const held = new Map();
   let octave = 4;
-  function recordNote(track, pitch, b0, b1, vel) {
+  function recordNote(track, pitch, b0, b1, vel, quiet) {
     const snap = S.snap || 0;
     const start = snap ? Math.round(b0 / snap) * snap : b0;
     let len = b1 > b0 ? Math.max(snap || 0.125, b1 - b0) : snap || 0.25; // b1 < b0 means the loop wrapped mid-note
@@ -170,12 +170,15 @@
     len = Math.min(len, clip.length - (start - clip.start));
     clip.notes.push(DAW.note(pitch, start - clip.start, len, vel));
     if (!S.selClipId) S.selClipId = clip.id;
-    DAW.commit();
+    if (!quiet) DAW.commit();
   }
   function releaseKey(k) {
     const hnd = held.get(k); if (!hnd) return;
-    held.delete(k); E.noteOff(hnd.voice);
-    if (hnd.rec && E.playing) { const t = DAW.track(hnd.trackId); if (t) recordNote(t, hnd.pitch, hnd.b0, E.currentBeat(), 0.8); }
+    held.delete(k); (hnd.voices || [hnd.voice]).forEach((v) => E.noteOff(v));
+    if (hnd.rec && E.playing) {
+      const t = DAW.track(hnd.trackId), b1 = E.currentBeat();
+      if (t) { (hnd.pitches || [hnd.pitch]).forEach((p) => recordNote(t, p, hnd.b0, b1, 0.8, true)); DAW.commit(); }
+    }
   }
   function onKeyDown(e) {
     const el = e.target, tag = el.tagName, k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
@@ -206,7 +209,14 @@
       const track = DAW.selTrack(); if (!track) return;
       const semi = KEYMAP[k], drum = track.type === 'drums';
       if (drum && semi > 11) return;
-      const pitch = drum ? DAW.DRUM_BASE + semi : 12 * (octave + 1) + semi, rec = S.recording && E.playing;
+      const rec = S.recording && E.playing, deg = 'asdfghjk'.indexOf(k);
+      if (S.chordKeys && !drum) { // one-key chords: the home row plays the chords of the song's key
+        if (deg < 0) return;
+        const pitches = DAW.chordNotes(S.project.key, deg).map((p) => p + 12 * (octave - 4));
+        held.set(k, { voices: pitches.map((p) => E.noteOn(track, p, 0.75)), pitches, trackId: track.id, b0: rec ? E.currentBeat() : 0, rec });
+        return;
+      }
+      const pitch = drum ? DAW.DRUM_BASE + semi : 12 * (octave + 1) + semi;
       const voice = E.noteOn(track, pitch, 0.8);
       if (drum) { if (rec) recordNote(track, pitch, E.currentBeat(), E.currentBeat() + (S.snap || 0.25), 0.85); held.set(k, { voice: null }); }
       else held.set(k, { voice, pitch, trackId: track.id, b0: rec ? E.currentBeat() : 0, rec });

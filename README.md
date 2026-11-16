@@ -33,6 +33,12 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 - Drag in the velocity lane at the bottom to set velocities. Quantize snaps note starts to the current Snap value.
 - Drum tracks show the same editor as a 12-row drum grid.
 
+**Chord helper** (second toolbar row in the piano roll)
+- Choose the song's Key and Major/Minor. The seven chords that belong to that key appear as buttons: click one to hear it and drop it in at the playhead, which then steps forward so you can click out a progression.
+- "Add a progression…" fills in a ready-made sequence (pop, rock, blues, minor rock and more) in your key.
+- Show scale dims every note outside the key, so the bright rows are the safe ones for melodies and bass lines.
+- One-key chords makes the keys `A S D F G H J` play (and record) those seven chords.
+
 **Playing and recording**
 - Computer keyboard plays the selected track: `A S D F G H J K` are white keys, `W E T Y U` black keys, `Z` / `X` change octave. On drum tracks the same keys trigger the 12 pads.
 - Arm record (`R`), press play, and what you play is written into the clip under the playhead (a new clip is created if there isn't one), quantized to Snap.

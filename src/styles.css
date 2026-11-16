@@ -104,6 +104,12 @@ input[type=range] { accent-color: var(--accent); }
 .pr-lab { color: var(--dim); font-size: 11px; }
 .pr-len { font-family: var(--mono); min-width: 52px; text-align: center; }
 .pr-info { margin-left: auto; font-family: var(--mono); color: var(--accent); min-width: 80px; text-align: right; }
+.chord-bar { flex-wrap: wrap; }
+.chord { height: 34px; min-width: 46px; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; background: var(--raised2); }
+.chord b { font-size: 12px; }
+.chord i { font: 9px var(--mono); color: var(--dim); font-style: normal; }
+.chord:hover:not(:disabled) { background: var(--accent); color: #1b1408; }
+.chord:hover i { color: #1b1408; }
 .pr-tool.on { background: var(--accent); color: #1b1408; border-color: transparent; }
 .pr-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; background: var(--pr-bg); }
 .pr-spacer { position: relative; min-width: 100%; min-height: 100%; }

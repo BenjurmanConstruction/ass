@@ -26,6 +26,31 @@
   DAW.DELAY_TIMES = { '1/4': 1, '1/8d': 0.75, '1/8': 0.5, '1/8t': 1 / 3, '1/16': 0.25 };
   DAW.SNAPS = [['1 bar', 4], ['1/2', 2], ['1/4', 1], ['1/8', 0.5], ['1/16', 0.25], ['1/32', 0.125], ['1/8T', 1 / 3], ['1/16T', 1 / 6], ['Off', 0]];
 
+  /* ---------- keys, scales, chords ---------- */
+  DAW.SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
+  DAW.KEY_NAMES = ['C', 'C# / Db', 'D', 'Eb', 'E', 'F', 'F# / Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  DAW.ROMAN = { major: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'], minor: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'] };
+  DAW.PROGRESSIONS = [
+    ['Pop: I V vi IV', 'major', [0, 4, 5, 3]], ['Ballad: vi IV I V', 'major', [5, 3, 0, 4]], ['Rock: I IV V IV', 'major', [0, 3, 4, 3]],
+    ['50s: I vi IV V', 'major', [0, 5, 3, 4]], ['Jazzy: ii V I I', 'major', [1, 4, 0, 0]], ['12-bar blues', 'major', [0, 0, 0, 0, 3, 3, 0, 0, 4, 3, 0, 4]],
+    ['Minor rock: i VII VI VII', 'minor', [0, 6, 5, 6]], ['Epic: i VI III VII', 'minor', [0, 5, 2, 6]], ['Sad: i iv v i', 'minor', [0, 3, 4, 0]], ['Dark: i VI iv v', 'minor', [0, 5, 3, 4]],
+  ];
+  const FLAT_KEYS = { major: [5, 10, 3, 8, 1], minor: [2, 7, 0, 5, 10, 3] };
+  const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'], FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const degSemi = (key, i) => DAW.SCALES[key.scale][((i % 7) + 7) % 7] + 12 * Math.floor(i / 7);
+  /** The three notes of the chord built on scale degree `deg` (0-6) of a key, voiced around middle C. */
+  DAW.chordNotes = (key, deg) => {
+    let root = 48 + key.root + degSemi(key, deg);
+    while (root > 59) root -= 12;
+    const base = key.root + degSemi(key, deg);
+    return [0, 2, 4].map((k) => root + (key.root + degSemi(key, deg + k)) - base);
+  };
+  DAW.chordName = (key, deg) => {
+    const n = DAW.chordNotes(key, deg), names = FLAT_KEYS[key.scale].includes(key.root) ? FLAT : SHARP;
+    return names[n[0] % 12] + (n[1] - n[0] === 3 ? (n[2] - n[0] === 6 ? '°' : 'm') : '');
+  };
+  DAW.inScale = (key, pitch) => DAW.SCALES[key.scale].includes((((pitch - key.root) % 12) + 12) % 12);
+
   /* ---------- instruments ---------- */
   const baseSynth = () => ({
     preset: 'Init', source: 'synth', // source: 'synth' or the name of a sampled instrument
@@ -95,6 +120,7 @@
     master: { volume: 0.8, limiter: true },
     reverb: { decay: 2.2, level: 0.8 },
     delay: { time: '1/8d', feedback: 0.35, level: 0.8 },
+    key: { root: 0, scale: 'major' },
     tracks: [],
   });
   DAW.normalizeProject = (raw) => {
@@ -117,7 +143,7 @@
 
   DAW.demoProject = () => {
     const p = DAW.emptyProject();
-    p.name = 'Demo'; p.bpm = 112; p.loop = { on: true, start: 0, end: 32 };
+    p.name = 'Demo'; p.key = { root: 9, scale: 'minor' }; p.bpm = 112; p.loop = { on: true, start: 0, end: 32 };
     const N = DAW.note;
     const drums = DAW.makeTrack('drums', 'Drums', 'Rock Kit', 0);
     const B = DAW.DRUM_BASE, KICK = B, SNARE = B + 1, HAT = B + 4, OHAT = B + 5, FLOOR = B + 6, MID = B + 7, HIGH = B + 8, CRASH = B + 10;
@@ -169,7 +195,7 @@
   };
 
   /* ---------- state, events, history ---------- */
-  DAW.state = { project: null, selTrackId: null, selClipId: null, snap: 0.25, metronome: false, recording: false, playing: false, filePath: null, dirty: false, focus: 'arrange', tab: 'piano' };
+  DAW.state = { chordLen: 4, scaleHint: true, chordKeys: false, project: null, selTrackId: null, selClipId: null, snap: 0.25, metronome: false, recording: false, playing: false, filePath: null, dirty: false, focus: 'arrange', tab: 'piano' };
   const L = {};
   DAW.on = (e, f) => (L[e] || (L[e] = [])).push(f);
   DAW.emit = (e, a) => (L[e] || []).forEach((f) => f(a));

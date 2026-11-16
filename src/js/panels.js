@@ -31,10 +31,24 @@
     const title = h('div', { class: 'inst-title' }, h('span', { class: 'dot', style: { background: t.color } }), t.name);
     if (t.type === 'synth') {
       const s = t.instrument;
-      const preset = h('select', { title: 'Load a preset' }, h('option', { value: '' }, s.preset + (DAW.SYNTH_PRESETS.includes(s.preset) ? '' : ' (custom)')), DAW.SYNTH_PRESETS.filter((n) => n !== s.preset).map((n) => h('option', { value: n }, n)));
-      preset.addEventListener('change', () => { if (preset.value) { t.instrument = DAW.makeSynth(preset.value); DAW.commit(); } });
+      const sampled = s.source !== 'synth' && DAW.SAMPLE_INSTS[s.source];
+      const current = sampled ? s.source : s.preset;
+      const preset = h('select', { title: 'Choose a real instrument or a synth preset' },
+        DAW.SYNTH_PRESETS.includes(current) || DAW.SAMPLE_INSTS[current] ? null : h('option', { value: current }, current + ' (custom)'),
+        h('optgroup', { label: 'Real instruments' }, Object.keys(DAW.SAMPLE_INSTS).map((n) => h('option', { value: n }, n))),
+        h('optgroup', { label: 'Synth presets' }, DAW.SYNTH_PRESETS.map((n) => h('option', { value: n }, n))));
+      preset.value = current;
+      preset.addEventListener('change', () => { t.instrument = DAW.SAMPLE_INSTS[preset.value] ? DAW.makeSampled(preset.value) : DAW.makeSynth(preset.value); preset.blur(); DAW.commit(); });
+      if (sampled) {
+        root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Sound ', preset), h('span', { class: 'hint', text: 'Play with your keyboard: A S D F G H J K = white keys, W E T Y U = black keys, Z / X = octave' })),
+          h('div', { class: 'groups' },
+            group('SOUND', K('Attack', s.amp, 'a', 0.002, 1, { log: true, fmt: F.sec, def: 0.002 }), K('Release', s.amp, 'r', 0.02, 3, { log: true, fmt: F.sec, def: sampled.release }), K('Tone', s.filter, 'cutoff', 200, 18000, { log: true, fmt: F.hz, def: 18000 }), K('Gain', s, 'gain', 0, 1.5, { fmt: F.pct, def: 0.8 })),
+            group('VIBRATO', K('Rate', s.lfo, 'rate', 0.05, 20, { log: true, fmt: (v) => v.toFixed(2) + 'Hz', def: 5 }), K('Depth', s.lfo, 'pitch', 0, 100, { fmt: (v) => v.toFixed(0) + 'c', def: 0 }))),
+          h('div', { class: 'hint credit', text: 'Recorded instrument: ' + sampled.credit + '. Use the mixer for EQ, drive, compression and effects.' }));
+        root.scrollLeft = keep; return;
+      }
       const adsr = (e) => [K('A', e, 'a', 0.001, 3, { log: true, fmt: F.sec, def: 0.005 }), K('D', e, 'd', 0.01, 4, { log: true, fmt: F.sec, def: 0.2 }), K('S', e, 's', 0, 1, { fmt: F.pct, def: 0.7 }), K('R', e, 'r', 0.01, 5, { log: true, fmt: F.sec, def: 0.2 })];
-      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Preset ', preset), h('span', { class: 'hint', text: 'Play with your keyboard: A S D F G H J K = white keys, W E T Y U = black keys, Z / X = octave' })),
+      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Sound ', preset), h('span', { class: 'hint', text: 'Play with your keyboard: A S D F G H J K = white keys, W E T Y U = black keys, Z / X = octave' })),
         h('div', { class: 'groups' },
           group('OSC 1', sel(s.osc1, 'wave', WAVES, 'Waveform'), K('Octave', s.osc1, 'oct', -2, 2, { step: 1, fmt: F.int, def: 0 }), K('Level', s.osc1, 'level', 0, 1, { fmt: F.pct, def: 0.8 })),
           group('OSC 2', sel(s.osc2, 'wave', WAVES, 'Waveform'), K('Octave', s.osc2, 'oct', -2, 2, { step: 1, fmt: F.int, def: 0 }), K('Detune', s.osc2, 'detune', -50, 50, { step: 1, fmt: F.int, def: 0 }), K('Level', s.osc2, 'level', 0, 1, { fmt: F.pct, def: 0.5 }), K('Noise', s, 'noise', 0, 1, { fmt: F.pct, def: 0 })),

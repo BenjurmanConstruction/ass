@@ -99,7 +99,7 @@
       h('div', { class: 'tmain' },
         h('div', { class: 'trow' }, name, btn('tdel', '×', 'Delete track', () => { p.tracks.splice(i, 1); DAW.commit(); })),
         h('div', { class: 'trow' },
-          h('span', { class: 'ttype', text: track.type === 'drums' ? 'DRUMS' : 'SYNTH' }),
+          h('span', { class: 'ttype', text: track.type === 'drums' ? 'DRUMS' : track.instrument.source !== 'synth' ? 'INST' : 'SYNTH' }),
           btn('tbtn m' + (track.mute ? ' on' : ''), 'M', 'Mute', () => { track.mute = !track.mute; DAW.commit(); }),
           btn('tbtn s' + (track.solo ? ' on' : ''), 'S', 'Solo', () => { track.solo = !track.solo; DAW.commit(); }),
           vol)));
@@ -161,13 +161,13 @@
       inner.append(row);
     });
     const add = (type) => {
-      const n = p.tracks.length, t = DAW.makeTrack(type, type === 'drums' ? 'Drums' : 'Synth ' + (p.tracks.filter((x) => x.type === 'synth').length + 1), type === 'drums' ? 'Rock Kit' : 'Saw Lead', n);
+      const n = p.tracks.length, t = DAW.makeTrack(type, type === 'drums' ? 'Drums' : 'Grand Piano', type === 'drums' ? 'Rock Kit' : 'Grand Piano', n);
       p.tracks.push(t); s.selTrackId = t.id; s.selClipId = null; DAW.commit();
     };
     inner.append(h('div', { class: 'track-row add-row' },
       h('div', { class: 'track-head add' },
-        h('button', { class: 'add-btn', onclick: () => add('synth') }, '+ Synth track'),
-        h('button', { class: 'add-btn', onclick: () => add('drums') }, '+ Drum track')),
+        h('button', { class: 'add-btn', title: 'Adds a piano; pick another instrument or a synth in the Instrument tab', onclick: () => add('synth') }, '+ Instrument'),
+        h('button', { class: 'add-btn', onclick: () => add('drums') }, '+ Drums')),
       h('div', { class: 'lane-hint', text: p.tracks.length ? 'Double-click a lane to create a clip · drag to move · drag the right edge to resize · Alt-drag to copy' : 'Add a track to get started' })));
 
     playhead = h('div', { id: 'playhead' }); inner.append(playhead);

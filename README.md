@@ -41,6 +41,7 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 `Space` play/stop · `Home` back to start · `M` metronome · `R` record arm · `1` `2` `3` piano roll / instrument / mixer · `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+O` open · `Ctrl+N` new · `Ctrl+E` export WAV
 
 **Sound**
+- Real instruments: **Electric Bass** (Squier Jazz bass), **Electric Piano** (Wurlitzer EP200) and **Grand Piano** (Steinway), each recorded at two dynamics across the keyboard, with attack, release, tone, gain and vibrato controls. Pick them from the Sound menu in the Instrument tab.
 - Synth: two oscillators plus noise, unison (up to 5 detuned voices spread in stereo), multimode resonant filter with its own envelope, amp envelope, LFO to pitch and filter, 13 presets.
 - Drums: the **Rock Kit** is a real acoustic kit (24" kick, snare, rimshot, sidestick, hats, three toms, china, crash, ride) with several velocity layers and alternating takes per drum, so soft and hard hits sound different. Three synthesized electronic kits (808, 909, lo-fi) are also included. Every pad has level / tune / decay. Closed hat chokes open hat.
 - Mixer: per-track 3-band EQ, drive, one-knob compressor, pan, reverb and delay sends, mute/solo, meters.
@@ -70,7 +71,12 @@ src/js/app.js        transport, shortcuts, files, export dialog
 
 ## Credits
 
-The Rock Kit samples are made from [Big Rusty Drums](https://github.com/sfzinstruments/karoryfer.big-rusty-drums) by Karoryfer Samples, released under CC0 1.0 (public domain). The close and overhead microphones were mixed down to stereo one-shots for Sable.
+- **Rock Kit:** [Big Rusty Drums](https://github.com/sfzinstruments/karoryfer.big-rusty-drums) by Karoryfer Samples, CC0 1.0 (public domain). Close and overhead microphones were mixed down to stereo one-shots.
+- **Electric Bass:** [Growlybass](https://github.com/sfzinstruments/karoryfer.growlybass) by Karoryfer Samples, CC0 1.0.
+- **Electric Piano:** Wurlitzer EP200 samples by [Greg Sullivan](http://www.sullivang.net/), from [GregSullivan.E-Pianos](https://github.com/sfzinstruments/GregSullivan.E-Pianos), licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). A subset of notes was trimmed, level-matched and converted to Ogg Vorbis.
+- **Grand Piano:** [Splendid Grand Piano](https://github.com/sfzinstruments/SplendidGrandPiano), Steinway samples released to the public domain by Akai.
+
+Details are in `src/samples/CREDITS.txt`.
 
 ## Not in this version
 

@@ -123,7 +123,7 @@
   function newProject() {
     if (!okToDiscard()) return;
     const p = DAW.emptyProject();
-    p.tracks = [DAW.makeTrack('drums', 'Drums', 'Rock Kit', 0), DAW.makeTrack('synth', 'Synth 1', 'Saw Lead', 1)];
+    p.tracks = [DAW.makeTrack('drums', 'Drums', 'Rock Kit', 0), DAW.makeTrack('synth', 'Grand Piano', 'Grand Piano', 1)];
     load(p, null);
   }
 

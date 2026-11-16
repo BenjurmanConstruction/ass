@@ -1,0 +1,15 @@
+Sample sources bundled with Sable
+================================
+
+rock/   Rock Kit drums: Big Rusty Drums by Karoryfer Samples. CC0 1.0 (public domain).
+        https://github.com/sfzinstruments/karoryfer.big-rusty-drums
+bass/   Electric Bass: Growlybass (Squier Jazz bass) by Karoryfer Samples. CC0 1.0 (public domain).
+        https://github.com/sfzinstruments/karoryfer.growlybass
+wurli/  Electric Piano: Wurlitzer EP200 Electric Piano v1.1 by Greg Sullivan (http://www.sullivang.net/).
+        Creative Commons Attribution 3.0 Unported: https://creativecommons.org/licenses/by/3.0/
+        Changes made: a subset of notes was trimmed, level-matched and converted to Ogg Vorbis.
+        https://github.com/sfzinstruments/GregSullivan.E-Pianos
+piano/  Grand Piano: Splendid Grand Piano (Steinway), samples released to the public domain by Akai.
+        https://github.com/sfzinstruments/SplendidGrandPiano
+
+All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

@@ -158,7 +158,29 @@
     }
 
     /* ---- subtractive synth voice ---- */
+    /* one note from a sampled instrument: nearest recorded note, repitched */
+    samplerNote(ch, si, p, pitch, vel, t, dur) {
+      const ctx = this.ctx, v = DAW.clamp(vel, 0.01, 1), layer = si.layers[v < 0.6 ? 0 : si.layers.length - 1];
+      let z = layer.zones[0];
+      for (const c of layer.zones) if (Math.abs(c.root - pitch) < Math.abs(z.root - pitch)) z = c;
+      const src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), vca = ctx.createGain();
+      src.buffer = z.buffer; src.playbackRate.value = Math.pow(2, (pitch - z.root + (si.tune || 0) / 100) / 12); // si.tune: measured correction in cents
+      lp.type = 'lowpass'; lp.Q.value = 0.5; lp.frequency.value = DAW.clamp(p.filter.cutoff, 200, 20000);
+      const amp = Math.min(3, Math.pow(v, 1.4) / layer.rel) * p.gain * 0.7, a = Math.max(p.amp.a, 0.002), rel = Math.max(p.amp.r, 0.02);
+      vca.gain.setValueAtTime(0, t); vca.gain.linearRampToValueAtTime(amp, t + a);
+      src.connect(lp).connect(vca).connect(ch.input); ch.lfoPitch.connect(src.detune);
+      src.start(t);
+      src.onended = () => { vca.disconnect(); try { ch.lfoPitch.disconnect(src.detune); } catch (e) { /* gone */ } };
+      const off = (te) => { vca.gain.setTargetAtTime(0, te, rel / 3); try { src.stop(te + rel * 2.2 + 0.05); } catch (e) { /* already stopped */ } };
+      if (dur != null) { const te = t + Math.max(dur, a); vca.gain.setValueAtTime(amp, te); off(te); return null; }
+      let released = false;
+      return { release() { if (released) return; released = true; const now = Math.max(ctx.currentTime, t); if (vca.gain.cancelAndHoldAtTime) vca.gain.cancelAndHoldAtTime(now); off(now); } };
+    }
     synthNote(ch, p, pitch, vel, t, dur) {
+      if (p.source && p.source !== 'synth') { // sampled instrument (silent until its samples have loaded)
+        const si = DAW.SAMPLE_INSTS[p.source];
+        if (si) return si.ready ? this.samplerNote(ch, si, p, pitch, vel, t, dur) : null;
+      }
       const ctx = this.ctx, f = freq(pitch), srcs = [], oscs = [];
       const filt = ctx.createBiquadFilter(), vca = ctx.createGain();
       filt.type = p.filter.type; filt.frequency.value = DAW.clamp(p.filter.cutoff, 20, 20000); filt.Q.value = p.filter.q;
@@ -363,7 +385,7 @@
       if (this.ctx.state !== 'running') this.ctx.resume();
       return this.graph;
     },
-    sync() { if (this.graph) this.graph.sync(DAW.state.project); },
+    sync() { DAW.loadUsedInstruments(); if (this.graph) this.graph.sync(DAW.state.project); },
     play(from) {
       this.ensure();
       if (this.playing) this.stop();
@@ -423,7 +445,7 @@
     noteOff(v) { if (v) v.release(); },
     /* Offline bounce through the same graph. Returns an AudioBuffer. */
     async render(o) {
-      await DAW.samplesLoaded; // sampled kits must be decoded before bouncing
+      await DAW.samplesLoaded; await DAW.loadUsedInstruments(); // samples must be decoded before bouncing
       const p = DAW.state.project, spb = 60 / p.bpm, sr = o.sampleRate || 44100;
       const dur = (o.endBeat - o.startBeat) * spb + (o.tail == null ? 3 : o.tail) + 0.05;
       const octx = new OfflineAudioContext(2, Math.ceil(dur * sr), sr);
@@ -439,8 +461,23 @@
     if (window.native && window.native.readSample) return window.native.readSample(rel).then((b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
     return fetch('samples/' + rel).then((r) => { if (!r.ok) throw new Error(rel + ': ' + r.status); return r.arrayBuffer(); });
   }
+  const dctx = new OfflineAudioContext(2, 1, 44100); // only used for decoding
+  /* Sampled instruments are loaded the first time a track uses them. */
+  DAW.loadInst = (name) => {
+    const si = DAW.SAMPLE_INSTS[name];
+    if (!si) return Promise.resolve();
+    return si.loading || (si.loading = (async () => {
+      try {
+        for (const layer of si.layers) await Promise.all(layer.zones.map((z) => readSample(si.dir + '/' + z.file).then((ab) => dctx.decodeAudioData(ab)).then((b) => { z.buffer = b; })));
+        si.ready = true;
+      } catch (err) {
+        console.error('Could not load ' + name, err); si.loading = null;
+        if (DAW.toast) DAW.toast('Could not load the ' + name + ' samples', 6000);
+      }
+    })());
+  };
+  DAW.loadUsedInstruments = () => Promise.all(((DAW.state.project || {}).tracks || []).filter((t) => t.type === 'synth' && t.instrument.source !== 'synth').map((t) => DAW.loadInst(t.instrument.source)));
   DAW.samplesLoaded = (async () => {
-    const dctx = new OfflineAudioContext(2, 1, 44100);
     for (const name in DAW.SAMPLE_KITS) {
       const kit = DAW.SAMPLE_KITS[name];
       try {

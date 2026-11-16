@@ -28,7 +28,7 @@
 
   /* ---------- instruments ---------- */
   const baseSynth = () => ({
-    preset: 'Init',
+    preset: 'Init', source: 'synth', // source: 'synth' or the name of a sampled instrument
     osc1: { wave: 'sawtooth', oct: 0, level: 0.8 },
     osc2: { wave: 'sawtooth', oct: 0, detune: 8, level: 0.5 },
     noise: 0,
@@ -67,6 +67,13 @@
     s.preset = PRESETS[name] ? name : 'Init';
     return s;
   };
+  DAW.SAMPLE_INSTS = {}; // sampled instruments register themselves here (see instruments.js)
+  DAW.makeSampled = (name) => {
+    const s = baseSynth(), si = DAW.SAMPLE_INSTS[name];
+    s.source = name; s.preset = name; s.gain = 0.8; s.filter.cutoff = 18000;
+    s.amp = { a: 0.002, d: 0.2, s: 1, r: si ? si.release : 0.2 }; s.lfo = { rate: 5, pitch: 0, filter: 0 };
+    return s;
+  };
   DAW.makeDrums = (kit) => {
     const pads = {};
     for (const p of DAW.DRUM_PADS) pads[p.id] = { level: 0.8, tune: 0, decay: 1 };
@@ -76,7 +83,7 @@
   /* ---------- project ---------- */
   DAW.makeTrack = (type, name, preset, i) => ({
     id: DAW.uid(), name, type, color: DAW.COLORS[(i || 0) % DAW.COLORS.length],
-    instrument: type === 'drums' ? DAW.makeDrums(preset) : DAW.makeSynth(preset),
+    instrument: type === 'drums' ? DAW.makeDrums(preset) : DAW.SAMPLE_INSTS[preset] ? DAW.makeSampled(preset) : DAW.makeSynth(preset),
     volume: 0.75, pan: 0, mute: false, solo: false,
     eq: { low: 0, mid: 0, high: 0 }, drive: 0, comp: 0, sendA: 0, sendB: 0, clips: [],
   });
@@ -129,8 +136,8 @@
     drums.volume = 0.84; drums.sendA = 0.12; drums.comp = 0.5;
 
     const chords = [[57, 60, 64], [53, 57, 60], [55, 60, 64], [55, 59, 62]];
-    const roots = [45, 41, 48, 43];
-    const bass = DAW.makeTrack('synth', 'Bass', 'Sub Bass', 1);
+    const roots = [33, 29, 36, 31];
+    const bass = DAW.makeTrack('synth', 'Bass', 'Electric Bass', 1);
     const bn = [];
     roots.forEach((r, i) => {
       for (let b = 0; b < 2; b++) {
@@ -138,14 +145,14 @@
         bn.push(N(r, o, 0.7, 0.9), N(r, o + 0.75, 0.2, 0.7), N(r, o + 1.5, 0.45, 0.85), N(r + 12, o + 2.5, 0.2, 0.7), N(r, o + 3, 0.45, 0.85), N(r + 7, o + 3.5, 0.4, 0.7));
       }
     });
-    bass.clips.push(DAW.makeClip(0, 32, bn)); bass.volume = 0.66;
+    bass.clips.push(DAW.makeClip(0, 32, bn)); bass.volume = 0.86; bass.comp = 0.3;
 
-    const pad = DAW.makeTrack('synth', 'Pad', 'Warm Pad', 2);
+    const pad = DAW.makeTrack('synth', 'Keys', 'Electric Piano', 2);
     const pn = [];
-    chords.forEach((c, i) => c.forEach((n) => pn.push(N(n, i * 8, 8, 0.65))));
-    pad.clips.push(DAW.makeClip(0, 32, pn)); pad.sendA = 0.45; pad.volume = 0.68;
+    chords.forEach((c, i) => [0, 2.5, 4, 6.5].forEach((o, k) => c.forEach((n) => pn.push(N(n, i * 8 + o, k % 2 ? 1.4 : 2.4, k % 2 ? 0.55 : 0.75)))));
+    pad.clips.push(DAW.makeClip(0, 32, pn)); pad.sendA = 0.25; pad.volume = 0.7; pad.pan = -0.2;
 
-    const lead = DAW.makeTrack('synth', 'Pluck', 'Pluck', 3);
+    const lead = DAW.makeTrack('synth', 'Piano', 'Grand Piano', 3);
     const ln = [];
     const pat = [0, 2, 1, 2, 0, 2, 1, 3];
     chords.forEach((c, i) => {
@@ -155,7 +162,7 @@
         ln.push(N(pitch, i * 8 + s * 0.5, 0.4, s % 4 === 0 ? 0.9 : 0.6));
       }
     });
-    lead.clips.push(DAW.makeClip(0, 32, ln)); lead.sendB = 0.35; lead.sendA = 0.2; lead.volume = 0.66; lead.pan = 0.15;
+    lead.clips.push(DAW.makeClip(0, 32, ln)); lead.sendB = 0.12; lead.sendA = 0.3; lead.volume = 0.7; lead.pan = 0.2;
 
     p.tracks = [drums, bass, pad, lead];
     return p;

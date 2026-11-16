@@ -126,6 +126,7 @@ input[type=range] { accent-color: var(--accent); }
 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .inst-head label { color: var(--dim); display: flex; align-items: center; gap: 6px; }
 .hint { color: #6b6456; }
+.credit { padding: 0 12px 12px; }
 .groups { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 12px 14px; align-content: flex-start; }
 .group { background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px 9px; }
 .group-title { font-size: 10px; letter-spacing: .12em; color: var(--dim); margin-bottom: 7px; }

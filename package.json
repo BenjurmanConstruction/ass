@@ -1,0 +1,25 @@
+{
+  "name": "sable-daw",
+  "productName": "Sable",
+  "version": "1.0.0",
+  "description": "A desktop DAW: arrangement timeline, piano roll, built-in synth and drum machine, mixer, WAV export.",
+  "main": "main.js",
+  "author": "You",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.sable.daw",
+    "productName": "Sable",
+    "files": ["main.js", "preload.js", "src/**/*"],
+    "mac": { "category": "public.app-category.music" },
+    "win": { "target": "nsis" },
+    "linux": { "target": "AppImage", "category": "AudioVideo" }
+  }
+}

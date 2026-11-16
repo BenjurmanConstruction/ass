@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:">
+<title>Sable</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">SABLE<span id="projName"></span></div>
+    <div class="cluster transport">
+      <button id="btnStop" class="tp" title="Stop / return to start">■</button>
+      <button id="btnPlay" class="tp play" title="Play / stop (Space)">▶</button>
+      <button id="btnRec" class="tp rec" title="Record keyboard notes while playing (R)">●</button>
+      <button id="btnLoop" class="tp" title="Loop on/off">⟲</button>
+      <button id="btnMetro" class="tp" title="Metronome (M)">♩</button>
+    </div>
+    <div class="lcd"><span id="posBars">1.1.1</span><span id="posTime">0:00.0</span></div>
+    <label class="field">BPM<input id="bpm" type="number" min="40" max="260" step="1"></label>
+    <label class="field">Swing<input id="swing" type="range" min="0" max="1" step="0.01"><span id="swingVal">0%</span></label>
+    <label class="field">Snap<select id="snap"></select></label>
+    <div class="grow"></div>
+    <div class="cluster">
+      <button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+      <button id="btnRedo" title="Redo (Ctrl+Shift+Z)">↷</button>
+    </div>
+    <div class="cluster">
+      <button id="btnNew" title="New project (Ctrl+N)">New</button>
+      <button id="btnOpen" title="Open project (Ctrl+O)">Open</button>
+      <button id="btnSave" title="Save project (Ctrl+S)">Save</button>
+      <button id="btnExport" class="primary" title="Export WAV (Ctrl+E)">Export WAV</button>
+    </div>
+    <div class="master-meter" title="Master output level"><div id="masterFill" class="meter-fill"></div></div>
+  </header>
+
+  <section id="arrange"><div id="arrScroll"><div id="arrInner"></div></div></section>
+  <div id="splitter" title="Drag to resize"></div>
+  <section id="bottom">
+    <nav id="tabs">
+      <button data-tab="piano" title="Piano roll (1)">Piano Roll</button>
+      <button data-tab="inst" title="Instrument (2)">Instrument</button>
+      <button data-tab="mixer" title="Mixer (3)">Mixer</button>
+    </nav>
+    <div id="tabPiano" class="tab"></div>
+    <div id="tabInst" class="tab hidden"></div>
+    <div id="tabMixer" class="tab hidden"></div>
+  </section>
+</div>
+
+<div id="modal" class="hidden">
+  <div class="dialog">
+    <h2>Export WAV</h2>
+    <div class="row"><span>Range</span>
+      <label><input type="radio" name="exRange" id="exSong" checked> Whole song</label>
+      <label><input type="radio" name="exRange" id="exLoop"> Loop region</label>
+    </div>
+    <div class="row"><span>Sample rate</span><select id="exRate"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select></div>
+    <div class="row"><span>Bit depth</span><select id="exBits"><option value="16">16-bit</option><option value="24">24-bit</option></select></div>
+    <div class="row"><span>Tail</span><label><input type="checkbox" id="exTail" checked> Add 3 s for reverb and delay tails</label></div>
+    <div id="exStatus"></div>
+    <div class="actions"><button id="exCancel">Cancel</button><button id="exGo" class="primary">Export</button></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="js/core.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/arrange.js"></script>
+<script src="js/pianoroll.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

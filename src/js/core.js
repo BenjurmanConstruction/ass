@@ -195,7 +195,7 @@
   };
 
   /* ---------- state, events, history ---------- */
-  DAW.state = { chordLen: 4, scaleHint: true, chordKeys: false, project: null, selTrackId: null, selClipId: null, snap: 0.25, metronome: false, recording: false, playing: false, filePath: null, dirty: false, focus: 'arrange', tab: 'piano' };
+  DAW.state = { stepInput: true, chordLen: 4, scaleHint: true, chordKeys: false, project: null, selTrackId: null, selClipId: null, snap: 0.25, metronome: false, recording: false, playing: false, filePath: null, dirty: false, focus: 'arrange', tab: 'piano' };
   const L = {};
   DAW.on = (e, f) => (L[e] || (L[e] = [])).push(f);
   DAW.emit = (e, a) => (L[e] || []).forEach((f) => f(a));

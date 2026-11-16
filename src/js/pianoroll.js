@@ -109,7 +109,7 @@
         h('b', {}, DAW.chordName(key, d)), h('i', {}, DAW.ROMAN[key.scale][d]))),
       lenSel, prog, h('span', { class: 'sep' }),
       toggle('Show scale', 'scaleHint', 'Dim the notes that are outside the key, so the bright rows are the ones that sound good together'),
-      toggle('One-key chords', 'chordKeys', 'Keys A S D F G H J play (and record) the seven chords instead of single notes', () => DAW.toast(s.chordKeys ? 'One-key chords on: A S D F G H J play the seven chords' : 'One-key chords off', 2600)));
+      toggle('One-key chords', 'chordKeys', 'Keys A S D F G H J play (and record) the seven chords instead of single notes', () => { DAW.emit('change'); DAW.toast(s.chordKeys ? 'One-key chords on: A S D F G H J play the seven chords' : 'One-key chords off', 2600); }));
   }
 
   function syncBar() {
@@ -173,6 +173,16 @@
       scroller.scrollTop = G.drum ? 0 : (G.hi - mid) * G.rowH - (vh - RULER_H - VEL_H) / 2;
       scroller.scrollLeft = 0;
     }
+    P.draw();
+  };
+
+  /* keep the playhead (and optionally a pitch) in view, e.g. while step-writing notes */
+  P.reveal = function (pitch) {
+    const r = cur(); if (!r || !vw) return;
+    const G = geom(r.track), gh = vh - RULER_H - VEL_H;
+    if (pitch != null) { const y = (G.hi - pitch) * G.rowH; if (y < scroller.scrollTop || y > scroller.scrollTop + gh - G.rowH) scroller.scrollTop = y - gh / 2; }
+    const x = (DAW.transport.beat() - r.clip.start) * P.ppb;
+    if (x < scroller.scrollLeft || x > scroller.scrollLeft + vw - KEY_W - 60) scroller.scrollLeft = Math.max(0, x - (vw - KEY_W) / 3);
     P.draw();
   };
 

@@ -40,7 +40,7 @@
       preset.value = current;
       preset.addEventListener('change', () => { t.instrument = DAW.SAMPLE_INSTS[preset.value] ? DAW.makeSampled(preset.value) : DAW.makeSynth(preset.value); preset.blur(); DAW.commit(); });
       if (sampled) {
-        root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Sound ', preset), h('span', { class: 'hint', text: 'Play with your keyboard: A S D F G H J K = white keys, W E T Y U = black keys, Z / X = octave' })),
+        root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Sound ', preset), h('span', { class: 'hint', text: 'Play with your computer keyboard: see the on-screen keys above' })),
           h('div', { class: 'groups' },
             group('SOUND', K('Attack', s.amp, 'a', 0.002, 1, { log: true, fmt: F.sec, def: 0.002 }), K('Release', s.amp, 'r', 0.02, 3, { log: true, fmt: F.sec, def: sampled.release }), K('Tone', s.filter, 'cutoff', 200, 18000, { log: true, fmt: F.hz, def: 18000 }), K('Gain', s, 'gain', 0, 1.5, { fmt: F.pct, def: 0.8 })),
             group('VIBRATO', K('Rate', s.lfo, 'rate', 0.05, 20, { log: true, fmt: (v) => v.toFixed(2) + 'Hz', def: 5 }), K('Depth', s.lfo, 'pitch', 0, 100, { fmt: (v) => v.toFixed(0) + 'c', def: 0 }))),
@@ -48,7 +48,7 @@
         root.scrollLeft = keep; return;
       }
       const adsr = (e) => [K('A', e, 'a', 0.001, 3, { log: true, fmt: F.sec, def: 0.005 }), K('D', e, 'd', 0.01, 4, { log: true, fmt: F.sec, def: 0.2 }), K('S', e, 's', 0, 1, { fmt: F.pct, def: 0.7 }), K('R', e, 'r', 0.01, 5, { log: true, fmt: F.sec, def: 0.2 })];
-      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Sound ', preset), h('span', { class: 'hint', text: 'Play with your keyboard: A S D F G H J K = white keys, W E T Y U = black keys, Z / X = octave' })),
+      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Sound ', preset), h('span', { class: 'hint', text: 'Play with your computer keyboard: see the on-screen keys above' })),
         h('div', { class: 'groups' },
           group('OSC 1', sel(s.osc1, 'wave', WAVES, 'Waveform'), K('Octave', s.osc1, 'oct', -2, 2, { step: 1, fmt: F.int, def: 0 }), K('Level', s.osc1, 'level', 0, 1, { fmt: F.pct, def: 0.8 })),
           group('OSC 2', sel(s.osc2, 'wave', WAVES, 'Waveform'), K('Octave', s.osc2, 'oct', -2, 2, { step: 1, fmt: F.int, def: 0 }), K('Detune', s.osc2, 'detune', -50, 50, { step: 1, fmt: F.int, def: 0 }), K('Level', s.osc2, 'level', 0, 1, { fmt: F.pct, def: 0.5 }), K('Noise', s, 'noise', 0, 1, { fmt: F.pct, def: 0 })),
@@ -60,7 +60,7 @@
           group('OUTPUT', K('Gain', s, 'gain', 0, 1.2, { fmt: F.pct, def: 0.7 }))));
     } else {
       const d = t.instrument;
-      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Kit ', sel(d, 'kit', DAW.KITS, 'Drum kit')), h('span', { class: 'hint', text: 'Click a pad to hear it. Keyboard: A W S E D F T G Y H U J trigger the 12 pads' })),
+      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Kit ', sel(d, 'kit', DAW.KITS, 'Drum kit')), h('span', { class: 'hint', text: 'Click a pad to hear it. Keyboard: the home row from A to \\ plays the 12 pads' })),
         h('div', { class: 'groups' }, DAW.DRUM_PADS.map((p0, i) => {
           const pp = d.pads[p0.id], pad = { name: DAW.padName(d, i) };
           const hit = h('button', { class: 'pad', title: 'Audition ' + pad.name, onpointerdown: () => DAW.engine.noteOn(t, DAW.DRUM_BASE + i, 0.9) }, pad.name);

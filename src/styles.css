@@ -94,7 +94,7 @@ input[type=range] { accent-color: var(--accent); }
 /* ---------- bottom panel ---------- */
 #splitter { height: 5px; background: var(--line); cursor: ns-resize; flex: none; }
 #splitter:hover { background: var(--accent); }
-#bottom { height: 46vh; min-height: 180px; flex: none; display: flex; flex-direction: column; background: var(--panel); }
+#bottom { height: 56vh; min-height: 180px; flex: none; display: flex; flex-direction: column; background: var(--panel); }
 #tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); flex: none; }
 #tabs button { border-radius: 4px 4px 0 0; border-bottom: none; background: transparent; color: var(--dim); height: 26px; }
 #tabs button.on { background: var(--raised2); color: var(--text); }
@@ -115,6 +115,23 @@ input[type=range] { accent-color: var(--accent); }
 .pr-spacer { position: relative; min-width: 100%; min-height: 100%; }
 .pr-canvas { position: sticky; left: 0; top: 0; display: block; }
 .pr-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--dim); padding: 24px; text-align: center; }
+
+/* ---------- on-screen keyboard ---------- */
+#kbd { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 8px 12px; background: #17150f; border-bottom: 1px solid var(--line); flex: none; min-height: 86px; }
+.kbd-write { height: 30px; white-space: nowrap; }
+.kbd-piano { position: relative; height: 70px; flex: none; }
+.kbd-white { position: absolute; top: 0; height: 70px; background: #e9e1d0; border-radius: 0 0 4px 4px; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 5px; color: #3a342a; }
+.kbd-black { position: absolute; top: 0; width: 30px; height: 42px; background: #191713; border: 1px solid #000; border-top: none; border-radius: 0 0 3px 3px; cursor: pointer; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 4px; color: #d8d0c0; z-index: 2; }
+.kbd-white i, .kbd-black i, .kbd-pad i { font: 700 12px var(--mono); font-style: normal; }
+.kbd-white u { font: 9px var(--mono); text-decoration: none; color: #8a8170; }
+.kbd-white.down, .kbd-black.down, .kbd-pad.down { background: var(--accent); color: #1b1408; }
+.kbd-pads { display: flex; gap: 4px; }
+.kbd-pad { width: 74px; height: 62px; background: var(--raised2); border: 1px solid var(--line); border-radius: 5px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.kbd-pad b { font-size: 11px; white-space: nowrap; }
+.kbd-pad i { color: var(--accent); }
+.kbd-pad.down i { color: #1b1408; }
+.kbd-oct { display: flex; align-items: center; gap: 6px; color: var(--dim); white-space: nowrap; font: 11px var(--mono); }
+.kbd-note { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
 /* ---------- knobs / groups ---------- */
 .knob { width: 50px; display: flex; flex-direction: column; align-items: center; gap: 1px; }

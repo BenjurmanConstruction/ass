@@ -40,7 +40,8 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 - One-key chords makes the keys `A S D F G H J` play (and record) those seven chords.
 
 **Playing and recording**
-- Computer keyboard plays the selected track: `A S D F G H J K` are white keys, `W E T Y U` black keys, `Z` / `X` change octave. On drum tracks the same keys trigger the 12 pads.
+- An on-screen keyboard above the tabs shows which computer key plays what, lights up as you play, and can be clicked. The home row from `A` to `\\` is twelve white keys left to right; `W E T Y U O P ]` are the black keys; `Z` / `X` change octave. On drum tracks `A` to `\\` are the 12 drums in order.
+- **Writing notes** (on by default): while the song is stopped, every key you press is written into the clip at the playhead, which then steps forward by the Snap value. Hold keys together to write a chord. Turn it off to play without writing.
 - Arm record (`R`), press play, and what you play is written into the clip under the playhead (a new clip is created if there isn't one), quantized to Snap.
 
 **Shortcuts**

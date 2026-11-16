@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # needed to attach the installers to the "sable-latest" release
 
 jobs:
   build:
@@ -38,3 +38,15 @@ jobs:
             dist/*.dmg
             dist/*.AppImage
           if-no-files-found: error
+      # One permanent download link per platform. Marked as a pre-release so it never
+      # replaces the phone app's builds as the repository's "Latest" release.
+      - name: Attach installer to the sable-latest release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view sable-latest >/dev/null 2>&1 || gh release create sable-latest --prerelease --target sable-daw \
+            --title "Sable DAW (latest build)" --notes "Automatic build of the Sable desktop DAW from the sable-daw branch. Windows: download Sable-Setup.exe." || true
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.dmg dist/*.AppImage)
+          gh release upload sable-latest "${files[@]}" --clobber

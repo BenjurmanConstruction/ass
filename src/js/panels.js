@@ -35,7 +35,7 @@
       const current = sampled ? s.source : s.preset;
       const preset = h('select', { title: 'Choose a real instrument or a synth preset' },
         DAW.SYNTH_PRESETS.includes(current) || DAW.SAMPLE_INSTS[current] ? null : h('option', { value: current }, current + ' (custom)'),
-        h('optgroup', { label: 'Real instruments' }, Object.keys(DAW.SAMPLE_INSTS).map((n) => h('option', { value: n }, n))),
+        [...new Set(Object.values(DAW.SAMPLE_INSTS).map((i) => i.group || 'Real instruments'))].map((grp) => h('optgroup', { label: grp }, Object.keys(DAW.SAMPLE_INSTS).filter((n) => (DAW.SAMPLE_INSTS[n].group || 'Real instruments') === grp).map((n) => h('option', { value: n }, n)))),
         h('optgroup', { label: 'Synth presets' }, DAW.SYNTH_PRESETS.map((n) => h('option', { value: n }, n))));
       preset.value = current;
       preset.addEventListener('change', () => { t.instrument = DAW.SAMPLE_INSTS[preset.value] ? DAW.makeSampled(preset.value) : DAW.makeSynth(preset.value); preset.blur(); DAW.commit(); });
@@ -44,7 +44,7 @@
           h('div', { class: 'groups' },
             group('SOUND', K('Attack', s.amp, 'a', 0.002, 1, { log: true, fmt: F.sec, def: 0.002 }), K('Release', s.amp, 'r', 0.02, 3, { log: true, fmt: F.sec, def: sampled.release }), K('Tone', s.filter, 'cutoff', 200, 18000, { log: true, fmt: F.hz, def: 18000 }), K('Gain', s, 'gain', 0, 1.5, { fmt: F.pct, def: 0.8 })),
             group('VIBRATO', K('Rate', s.lfo, 'rate', 0.05, 20, { log: true, fmt: (v) => v.toFixed(2) + 'Hz', def: 5 }), K('Depth', s.lfo, 'pitch', 0, 100, { fmt: (v) => v.toFixed(0) + 'c', def: 0 }))),
-          h('div', { class: 'hint credit', text: 'Recorded instrument: ' + sampled.credit + '. Use the mixer for EQ, drive, compression and effects.' }));
+          h('div', { class: 'hint credit', text: 'Recorded instrument: ' + sampled.credit + '. Use the mixer for EQ, drive, compression and effects.' + (/bass/i.test(s.source) ? ' Basses are meant to be played low: the keyboard starts two octaves down on this track (Z / X to move).' : '') }));
         root.scrollLeft = keep; return;
       }
       const adsr = (e) => [K('A', e, 'a', 0.001, 3, { log: true, fmt: F.sec, def: 0.005 }), K('D', e, 'd', 0.01, 4, { log: true, fmt: F.sec, def: 0.2 }), K('S', e, 's', 0, 1, { fmt: F.pct, def: 0.7 }), K('R', e, 'r', 0.01, 5, { log: true, fmt: F.sec, def: 0.2 })];
@@ -60,7 +60,7 @@
           group('OUTPUT', K('Gain', s, 'gain', 0, 1.2, { fmt: F.pct, def: 0.7 }))));
     } else {
       const d = t.instrument;
-      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Kit ', sel(d, 'kit', DAW.KITS, 'Drum kit')), h('span', { class: 'hint', text: 'Click a pad to hear it. Keyboard: the home row from A to \\ plays the 12 pads' })),
+      root.append(h('div', { class: 'inst-head' }, title, h('label', {}, 'Kit ', sel(d, 'kit', DAW.KITS.map((k) => [k, DAW.SAMPLE_KITS[k] ? k : k + ' (synth)']), 'Drum kit')), h('span', { class: 'hint', text: 'Click a pad to hear it. Keyboard: the home row from A to \\ plays the 12 pads' })),
         h('div', { class: 'groups' }, DAW.DRUM_PADS.map((p0, i) => {
           const pp = d.pads[p0.id], pad = { name: DAW.padName(d, i) };
           const hit = h('button', { class: 'pad', title: 'Audition ' + pad.name, onpointerdown: () => DAW.engine.noteOn(t, DAW.DRUM_BASE + i, 0.9) }, pad.name);

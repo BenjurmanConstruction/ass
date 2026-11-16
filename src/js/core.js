@@ -20,7 +20,7 @@
     { id: 'ltom', name: 'Low Tom' }, { id: 'mtom', name: 'Mid Tom' }, { id: 'htom', name: 'High Tom' },
     { id: 'cow', name: 'Cowbell' }, { id: 'crash', name: 'Crash' }, { id: 'ride', name: 'Ride' },
   ];
-  DAW.KITS = ['Rock Kit', '808 Deep', '909 Punch', 'Lo-Fi Dust'];
+  DAW.KITS = ['Rock Kit', 'Boom Kit', 'Club Kit', 'Punch Kit', '808 Deep', '909 Punch', 'Lo-Fi Dust']; // the last three are synthesized
   DAW.SAMPLE_KITS = {}; // sampled kits register themselves here (see kit-rock.js)
   DAW.padName = (inst, i) => { const k = DAW.SAMPLE_KITS[inst.kit], p = DAW.DRUM_PADS[i]; return k && k.pads[p.id] ? k.pads[p.id].name : p.name; };
   DAW.DELAY_TIMES = { '1/4': 1, '1/8d': 0.75, '1/8': 0.5, '1/8t': 1 / 3, '1/16': 0.25 };
@@ -93,9 +93,11 @@
     return s;
   };
   DAW.SAMPLE_INSTS = {}; // sampled instruments register themselves here (see instruments.js)
+  /** Octave the computer keyboard should start in for a track (basses sit low). */
+  DAW.trackOctave = (t) => (t && t.type === 'synth' && /bass/i.test(t.instrument.source) ? 1 : 4);
   DAW.makeSampled = (name) => {
     const s = baseSynth(), si = DAW.SAMPLE_INSTS[name];
-    s.source = name; s.preset = name; s.gain = 0.8; s.filter.cutoff = 18000;
+    s.source = name; s.preset = name; s.gain = si && si.group === 'Beat basses' ? 1.2 : 0.8; s.filter.cutoff = 18000;
     s.amp = { a: 0.002, d: 0.2, s: 1, r: si ? si.release : 0.2 }; s.lfo = { rate: 5, pitch: 0, filter: 0 };
     return s;
   };

@@ -12,4 +12,9 @@ wurli/  Electric Piano: Wurlitzer EP200 Electric Piano v1.1 by Greg Sullivan (ht
 piano/  Grand Piano: Splendid Grand Piano (Steinway), samples released to the public domain by Akai.
         https://github.com/sfzinstruments/SplendidGrandPiano
 
+boom/ club/ punch/   Boom, Club and Punch drum kits, and
+b808/ bthick/ bsmooth/ btrance/ bhard/ bdnb/   the beat basses:
+        from the Sonic Pi sample set (sounds from freesound.org contributors). CC0 1.0 (public domain).
+        https://github.com/sonic-pi-net/sonic-pi/tree/dev/etc/samples
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

@@ -273,7 +273,8 @@
     DAW.arrange.init(); DAW.pianoroll.init(); DAW.instrument.init(); DAW.mixer.init(); initTop(); initLayout();
     $('exGo').onclick = doExport; $('exCancel').onclick = closeExport;
     $('modal').addEventListener('pointerdown', (e) => { if (e.target === $('modal')) closeExport(); });
-    DAW.on('change', renderKbd);
+    let lastTrack = null;
+    DAW.on('change', () => { const t = DAW.selTrack(), sig = t ? t.id + '|' + (t.instrument.source || '') : ''; if (sig !== lastTrack) { lastTrack = sig; octave = DAW.trackOctave(t); } renderKbd(); });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', (e) => releaseKey(e.key.toLowerCase()));
     window.addEventListener('blur', () => [...held.keys()].forEach(releaseKey));

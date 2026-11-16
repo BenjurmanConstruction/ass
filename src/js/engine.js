@@ -447,12 +447,17 @@
     async render(o) {
       await DAW.samplesLoaded; await DAW.loadUsedInstruments(); // samples must be decoded before bouncing
       const p = DAW.state.project, spb = 60 / p.bpm, sr = o.sampleRate || 44100;
-      const dur = (o.endBeat - o.startBeat) * spb + (o.tail == null ? 3 : o.tail) + 0.05;
-      const octx = new OfflineAudioContext(2, Math.ceil(dur * sr), sr);
+      // Web Audio compressors duck whatever plays in the first moments after a context starts, so render
+      // half a second of silence first and cut it off afterwards; otherwise the first drum hit comes out quiet.
+      const PRE = 0.5, dur = (o.endBeat - o.startBeat) * spb + (o.tail == null ? 3 : o.tail) + 0.05;
+      const octx = new OfflineAudioContext(2, Math.ceil((dur + PRE) * sr), sr);
       const g = new Graph(octx, false);
       g.sync(p);
-      DAW.scheduleRange(g, p, o.startBeat, o.endBeat, (b) => 0.02 + (b - o.startBeat) * spb);
-      return octx.startRendering();
+      DAW.scheduleRange(g, p, o.startBeat, o.endBeat, (b) => PRE + 0.02 + (b - o.startBeat) * spb);
+      const full = await octx.startRendering(), skip = Math.floor(PRE * sr);
+      const out = new AudioBuffer({ length: full.length - skip, numberOfChannels: 2, sampleRate: sr });
+      for (let c = 0; c < 2; c++) out.copyToChannel(full.getChannelData(c).subarray(skip), c);
+      return out;
     },
   });
 

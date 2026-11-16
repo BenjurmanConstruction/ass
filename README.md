@@ -51,6 +51,7 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 
 **Sound**
 - Real instruments: **Electric Bass** (Squier Jazz bass), **Electric Piano** (Wurlitzer EP200) and **Grand Piano** (Steinway), each recorded at two dynamics across the keyboard, with attack, release, tone, gain and vibrato controls. Pick them from the Sound menu in the Instrument tab.
+- Beat kits and basses: **Boom**, **Club** and **Punch** kits made from recorded electronic drum hits, and six beat basses (808 Bass, Thick, Smooth, Trance, Hard, DnB) that play across the keyboard.
 - Synth: two oscillators plus noise, unison (up to 5 detuned voices spread in stereo), multimode resonant filter with its own envelope, amp envelope, LFO to pitch and filter, 13 presets.
 - Drums: the **Rock Kit** is a real acoustic kit (24" kick, snare, rimshot, sidestick, hats, three toms, china, crash, ride) with several velocity layers and alternating takes per drum, so soft and hard hits sound different. Three synthesized electronic kits (808, 909, lo-fi) are also included. Every pad has level / tune / decay. Closed hat chokes open hat.
 - Mixer: per-track 3-band EQ, drive, one-knob compressor, pan, reverb and delay sends, mute/solo, meters.
@@ -84,6 +85,7 @@ src/js/app.js        transport, shortcuts, files, export dialog
 - **Electric Bass:** [Growlybass](https://github.com/sfzinstruments/karoryfer.growlybass) by Karoryfer Samples, CC0 1.0.
 - **Electric Piano:** Wurlitzer EP200 samples by [Greg Sullivan](http://www.sullivang.net/), from [GregSullivan.E-Pianos](https://github.com/sfzinstruments/GregSullivan.E-Pianos), licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). A subset of notes was trimmed, level-matched and converted to Ogg Vorbis.
 - **Grand Piano:** [Splendid Grand Piano](https://github.com/sfzinstruments/SplendidGrandPiano), Steinway samples released to the public domain by Akai.
+- **Boom / Club / Punch kits and the beat basses:** the [Sonic Pi sample set](https://github.com/sonic-pi-net/sonic-pi/tree/dev/etc/samples), CC0 1.0.
 
 Details are in `src/samples/CREDITS.txt`.
 

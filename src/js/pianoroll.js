@@ -175,7 +175,7 @@
       lastClip = r.clip.id; P.sel.clear();
       resize();
       const G = geom(r.track);
-      let mid = 60;
+      let mid = 12 * (DAW.trackOctave(r.track) + 1) + 7;
       if (r.clip.notes.length) mid = r.clip.notes.reduce((a, n) => a + n.pitch, 0) / r.clip.notes.length;
       scroller.scrollTop = G.drum ? 0 : (G.hi - mid) * G.rowH - (vh - RULER_H - VEL_H) / 2;
       scroller.scrollLeft = 0;

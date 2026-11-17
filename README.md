@@ -53,6 +53,7 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 **Sound**
 - Real instruments: **Electric Bass** (Squier Jazz bass), **Electric Piano** (Wurlitzer EP200) and **Grand Piano** (Steinway), each recorded at two dynamics across the keyboard, with attack, release, tone, gain and vibrato controls. Pick them from the Sound menu in the Instrument tab.
 - Orchestra and guitars: **Trumpet, Trombone, French Horn, Flute, Violin, String Section** (sustained notes hold for as long as you hold the key), **Acoustic Guitar** and **Electric Guitar**.
+- More real instruments: **Tenor, Alto and Baritone Sax, Harmonica, Ocarina, Pipe Organ, FM Electric Piano, Upright Piano, Harpsichord, Vibraphone, Marimba, Glockenspiel, Harp**, and a **Percussion Kit** (cajon, congas, bongo, clap, claves, shaker, tambourine, cowbell, triangle).
 - Beat kits and basses: **Boom**, **Club** and **Punch** kits made from recorded electronic drum hits, and six beat basses (808 Bass, Thick, Smooth, Trance, Hard, DnB) that play across the keyboard.
 - Synth: two oscillators plus noise, unison (up to 5 detuned voices spread in stereo), multimode resonant filter with its own envelope, amp envelope, LFO to pitch and filter, 13 presets.
 - Drums: the **Rock Kit** is a real acoustic kit (24" kick, snare, rimshot, sidestick, hats, three toms, china, crash, ride) with several velocity layers and alternating takes per drum, so soft and hard hits sound different. Three synthesized electronic kits (808, 909, lo-fi) are also included. Every pad has level / tune / decay. Closed hat chokes open hat.
@@ -90,6 +91,7 @@ src/js/app.js        transport, shortcuts, files, export dialog
 - **Boom / Club / Punch kits and the beat basses:** the [Sonic Pi sample set](https://github.com/sonic-pi-net/sonic-pi/tree/dev/etc/samples), CC0 1.0.
 - **Brass, flute, violin, strings:** [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) by Versilian Studios, CC0 1.0.
 - **Guitars:** [Shinyguitar](https://github.com/sfzinstruments/karoryfer.shinyguitar) and [Emilyguitar](https://github.com/sfzinstruments/karoryfer.emilyguitar) by Karoryfer Samples, CC0 1.0.
+- **Saxes, organ, keys, mallets, harp, percussion:** [VCSL](https://github.com/sgossner/VCSL) by Versilian Studios, plus [Weresax](https://github.com/sfzinstruments/karoryfer.weresax) and [Bear Sax](https://github.com/sfzinstruments/karoryfer.bear-sax) by Karoryfer Samples, all CC0 1.0.
 
 Details are in `src/samples/CREDITS.txt`.
 

@@ -25,4 +25,12 @@ gacoustic/   Acoustic Guitar: Shinyguitar by Karoryfer Samples. CC0 1.0.
 gelectric/   Electric Guitar: Emilyguitar (Epiphone, recorded direct) by Karoryfer Samples. CC0 1.0.
         https://github.com/sfzinstruments/karoryfer.emilyguitar
 
+tsax/ organ/ harmonica/ ocarina/ fmpiano/ upright/ harpsi/ vibes/ marimba/ glock/ harp/ perc/
+        Tenor sax, pipe organ, harmonica, ocarina, FM electric piano (Yamaha TX81Z), upright piano, harpsichord,
+        vibraphone, marimba, glockenspiel, harp and the Percussion Kit:
+        Versilian Community Sample Library (VCSL) by Versilian Studios. CC0 1.0 (public domain).
+        https://github.com/sgossner/VCSL
+asax/   Alto Sax: Weresax by Karoryfer Samples. CC0 1.0.  https://github.com/sfzinstruments/karoryfer.weresax
+bsax/   Baritone Sax: Bear Sax by Karoryfer Samples. CC0 1.0.  https://github.com/sfzinstruments/karoryfer.bear-sax
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

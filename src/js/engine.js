@@ -258,6 +258,7 @@
       if (pp.decay < 0.98) g.gain.setTargetAtTime(0, t + 0.02, 0.04 + 0.6 * pp.decay * pp.decay); // Decay below 1x tightens the hit
       src.connect(g).connect(ch.input); src.start(t);
       src.onended = () => g.disconnect();
+      if (sp.free) return; // kits without hi-hats: nothing chokes anything
       if (padId === 'chat') this.chokeHats(ch, t);
       if (padId === 'ohat') ch.openHats.push({ g, t, end: t + buf.duration / rate, fade: 0.03 });
     }

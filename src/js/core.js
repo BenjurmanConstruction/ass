@@ -20,7 +20,7 @@
     { id: 'ltom', name: 'Low Tom' }, { id: 'mtom', name: 'Mid Tom' }, { id: 'htom', name: 'High Tom' },
     { id: 'cow', name: 'Cowbell' }, { id: 'crash', name: 'Crash' }, { id: 'ride', name: 'Ride' },
   ];
-  DAW.KITS = ['Rock Kit', 'Boom Kit', 'Club Kit', 'Punch Kit', '808 Deep', '909 Punch', 'Lo-Fi Dust']; // the last three are synthesized
+  DAW.KITS = ['Rock Kit', 'Percussion Kit', 'Boom Kit', 'Club Kit', 'Punch Kit', '808 Deep', '909 Punch', 'Lo-Fi Dust']; // the last three are synthesized
   DAW.SAMPLE_KITS = {}; // sampled kits register themselves here (see kit-rock.js)
   DAW.padName = (inst, i) => { const k = DAW.SAMPLE_KITS[inst.kit], p = DAW.DRUM_PADS[i]; return k && k.pads[p.id] ? k.pads[p.id].name : p.name; };
   DAW.DELAY_TIMES = { '1/4': 1, '1/8d': 0.75, '1/8': 0.5, '1/8t': 1 / 3, '1/16': 0.25 };

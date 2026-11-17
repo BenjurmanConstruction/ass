@@ -164,7 +164,9 @@
       let z = layer.zones[0];
       for (const c of layer.zones) if (Math.abs(c.root - pitch) < Math.abs(z.root - pitch)) z = c;
       const src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), vca = ctx.createGain();
-      src.buffer = z.buffer; src.playbackRate.value = Math.pow(2, (pitch - z.root + (si.tune || 0) / 100) / 12); // si.tune: measured correction in cents
+      src.buffer = z.buffer;
+      if (z.loop) { src.loop = true; src.loopStart = z.loop[0]; src.loopEnd = z.loop[1]; } // sustained instruments hold for as long as the note
+      src.playbackRate.value = Math.pow(2, (pitch - z.root + (si.tune || 0) / 100) / 12); // si.tune: measured correction in cents
       lp.type = 'lowpass'; lp.Q.value = 0.5; lp.frequency.value = DAW.clamp(p.filter.cutoff, 200, 20000);
       const amp = Math.min(3, Math.pow(v, 1.4) / layer.rel) * p.gain * 0.7, a = Math.max(p.amp.a, 0.002), rel = Math.max(p.amp.r, 0.02);
       vca.gain.setValueAtTime(0, t); vca.gain.linearRampToValueAtTime(amp, t + a);

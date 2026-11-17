@@ -133,6 +133,12 @@ input[type=range] { accent-color: var(--accent); }
 .kbd-oct { display: flex; align-items: center; gap: 6px; color: var(--dim); white-space: nowrap; font: 11px var(--mono); }
 .kbd-note { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
+.kbd-now { width: 210px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; text-align: right; }
+.kbd-now-lab { font: 9px var(--mono); letter-spacing: .12em; color: var(--dim); }
+#kbdNow b { display: block; font-size: 17px; color: var(--accent); white-space: nowrap; }
+#kbdNow i { display: block; font: 10px var(--mono); font-style: normal; color: var(--dim); min-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+.tnow { font: 700 10px var(--mono); color: var(--accent); white-space: nowrap; max-width: 78px; overflow: hidden; text-overflow: ellipsis; }
+
 /* ---------- knobs / groups ---------- */
 .knob { width: 50px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .knob-svg { width: 38px; height: 38px; cursor: ns-resize; touch-action: none; }

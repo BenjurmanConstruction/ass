@@ -278,7 +278,9 @@
         if (black) g.fillRect(0, Math.round(y + G.rowH / 2), KEY_W, 1);      // join between two white keys, under the black key
         if (pc === 5 || pc === 0) g.fillRect(0, y + G.rowH - 1, KEY_W, 1);   // E|F and B|C sit side by side with no black key
         if (black) { g.fillStyle = '#191713'; g.fillRect(0, y + 1, KEY_W * 0.6, G.rowH - 2); }
-        if (pc === 0) { g.fillStyle = '#5a5347'; g.fillText(DAW.noteName(pitch), KEY_W - 24, y + G.rowH / 2 + 0.5); }
+        // every key carries its note name and octave number
+        if (black) { g.fillStyle = '#b9b09d'; g.fillText(DAW.noteName(pitch), 5, y + G.rowH / 2 + 0.5); }
+        else { g.fillStyle = pc === 0 ? '#1b1408' : '#6a6253'; g.font = (pc === 0 ? '700 ' : '') + '10px ui-monospace, Menlo, Consolas, monospace'; g.fillText(DAW.noteName(pitch), KEY_W - 22, y + G.rowH / 2 + 0.5); g.font = '10px ui-monospace, Menlo, Consolas, monospace'; }
       }
       if (G.drum) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, y, KEY_W, 1); }
     }

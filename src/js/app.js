@@ -14,7 +14,8 @@
     seek(b) { this.pos = Math.max(0, b); if (E.playing) E.play(this.pos); },
   });
 
-  let lastBeat = -1;
+  let lastBeat = -1, nowSig = '', nowDirty = 1;
+  DAW.on('change', () => { nowDirty = Math.random(); });
   function frame() {
     const b = T.beat();
     if (b !== lastBeat) {
@@ -24,6 +25,16 @@
       $('posTime').textContent = Math.floor(sec / 60) + ':' + (sec % 60).toFixed(1).padStart(4, '0');
       DAW.arrange.setPlayhead(b, E.playing);
       if (S.tab === 'piano') DAW.pianoroll.draw();
+    }
+    // now-playing readout: what you are holding down, otherwise what the selected track plays at the playhead
+    const heldP = []; for (const hnd of held.values()) if (hnd.pitches && !hnd.drum) heldP.push(...hnd.pitches);
+    const sig = b + '|' + heldP.join(',') + '|' + nowDirty;
+    if (sig !== nowSig) {
+      nowSig = sig; nowDirty = 0;
+      const key = S.project.key, sel = DAW.selTrack();
+      document.querySelectorAll('.tnow').forEach((el) => { const t = DAW.track(el.dataset.id), txt = t ? DAW.describe(DAW.notesAt(t, b), key).split('  ·  ')[0] : ''; if (el.textContent !== txt) el.textContent = txt; });
+      const txt = heldP.length ? DAW.describe(heldP, key) : sel && sel.type === 'synth' ? DAW.describe(DAW.notesAt(sel, b), key) : '';
+      const now = $('kbdNow'); if (now) { const parts = txt.split('  ·  '); now.firstChild.textContent = parts[0] || '—'; now.lastChild.textContent = parts[1] || ''; }
     }
     DAW.mixer.tick();
     requestAnimationFrame(frame);
@@ -196,7 +207,7 @@
     const track = DAW.selTrack(); if (!track) return false;
     const pitches = keyPitches(track, k); if (!pitches) return false;
     const drum = track.type === 'drums', rec = S.recording && E.playing, step = S.stepInput && !E.playing;
-    const hnd = { voices: pitches.map((p) => E.noteOn(track, p, drum ? 0.85 : 0.8)), pitches, trackId: track.id, b0: 0, rec: rec && !drum, step };
+    const hnd = { drum, voices: pitches.map((p) => E.noteOn(track, p, drum ? 0.85 : 0.8)), pitches, trackId: track.id, b0: 0, rec: rec && !drum, step };
     held.set(k, hnd);
     if (rec) { hnd.b0 = E.currentBeat(); if (drum) recordNote(track, pitches[0], hnd.b0, hnd.b0 + stepLen(), 0.85); }
     if (step) { // write the note at the playhead; keys held together stack into a chord
@@ -220,7 +231,7 @@
   /* on-screen keyboard: shows which computer key plays what, and is clickable */
   function renderKbd() {
     const el = $('kbd'), track = DAW.selTrack(), h = DAW.h;
-    el.innerHTML = ''; keyEls = {};
+    el.innerHTML = ''; keyEls = {}; nowSig = '';
     if (!track) return;
     const drum = track.type === 'drums', cap = (k) => (k === '\\' ? '\\' : k.toUpperCase());
     const bind = (node, k) => { keyEls[k] = node; if (held.has(k)) node.classList.add('down'); node.addEventListener('pointerdown', (e) => { e.preventDefault(); if (pressKey(k)) DAW.drag(e, () => {}, () => releaseKey(k)); }); return node; };
@@ -236,7 +247,7 @@
         Object.keys(BLACK).map((k) => bind(h('div', { class: 'kbd-black', style: { left: (BLACK[k] + 1) * W - 15 + 'px' } }, h('i', {}, cap(k))), k)));
     }
     const oct = (d) => () => { octave = DAW.clamp(octave + d, 0, 7); renderKbd(); };
-    el.append(write, keys, drum ? h('span', { class: 'kbd-note', text: 'Home row A to \\ plays the 12 drums' })
+    el.append(h('div', { class: 'kbd-now', title: 'The note or chord being played right now' }, h('span', { class: 'kbd-now-lab', text: 'NOW PLAYING' }), h('div', { id: 'kbdNow' }, h('b', {}, '—'), h('i', {}, ''))), write, keys, drum ? h('span', { class: 'kbd-note', text: 'Home row A to \\ plays the 12 drums' })
       : h('span', { class: 'kbd-oct' }, h('button', { class: 'mini', title: 'Octave down (Z)', onclick: oct(-1) }, '◀'), h('span', {}, 'Octave ' + octave), h('button', { class: 'mini', title: 'Octave up (X)', onclick: oct(1) }, '▶')));
   }
   function onKeyDown(e) {

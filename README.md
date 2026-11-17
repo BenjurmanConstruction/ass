@@ -22,7 +22,8 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 
 **Arrangement**
 - Double-click an empty spot in a lane to create a clip. Drag to move (also between tracks of the same type), drag the right edge to resize, Alt-drag to copy. Hold Shift for 1/16 precision instead of whole beats.
-- Right-click a clip for a menu: delete, duplicate, edit notes, or join all the track's clips into one. Right-click a track name to delete the track.
+- Right-click a clip for a menu: delete, duplicate, edit notes, copy (to another track directly, or paste by right-clicking a lane), move it to its own track so it can have a different sound, or join all the track's clips into one.
+- Each track header and the keyboard strip show the note or chord playing at the playhead. Right-click a track name to delete the track.
 - Snap is optional: set Snap to Off (top bar), or click **Grid snap** in the piano roll, and clips and notes move and stretch freely. Holding Alt while dragging a note also ignores the grid.
 - `Delete` removes the selected clip, `Ctrl+D` duplicates it, `Ctrl+C` / `Ctrl+V` copy and paste at the playhead.
 - Click the bar numbers to move the playhead. Drag in the thin strip above them to set the loop region; click the strip to toggle looping.
@@ -51,6 +52,7 @@ The installer lands in the `dist` folder (`.exe` on Windows, `.dmg` on macOS, Ap
 
 **Sound**
 - Real instruments: **Electric Bass** (Squier Jazz bass), **Electric Piano** (Wurlitzer EP200) and **Grand Piano** (Steinway), each recorded at two dynamics across the keyboard, with attack, release, tone, gain and vibrato controls. Pick them from the Sound menu in the Instrument tab.
+- Orchestra and guitars: **Trumpet, Trombone, French Horn, Flute, Violin, String Section** (sustained notes hold for as long as you hold the key), **Acoustic Guitar** and **Electric Guitar**.
 - Beat kits and basses: **Boom**, **Club** and **Punch** kits made from recorded electronic drum hits, and six beat basses (808 Bass, Thick, Smooth, Trance, Hard, DnB) that play across the keyboard.
 - Synth: two oscillators plus noise, unison (up to 5 detuned voices spread in stereo), multimode resonant filter with its own envelope, amp envelope, LFO to pitch and filter, 13 presets.
 - Drums: the **Rock Kit** is a real acoustic kit (24" kick, snare, rimshot, sidestick, hats, three toms, china, crash, ride) with several velocity layers and alternating takes per drum, so soft and hard hits sound different. Three synthesized electronic kits (808, 909, lo-fi) are also included. Every pad has level / tune / decay. Closed hat chokes open hat.
@@ -86,6 +88,8 @@ src/js/app.js        transport, shortcuts, files, export dialog
 - **Electric Piano:** Wurlitzer EP200 samples by [Greg Sullivan](http://www.sullivang.net/), from [GregSullivan.E-Pianos](https://github.com/sfzinstruments/GregSullivan.E-Pianos), licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). A subset of notes was trimmed, level-matched and converted to Ogg Vorbis.
 - **Grand Piano:** [Splendid Grand Piano](https://github.com/sfzinstruments/SplendidGrandPiano), Steinway samples released to the public domain by Akai.
 - **Boom / Club / Punch kits and the beat basses:** the [Sonic Pi sample set](https://github.com/sonic-pi-net/sonic-pi/tree/dev/etc/samples), CC0 1.0.
+- **Brass, flute, violin, strings:** [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) by Versilian Studios, CC0 1.0.
+- **Guitars:** [Shinyguitar](https://github.com/sfzinstruments/karoryfer.shinyguitar) and [Emilyguitar](https://github.com/sfzinstruments/karoryfer.emilyguitar) by Karoryfer Samples, CC0 1.0.
 
 Details are in `src/samples/CREDITS.txt`.
 

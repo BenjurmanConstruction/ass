@@ -52,10 +52,23 @@
       e.preventDefault(); e.stopPropagation();
       st().selTrackId = track.id; st().selClipId = clip.id;
       inner.querySelectorAll('.clip.sel').forEach((c) => c.classList.remove('sel')); el.classList.add('sel');
+      const copyTo = (dest) => {
+        if (!DAW.clipFits(dest, clip.start, clip.length)) { DAW.toast('"' + dest.name + '" already has a clip in that spot'); return; }
+        const c = DAW.clone(clip); c.id = DAW.uid(); c.notes.forEach((n) => (n.id = DAW.uid()));
+        dest.clips.push(c); st().selTrackId = dest.id; st().selClipId = c.id; DAW.commit();
+      };
       const items = [
         ['Delete clip', () => { track.clips.splice(track.clips.indexOf(clip), 1); st().selClipId = null; DAW.commit(); }],
         ['Duplicate clip', () => A.key({ key: 'd', ctrlKey: true })],
         ['Edit notes', () => { DAW.emit('change'); DAW.setTab('piano'); }],
+        ['Copy clip (then right-click a lane to paste)', () => { clipboard = { type: track.type, clip: DAW.clone(clip) }; DAW.toast('Clip copied. Right-click any ' + (track.type === 'drums' ? 'drum' : 'instrument') + ' lane to paste it'); }],
+        ...proj().tracks.filter((o) => o !== track && o.type === track.type).slice(0, 8).map((o) => ['Copy to track: ' + o.name, () => copyTo(o)]),
+        ['Move to its own track (to give it a different sound)', () => {
+          const p = proj(), nt = DAW.clone(track); nt.id = DAW.uid(); nt.name = track.name + ' B'; nt.color = DAW.COLORS[(DAW.COLORS.indexOf(track.color) + 1) % DAW.COLORS.length];
+          track.clips.splice(track.clips.indexOf(clip), 1); nt.clips = [clip]; p.tracks.splice(p.tracks.indexOf(track) + 1, 0, nt);
+          st().selTrackId = nt.id; st().selClipId = clip.id; DAW.commit(); DAW.setTab('inst');
+          DAW.toast('This clip now has its own track. Pick a different Sound for it here', 5000);
+        }],
       ];
       if (track.clips.length > 1) items.push(['Join all clips on this track into one', () => {
         const start = Math.min(...track.clips.map((c) => c.start)), end = Math.max(...track.clips.map((c) => c.start + c.length));
@@ -114,7 +127,7 @@
     const head = h('div', { class: 'track-head' + (s.selTrackId === track.id ? ' sel' : '') },
       h('div', { class: 'tcolor', style: { background: track.color }, title: 'Change colour', onclick: (e) => { e.stopPropagation(); track.color = DAW.COLORS[(DAW.COLORS.indexOf(track.color) + 1) % DAW.COLORS.length]; DAW.commit(); } }),
       h('div', { class: 'tmain' },
-        h('div', { class: 'trow' }, name, btn('tdel', '×', 'Delete track', () => { p.tracks.splice(i, 1); DAW.commit(); })),
+        h('div', { class: 'trow' }, name, track.type === 'synth' ? h('span', { class: 'tnow', 'data-id': track.id, title: 'The note or chord this track is playing at the playhead' }) : null, btn('tdel', '×', 'Delete track', () => { p.tracks.splice(i, 1); DAW.commit(); })),
         h('div', { class: 'trow' },
           h('span', { class: 'ttype', text: track.type === 'drums' ? 'DRUMS' : track.instrument.source !== 'synth' ? 'INST' : 'SYNTH' }),
           btn('tbtn m' + (track.mute ? ' on' : ''), 'M', 'Mute', () => { track.mute = !track.mute; DAW.commit(); }),
@@ -165,6 +178,18 @@
       const lane = h('div', { class: 'lane', style: { width: W + 'px' } });
       for (const c of track.clips) lane.append(clipEl(track, c));
       lane.addEventListener('pointerdown', (e) => { if (e.button === 0) DAW.select(track.id, null); });
+      lane.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const at = Math.max(0, gridSnap(beatAtX(e.clientX, lane) - 0.5)), items = [];
+        if (clipboard) items.push(['Paste clip here', () => {
+          if (clipboard.type !== track.type) { DAW.toast('That clip came from a ' + clipboard.type + ' track, so it can only go on another ' + clipboard.type + ' track'); return; }
+          if (!DAW.clipFits(track, at, clipboard.clip.length)) { DAW.toast('No room here: another clip is in the way'); return; }
+          const c = DAW.clone(clipboard.clip); c.id = DAW.uid(); c.notes.forEach((n) => (n.id = DAW.uid())); c.start = at;
+          track.clips.push(c); s.selTrackId = track.id; s.selClipId = c.id; DAW.commit();
+        }]);
+        items.push(['New empty clip here', () => lane.dispatchEvent(new MouseEvent('dblclick', { clientX: e.clientX, clientY: e.clientY }))]);
+        DAW.menu(e.clientX, e.clientY, items);
+      });
       lane.addEventListener('dblclick', (e) => {
         const at = beatAtX(e.clientX, lane);
         let start = Math.floor(at / 4) * 4, end = start + 4;

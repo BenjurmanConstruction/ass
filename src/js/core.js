@@ -49,6 +49,28 @@
     const n = DAW.chordNotes(key, deg), names = FLAT_KEYS[key.scale].includes(key.root) ? FLAT : SHARP;
     return names[n[0] % 12] + (n[1] - n[0] === 3 ? (n[2] - n[0] === 6 ? '°' : 'm') : '');
   };
+  const CHORDS = [[[0, 4, 7], ' major'], [[0, 3, 7], ' minor'], [[0, 3, 6], ' dim'], [[0, 4, 8], ' aug'], [[0, 2, 7], ' sus2'], [[0, 5, 7], ' sus4'],
+    [[0, 4, 7, 10], '7'], [[0, 4, 7, 11], ' maj7'], [[0, 3, 7, 10], ' m7'], [[0, 4, 7, 9], '6'], [[0, 3, 7, 9], ' m6'], [[0, 7], '5 (power chord)']];
+  /** Name what a set of MIDI pitches is: a single note, a chord, or a list of notes. '' when empty. */
+  DAW.describe = (pitches, key) => {
+    const ps = [...new Set(pitches)].sort((a, b) => a - b);
+    if (!ps.length) return '';
+    const names = key && FLAT_KEYS[key.scale].includes(key.root) ? FLAT : SHARP, list = ps.map((p) => names[p % 12] + (Math.floor(p / 12) - 1)).join(' ');
+    if (ps.length === 1) return list;
+    const pcs = [...new Set(ps.map((p) => p % 12))];
+    for (const root of [ps[0] % 12, ...pcs]) { // try the lowest note as the root first
+      const rel = pcs.map((p) => (p - root + 12) % 12).sort((a, b) => a - b).join(',');
+      const hit = CHORDS.find((c) => c[0].join(',') === rel);
+      if (hit) return names[root] + hit[1] + (root !== ps[0] % 12 ? ' / ' + names[ps[0] % 12] : '') + '  ·  ' + list;
+    }
+    return list;
+  };
+  /** Pitches sounding on a track at a beat. */
+  DAW.notesAt = (track, beat) => {
+    const out = [];
+    for (const c of track.clips) { const r = beat - c.start; if (r < 0 || r >= c.length) continue; for (const n of c.notes) if (n.start <= r + 1e-6 && r < n.start + n.length - 1e-6) out.push(n.pitch); }
+    return out;
+  };
   DAW.inScale = (key, pitch) => DAW.SCALES[key.scale].includes((((pitch - key.root) % 12) + 12) % 12);
 
   /* ---------- instruments ---------- */
@@ -94,10 +116,10 @@
   };
   DAW.SAMPLE_INSTS = {}; // sampled instruments register themselves here (see instruments.js)
   /** Octave the computer keyboard should start in for a track (basses sit low). */
-  DAW.trackOctave = (t) => (t && t.type === 'synth' && /bass/i.test(t.instrument.source) ? 1 : 4);
+  DAW.trackOctave = (t) => { if (!t || t.type !== 'synth') return 4; const si = DAW.SAMPLE_INSTS[t.instrument.source]; return si && si.oct ? si.oct : /bass/i.test(t.instrument.source) ? 1 : 4; };
   DAW.makeSampled = (name) => {
     const s = baseSynth(), si = DAW.SAMPLE_INSTS[name];
-    s.source = name; s.preset = name; s.gain = si && si.group === 'Beat basses' ? 1.2 : 0.8; s.filter.cutoff = 18000;
+    s.source = name; s.preset = name; s.gain = si && si.group === 'Beat basses' ? 1.2 : si && si.group && si.group !== 'Guitars' ? 1 : 0.8; s.filter.cutoff = 18000;
     s.amp = { a: 0.002, d: 0.2, s: 1, r: si ? si.release : 0.2 }; s.lfo = { rate: 5, pitch: 0, filter: 0 };
     return s;
   };

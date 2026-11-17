@@ -17,4 +17,12 @@ b808/ bthick/ bsmooth/ btrance/ bhard/ bdnb/   the beat basses:
         from the Sonic Pi sample set (sounds from freesound.org contributors). CC0 1.0 (public domain).
         https://github.com/sonic-pi-net/sonic-pi/tree/dev/etc/samples
 
+trumpet/ trombone/ horn/ flute/ violin/ strings/   Brass, flute, solo violin and string section:
+        VSCO 2 Community Edition by Versilian Studios. CC0 1.0 (public domain).
+        https://github.com/sgossner/VSCO-2-CE
+gacoustic/   Acoustic Guitar: Shinyguitar by Karoryfer Samples. CC0 1.0.
+        https://github.com/sfzinstruments/karoryfer.shinyguitar
+gelectric/   Electric Guitar: Emilyguitar (Epiphone, recorded direct) by Karoryfer Samples. CC0 1.0.
+        https://github.com/sfzinstruments/karoryfer.emilyguitar
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

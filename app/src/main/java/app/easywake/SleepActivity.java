@@ -311,8 +311,10 @@ public class SleepActivity extends Activity {
         boolean custom = selected == CUSTOM_INDEX;
         changeFile.setVisibility(custom && hasFile ? View.VISIBLE : View.GONE);
         toneCard.setVisibility(custom ? View.GONE : View.VISIBLE);
-        rumbleCard.setVisibility(custom ? View.GONE : View.VISIBLE);
-        humCard.setVisibility(selected == 0 || selected == 4 || selected == 6 ? View.VISIBLE
+        rumbleCard.setVisibility(custom || selected == NoiseGen.REAL_FAN ? View.GONE
+                : View.VISIBLE);
+        humCard.setVisibility(selected == 0 || selected == 4 || selected == 6
+                || selected == NoiseGen.REAL_FAN ? View.VISIBLE
                 : View.GONE);
 
         timerRow.value.setText(timerText(minutes));

@@ -33,7 +33,7 @@ import java.util.Random;
  */
 public class BlocksActivity extends Activity {
     private static final int COLS = 10;
-    private static final int ROWS = 20;
+    private static final int ROWS = 24;
     /** Most Knowledge Points this game can pay in one day. */
     private static final int DAILY_KP = 50;
 
@@ -93,7 +93,7 @@ public class BlocksActivity extends Activity {
         }
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 14);
+        int pad = Ui.dp(this, 10);
         root.setPadding(pad, pad, pad, pad);
         root.addView(Ui.topBar(this, "Block Drop"), Ui.full(this, 0));
 
@@ -105,10 +105,10 @@ public class BlocksActivity extends Activity {
 
         LinearLayout side = new LinearLayout(this);
         side.setOrientation(LinearLayout.VERTICAL);
-        side.setPadding(Ui.dp(this, 10), 0, 0, 0);
+        side.setPadding(Ui.dp(this, 8), 0, 0, 0);
         side.addView(Ui.text(this, "NEXT", 11, Ui.SUB));
         nextView = new NextView(this);
-        side.addView(nextView, new LinearLayout.LayoutParams(Ui.dp(this, 76),
+        side.addView(nextView, new LinearLayout.LayoutParams(Ui.dp(this, 66),
                 Ui.dp(this, 60)));
         scoreText = Ui.text(this, "", 20, Ui.ACCENT);
         scoreText.setTypeface(Ui.medium());
@@ -131,7 +131,7 @@ public class BlocksActivity extends Activity {
                 }
             }
         });
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(Ui.dp(this, 76),
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(Ui.dp(this, 66),
                 Ui.dp(this, 44));
         pp.topMargin = Ui.dp(this, 14);
         side.addView(pauseBtn, pp);
@@ -145,7 +145,7 @@ public class BlocksActivity extends Activity {
                 showHow();
             }
         });
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(Ui.dp(this, 76),
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(Ui.dp(this, 66),
                 Ui.dp(this, 44));
         hp.topMargin = Ui.dp(this, 8);
         side.addView(how, hp);
@@ -184,7 +184,7 @@ public class BlocksActivity extends Activity {
                 if (move(0, 1)) score++;
                 paint();
             }
-        }), weight());
+        }, 90), weight());
         controls.addView(tap("DROP", new Runnable() {
             @Override
             public void run() {
@@ -199,7 +199,7 @@ public class BlocksActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams weight() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, Ui.dp(this, 64), 1f);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, Ui.dp(this, 58), 1f);
         int m = Ui.dp(this, 3);
         p.setMargins(m, 0, m, 0);
         return p;
@@ -225,13 +225,18 @@ public class BlocksActivity extends Activity {
 
     /** A button that repeats while it is held down. */
     private Button hold(String label, final Runnable action) {
+        return hold(label, action, 120);
+    }
+
+    /** A button that repeats every stepMs while it is held down, after a short pause. */
+    private Button hold(String label, final Runnable action, final long stepMs) {
         final Button bt = plain(label);
         final Runnable repeat = new Runnable() {
             @Override
             public void run() {
                 if (!running) return;
                 action.run();
-                handler.postDelayed(this, 60);
+                handler.postDelayed(this, stepMs);
             }
         };
         bt.setOnTouchListener(new View.OnTouchListener() {
@@ -241,7 +246,7 @@ public class BlocksActivity extends Activity {
                     case MotionEvent.ACTION_DOWN:
                         v.setPressed(true);
                         if (running) action.run();
-                        handler.postDelayed(repeat, 230);
+                        handler.postDelayed(repeat, 320);
                         return true;
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
@@ -261,8 +266,8 @@ public class BlocksActivity extends Activity {
     }
 
     private long delay() {
-        // A full second per step to begin with, quickening a little each level.
-        return Math.max(130, 1000 - (level() - 1) * 75L);
+        // A slow start (1.2 seconds a step), quickening gently each level.
+        return Math.max(180, 1200 - (level() - 1) * 60L);
     }
 
     private void newGame() {

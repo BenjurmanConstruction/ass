@@ -7,7 +7,7 @@ package app.easywake;
  */
 final class NoiseGen {
     static final String[] NAMES = {"Box fan", "White noise", "Pink noise", "Brown noise",
-            "Big floor fan", "Steady rain", "Airplane cabin"};
+            "Big floor fan", "Steady rain", "Airplane cabin", "Real fan"};
     static final String[] HINTS = {
             "Steady whir with a soft motor hum",
             "Even hiss, like static or a shower",
@@ -15,8 +15,11 @@ final class NoiseGen {
             "Deep rumble, like distant surf",
             "Lower and slower, a big fan across the room",
             "Rain on the roof with scattered drops",
-            "Low engine drone and rushing air"
+            "Low engine drone and rushing air",
+            "A real fan recording, mixed so it never repeats (recording: unfa, Freesound)"
     };
+    /** The real recorded fan, played by FanMixer rather than made here. */
+    static final int REAL_FAN = 7;
     static final int SAMPLE_RATE = 44100;
 
     private static final double TWO_PI = Math.PI * 2;

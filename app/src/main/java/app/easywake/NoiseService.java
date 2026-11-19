@@ -241,18 +241,34 @@ public class NoiseService extends Service {
                             .setBufferSizeInBytes(Math.max(min, sr * 3))
                             .setTransferMode(AudioTrack.MODE_STREAM)
                             .build();
-                    NoiseGen gen = new NoiseGen(type);
+                    // The real fan plays a recording; if it can't be loaded, the made-up
+                    // box fan plays instead.
+                    FanMixer real = null;
+                    if (type == NoiseGen.REAL_FAN) {
+                        short[] rec = RealFan.load(NoiseService.this);
+                        if (FanMixer.longEnough(rec)) real = new FanMixer(rec, System.nanoTime());
+                    }
+                    NoiseGen gen = new NoiseGen(type == NoiseGen.REAL_FAN ? 0 : type);
                     short[] buf = new short[4096];
                     int frames = buf.length / 2;
                     float gain = 0f;
                     // Let the loudness leveller settle before anything is heard.
                     gen.setParams(tone, hum, rumble);
-                    for (int i = 0; i < 24; i++) gen.fill(buf, frames, 0f, 0f);
+                    if (real != null) real.setParams(tone, hum);
+                    for (int i = 0; i < 24; i++) {
+                        if (real != null) real.fill(buf, frames, 0f, 0f);
+                        else gen.fill(buf, frames, 0f, 0f);
+                    }
                     track.play();
                     while (token == mine) {
-                        gen.setParams(tone, hum, rumble);
                         float next = Math.min(1f, gain + 0.05f);
-                        gen.fill(buf, frames, gain, next);
+                        if (real != null) {
+                            real.setParams(tone, hum);
+                            real.fill(buf, frames, gain, next);
+                        } else {
+                            gen.setParams(tone, hum, rumble);
+                            gen.fill(buf, frames, gain, next);
+                        }
                         gain = next;
                         track.setVolume(volume);
                         track.write(buf, 0, buf.length);
@@ -260,7 +276,8 @@ public class NoiseService extends Service {
                     // Quick fade-out instead of an abrupt cut.
                     while (gain > 0f) {
                         float next = Math.max(0f, gain - 0.2f);
-                        gen.fill(buf, frames, gain, next);
+                        if (real != null) real.fill(buf, frames, gain, next);
+                        else gen.fill(buf, frames, gain, next);
                         gain = next;
                         track.write(buf, 0, buf.length);
                     }

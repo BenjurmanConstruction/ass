@@ -92,6 +92,7 @@ src/js/app.js        transport, shortcuts, files, export dialog
 - **Brass, flute, violin, strings:** [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) by Versilian Studios, CC0 1.0.
 - **Guitars:** [Shinyguitar](https://github.com/sfzinstruments/karoryfer.shinyguitar) and [Emilyguitar](https://github.com/sfzinstruments/karoryfer.emilyguitar) by Karoryfer Samples, CC0 1.0.
 - **Saxes, organ, keys, mallets, harp, percussion:** [VCSL](https://github.com/sgossner/VCSL) by Versilian Studios, plus [Weresax](https://github.com/sfzinstruments/karoryfer.weresax) and [Bear Sax](https://github.com/sfzinstruments/karoryfer.bear-sax) by Karoryfer Samples, all CC0 1.0.
+- **Salamander Grand:** [Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano) (Yamaha C5) by Alexander Holm, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/); two velocity layers, trimmed and converted. **Steinway B Grand:** VCSL, CC0.
 
 Details are in `src/samples/CREDITS.txt`.
 

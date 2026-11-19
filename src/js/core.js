@@ -120,6 +120,7 @@
   DAW.makeSampled = (name) => {
     const s = baseSynth(), si = DAW.SAMPLE_INSTS[name];
     s.source = name; s.preset = name; s.gain = si && si.group === 'Beat basses' ? 1.2 : si && si.group && si.group !== 'Guitars' ? 1 : 0.8; s.filter.cutoff = 18000;
+    if (si && si.gain) s.gain = si.gain; // per-instrument level trim
     s.amp = { a: 0.002, d: 0.2, s: 1, r: si ? si.release : 0.2 }; s.lfo = { rate: 5, pitch: 0, filter: 0 };
     return s;
   };

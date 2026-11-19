@@ -33,4 +33,10 @@ tsax/ organ/ harmonica/ ocarina/ fmpiano/ upright/ harpsi/ vibes/ marimba/ glock
 asax/   Alto Sax: Weresax by Karoryfer Samples. CC0 1.0.  https://github.com/sfzinstruments/karoryfer.weresax
 bsax/   Baritone Sax: Bear Sax by Karoryfer Samples. CC0 1.0.  https://github.com/sfzinstruments/karoryfer.bear-sax
 
+p_salamander/   Salamander Grand: Salamander Grand Piano v3 (Yamaha C5) by Alexander Holm.
+        Creative Commons Attribution 3.0 Unported: https://creativecommons.org/licenses/by/3.0/
+        Changes made: two of the sixteen velocity layers were trimmed, level-matched and converted to Ogg Vorbis.
+        https://github.com/sfzinstruments/SalamanderGrandPiano
+p_steinwayb/   Steinway B Grand: VCSL by Versilian Studios. CC0 1.0.  https://github.com/sgossner/VCSL
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

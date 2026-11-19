@@ -44,4 +44,7 @@ p_pianet/   Pianet Electric Piano: Hohner Pianet T samples by Greg Sullivan (htt
         https://github.com/sfzinstruments/GregSullivan.E-Pianos
 nylon/   Nylon Guitar: Spanish Classical Guitar by FreePats. CC0 1.0.  https://github.com/freepats/spanish-classical-guitar
 
+p_darkblack/ p_babyblue/   Dark and Bright Bass Guitar: Black and Blue Basses by Karoryfer Samples. CC0 1.0.
+        https://github.com/sfzinstruments/karoryfer.black-and-blue-basses
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

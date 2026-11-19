@@ -201,11 +201,11 @@
     if (S.chordKeys) return i < 0 || i > 7 ? null : DAW.chordNotes(S.project.key, i).map((p) => p + 12 * (octave - 4));
     return k in KEYMAP ? [12 * (octave + 1) + KEYMAP[k]] : null;
   }
-  const light = (k, on) => { if (keyEls[k]) keyEls[k].classList.toggle('down', on); };
-  function pressKey(k) {
+  const light = (k, on, pitches) => { if (keyEls[k]) keyEls[k].classList.toggle('down', on); for (const p of pitches || []) if (keyEls['p' + p]) keyEls['p' + p].classList.toggle('down', on); };
+  function pressKey(k, direct) { // direct: pitches from a mouse click on the on-screen keyboard
     if (held.has(k)) return false;
     const track = DAW.selTrack(); if (!track) return false;
-    const pitches = keyPitches(track, k); if (!pitches) return false;
+    const pitches = direct || keyPitches(track, k); if (!pitches) return false;
     const drum = track.type === 'drums', rec = S.recording && E.playing, step = S.stepInput && !E.playing;
     const hnd = { drum, voices: pitches.map((p) => E.noteOn(track, p, drum ? 0.85 : 0.8)), pitches, trackId: track.id, b0: 0, rec: rec && !drum, step };
     held.set(k, hnd);
@@ -216,12 +216,12 @@
       pitches.forEach((p) => recordNote(track, p, stepAt, stepAt + stepLen(), 0.8, true, true));
       DAW.commit(); DAW.pianoroll.reveal(pitches[0]);
     }
-    light(k, true);
+    light(k, true, pitches);
     return true;
   }
   function releaseKey(k) {
     const hnd = held.get(k); if (!hnd) return;
-    held.delete(k); hnd.voices.forEach((v) => E.noteOff(v)); light(k, false);
+    held.delete(k); hnd.voices.forEach((v) => E.noteOff(v)); light(k, false, hnd.pitches);
     if (hnd.rec && E.playing) {
       const t = DAW.track(hnd.trackId), b1 = E.currentBeat();
       if (t) { hnd.pitches.forEach((p) => recordNote(t, p, hnd.b0, b1, 0.8, true)); DAW.commit(); }
@@ -241,14 +241,22 @@
       const n = drum ? 12 : 8;
       keys = h('div', { class: 'kbd-pads' }, ROW.slice(0, n).map((k, i) => bind(h('div', { class: 'kbd-pad' }, h('b', {}, drum ? DAW.padName(track.instrument, i) : DAW.chordName(S.project.key, i % 7)), h('i', {}, cap(k))), k)));
     } else {
-      const W = 46;
-      keys = h('div', { class: 'kbd-piano', style: { width: W * 12 + 'px' } },
-        ROW.map((k, i) => bind(h('div', { class: 'kbd-white', style: { left: i * W + 'px', width: W - 2 + 'px' } }, i % 7 === 0 ? h('u', {}, 'C' + (octave + (i ? 1 : 0))) : null, h('i', {}, cap(k))), k)),
-        Object.keys(BLACK).map((k) => bind(h('div', { class: 'kbd-black', style: { left: (BLACK[k] + 1) * W - 15 + 'px' } }, h('i', {}, cap(k))), k)));
+      // full-range keyboard (C1 to G7). Every key is labelled and clickable; the twelve white keys under the
+      // orange bar are the ones the computer keyboard plays right now, and Z / X slide that window by an octave.
+      const W = 18, LO = 24, HI = 103, base = 12 * (octave + 1), byPitch = {};
+      for (const k in KEYMAP) byPitch[base + KEYMAP[k]] = k;
+      const mouse = (node, pitch) => { keyEls['p' + pitch] = node; node.addEventListener('pointerdown', (e) => { e.preventDefault(); const id = 'm' + pitch; if (pressKey(id, [pitch])) DAW.drag(e, () => {}, () => releaseKey(id)); }); return node; };
+      const whites = [], blacks = []; let wi = 0, winL = null, winR = null;
+      for (let p = LO; p <= HI; p++) {
+        const k = byPitch[p], name = DAW.noteName(p);
+        if (DAW.isBlack(p)) blacks.push(mouse(h('div', { class: 'kbd-black' + (k ? ' win' : ''), title: name, style: { left: wi * W - 6 + 'px' } }, h('u', {}, name), k ? h('i', {}, cap(k)) : null), p));
+        else { if (k) { if (winL == null) winL = wi; winR = wi; } whites.push(mouse(h('div', { class: 'kbd-white' + (k ? ' win' : '') + (p % 12 === 0 ? ' c' : ''), title: name, style: { left: wi * W + 'px', width: W - 1 + 'px' } }, h('u', {}, name), k ? h('i', {}, cap(k)) : null), p)); wi++; }
+      }
+      keys = h('div', { class: 'kbd-piano', style: { width: wi * W + 'px' } }, winL != null ? h('div', { class: 'kbd-winbar', style: { left: winL * W + 'px', width: (winR - winL + 1) * W - 1 + 'px' } }) : null, whites, blacks);
     }
-    const oct = (d) => () => { octave = DAW.clamp(octave + d, 0, 7); renderKbd(); };
+    const oct = (d) => () => { octave = DAW.clamp(octave + d, 1, 6); renderKbd(); };
     el.append(h('div', { class: 'kbd-now', title: 'The note or chord being played right now' }, h('span', { class: 'kbd-now-lab', text: 'NOW PLAYING' }), h('div', { id: 'kbdNow' }, h('b', {}, '—'), h('i', {}, ''))), write, keys, drum ? h('span', { class: 'kbd-note', text: 'Home row A to \\ plays the 12 drums' })
-      : h('span', { class: 'kbd-oct' }, h('button', { class: 'mini', title: 'Octave down (Z)', onclick: oct(-1) }, '◀'), h('span', {}, 'Octave ' + octave), h('button', { class: 'mini', title: 'Octave up (X)', onclick: oct(1) }, '▶')));
+      : h('span', { class: 'kbd-oct' }, h('button', { class: 'mini', title: 'Octave down (Z)', onclick: oct(-1) }, '◀'), h('span', { title: 'Which part of the keyboard your computer keys play' }, 'Keys at C' + octave), h('button', { class: 'mini', title: 'Octave up (X)', onclick: oct(1) }, '▶')));
   }
   function onKeyDown(e) {
     const el = e.target, tag = el.tagName, k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
@@ -272,7 +280,7 @@
     }
     if (e.repeat || e.altKey) return;
     if (k === '1') return DAW.setTab('piano'); if (k === '2') return DAW.setTab('inst'); if (k === '3') return DAW.setTab('mixer');
-    if (k === 'z' || k === 'x') { octave = DAW.clamp(octave + (k === 'z' ? -1 : 1), 0, 7); renderKbd(); return; }
+    if (k === 'z' || k === 'x') { octave = DAW.clamp(octave + (k === 'z' ? -1 : 1), 1, 6); renderKbd(); return; }
     if (k === 'm') { $('btnMetro').click(); return; }
     if (k === 'r') { $('btnRec').click(); return; }
     if (pressKey(k)) e.preventDefault();

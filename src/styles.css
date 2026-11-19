@@ -117,13 +117,20 @@ input[type=range] { accent-color: var(--accent); }
 .pr-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--dim); padding: 24px; text-align: center; }
 
 /* ---------- on-screen keyboard ---------- */
-#kbd { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 8px 12px; background: #17150f; border-bottom: 1px solid var(--line); flex: none; min-height: 86px; }
+#kbd { display: flex; align-items: center; justify-content: center; gap: 16px; overflow-x: auto; padding: 8px 12px; background: #17150f; border-bottom: 1px solid var(--line); flex: none; min-height: 86px; }
 .kbd-write { height: 30px; white-space: nowrap; }
-.kbd-piano { position: relative; height: 70px; flex: none; }
-.kbd-white { position: absolute; top: 0; height: 70px; background: #e9e1d0; border-radius: 0 0 4px 4px; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 5px; color: #3a342a; }
-.kbd-black { position: absolute; top: 0; width: 30px; height: 42px; background: #191713; border: 1px solid #000; border-top: none; border-radius: 0 0 3px 3px; cursor: pointer; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 4px; color: #d8d0c0; z-index: 2; }
-.kbd-white i, .kbd-black i, .kbd-pad i { font: 700 12px var(--mono); font-style: normal; }
-.kbd-white u { font: 9px var(--mono); text-decoration: none; color: #8a8170; }
+.kbd-piano { position: relative; height: 88px; flex: none; margin-top: 6px; }
+.kbd-winbar { position: absolute; top: -6px; height: 4px; background: var(--accent); border-radius: 2px; }
+.kbd-white { position: absolute; top: 0; height: 88px; background: #cfc7b6; border-radius: 0 0 3px 3px; cursor: pointer; display: flex; flex-direction: column-reverse; justify-content: flex-start; align-items: center; padding-bottom: 3px; gap: 2px; color: #3a342a; }
+.kbd-white.win { background: #f1e9d8; }
+.kbd-black { position: absolute; top: 0; width: 12px; height: 54px; background: #191713; border: 1px solid #000; border-top: none; border-radius: 0 0 2px 2px; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 2px; gap: 2px; color: #d8d0c0; z-index: 2; }
+.kbd-white u { font: 8px var(--mono); text-decoration: none; color: #6f6757; letter-spacing: -0.5px; }
+.kbd-white.c u { color: #1b1408; font-weight: 700; }
+.kbd-black u { font: 7px var(--mono); text-decoration: none; color: #a39a88; writing-mode: vertical-rl; letter-spacing: -0.3px; }
+.kbd-white i { font: 700 11px var(--mono); font-style: normal; color: #a8590a; }
+.kbd-black i { font: 700 9px var(--mono); font-style: normal; color: var(--accent); }
+.kbd-pad i { font: 700 12px var(--mono); font-style: normal; }
+.kbd-white.down i, .kbd-black.down i, .kbd-white.down u, .kbd-black.down u { color: #1b1408; }
 .kbd-white.down, .kbd-black.down, .kbd-pad.down { background: var(--accent); color: #1b1408; }
 .kbd-pads { display: flex; gap: 4px; }
 .kbd-pad { width: 74px; height: 62px; background: var(--raised2); border: 1px solid var(--line); border-radius: 5px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
@@ -133,10 +140,10 @@ input[type=range] { accent-color: var(--accent); }
 .kbd-oct { display: flex; align-items: center; gap: 6px; color: var(--dim); white-space: nowrap; font: 11px var(--mono); }
 .kbd-note { color: var(--dim); font-size: 11px; white-space: nowrap; }
 
-.kbd-now { width: 210px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; text-align: right; }
+.kbd-now { width: 150px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; text-align: right; }
 .kbd-now-lab { font: 9px var(--mono); letter-spacing: .12em; color: var(--dim); }
 #kbdNow b { display: block; font-size: 17px; color: var(--accent); white-space: nowrap; }
-#kbdNow i { display: block; font: 10px var(--mono); font-style: normal; color: var(--dim); min-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+#kbdNow i { display: block; font: 10px var(--mono); font-style: normal; color: var(--dim); min-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
 .tnow { font: 700 10px var(--mono); color: var(--accent); white-space: nowrap; max-width: 78px; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- knobs / groups ---------- */

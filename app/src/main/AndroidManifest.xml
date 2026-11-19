@@ -175,6 +175,16 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".ParlorActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".MachineActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".RouletteActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

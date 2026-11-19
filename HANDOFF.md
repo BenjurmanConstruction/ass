@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v22**.
+- Latest release: **v23**.
 
 ## Standing rules
 
@@ -70,6 +70,14 @@ Life tools, Helper, Sleep, Tables, Arcade.
   calmer held buttons), Peg Pop (v22 rework: `PegBits` holds boards and physics; ~100-150 packed
   pegs plus capsule "bricks" joined into ramps the ball rolls down; shaded 3D look; 8 new
   boards; a ball lighting nothing new for 2.5 s pops what it lit).
+- **Slot Parlor** (v23, `ParlorActivity`, `MachineActivity`, `SlotMath`): outside the skill
+  tree, one 75 KP unlock (id `parlor` in `treeOwned`), entry at top of Games and tools.
+  Five machines, all math in `SlotMath` with frames played back by `MachineView`:
+  Blazing Bars (3-reel, 5 lines, 94.2% exact), Thunder Plains (1,024 ways, free spins with
+  2x/3x wilds, 93.6%), Coin Vault (243 ways + hold & spin, Mini/Minor/Major/Grand, Grand
+  ~1 in 270k, 94.3%), Jackpot Wheel (1 line + wheel, 93.2% exact), Gem Cascade (pay
+  anywhere, tumbles, growing free-spin multiplier, 96.1%). Paybacks from 5M-spin sims;
+  re-run a sim after any pay change and update the odds text in `MachineActivity`.
 - Market: portfolio, paper trading (1 KP = $10), price alerts (background check
   about every 15 min), economic calendar (Fed, minutes, CPI, PPI, PCE, GDP, jobs
   through Dec 2027, with live numbers from FRED), market Q&A.
@@ -89,6 +97,11 @@ code (`Sfx`), with on / wins only / off. Settings has an internet switch, game s
 player name and uninstall.
 
 ## Ideas not built yet
+
+- Fan sounds: the v21 "Real fan" recording is mostly 60 Hz hum, inaudible on a phone
+  speaker. Six phone-friendly fan samples were made (box, window, AC, purifier,
+  oscillating, CC0 ceiling-fan recording from localhostnick/-open-sleep-sounds); waiting
+  on the owner's pick to build them in.
 
 - Backup and restore of points, unlocks and stats (recommended next).
 - Daily brain workout, achievements wall, sleep log, habit tracker.

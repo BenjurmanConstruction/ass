@@ -40,6 +40,30 @@ public class ToolsActivity extends Activity {
         root.addView(Ui.text(this, "Everything you can unlock on the skill tree that opens "
                 + "its own screen.", 13, Ui.SUB), Ui.full(this, 10));
 
+        // The Slot Parlor sits outside the skill tree: one unlock opens every machine.
+        root.addView(Ui.heading(this, "Slot Parlor"), Ui.full(this, 22));
+        LinearLayout parlor = new LinearLayout(this);
+        parlor.setOrientation(LinearLayout.VERTICAL);
+        android.graphics.drawable.GradientDrawable pbg = Ui.card(this, 18);
+        pbg.setStroke(Ui.dp(this, 2), Ui.ACCENT);
+        parlor.setBackground(Ui.ripple(this, pbg, 18));
+        parlor.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
+        TextView pname = Ui.text(this, "Slot Parlor", 17, Ui.TEXT);
+        pname.setTypeface(Ui.medium());
+        parlor.addView(pname);
+        parlor.addView(Ui.text(this, "Five slot machines: classic reels, 1,024 ways, hold & "
+                + "spin jackpots, a bonus wheel and tumbling gems.", 14, Ui.SUB));
+        parlor.addView(Ui.text(this, ParlorActivity.owned(this) ? "Tap to open"
+                : "One unlock for all  •  " + ParlorActivity.COST + " Knowledge Points", 13,
+                Ui.ACCENT), Ui.full(this, 6));
+        parlor.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(ToolsActivity.this, ParlorActivity.class));
+            }
+        });
+        root.addView(parlor, Ui.full(this, 10));
+
         int lastBranch = -1;
         for (final Tree.Node n : Tree.NODES) {
             if (n.kind != Tree.FEATURE) continue;

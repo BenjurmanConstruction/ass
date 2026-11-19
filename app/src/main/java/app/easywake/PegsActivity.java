@@ -5,9 +5,12 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,8 +37,7 @@ public class PegsActivity extends Activity {
     private static final int BALLS = 10;
     /** Most Knowledge Points this game can pay in one day. */
     private static final int DAILY_KP = 50;
-    private static final String[] BOARD_NAMES = {"Rainbows", "Bullseye", "Diamond", "Waves",
-            "Chevrons", "Pillars", "Spiral", "Crossroads"};
+    private static final String[] BOARD_NAMES = PegBits.BOARD_NAMES;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private BoardView board;
@@ -244,8 +246,10 @@ public class PegsActivity extends Activity {
                 .setMessage("Drag on the board to swing the cannon, or use the arrows for "
                         + "fine aim. The dotted line shows the ball's path up to its "
                         + "first bounce and a little beyond. Press FIRE to shoot.\n\n"
-                        + "Every peg the ball touches lights up and pops when the shot "
-                        + "ends. Clear all the GOLD pegs to win the level.\n\n"
+                        + "Every peg or brick the ball touches lights up and pops when "
+                        + "the shot ends. Clear all the GOLD ones to win the level.\n\n"
+                        + "Bricks join up into ramps: the ball rolls down them, lighting "
+                        + "every brick it passes.\n\n"
                         + "• Blue pegs: 10 points\n"
                         + "• Gold pegs: 100 points\n"
                         + "• Purple peg: 500 points. It moves every shot.\n"
@@ -263,25 +267,12 @@ public class PegsActivity extends Activity {
                 .show();
     }
 
-    private static final class Peg {
-        float x, y;
-        /** 0 blue, 1 gold, 2 green, 3 purple. */
-        int kind;
-        boolean hit;
-    }
-
-    private static final class Ball {
-        float x, y, vx, vy;
-        float slowFor;
-        boolean alive = true;
-    }
-
     /** The board: pegs, balls, the bucket and the physics that moves them. */
     final class BoardView extends View {
-        private static final float PEG_R = 0.021f;
-        private static final float BALL_R = 0.018f;
+        private static final float PEG_R = PegBits.PEG_R;
+        private static final float BRICK_R = PegBits.BRICK_R;
+        private static final float BALL_R = PegBits.BALL_R;
         private static final float SPEED = 1.2f;
-        private static final float GRAVITY = 1.45f;
         private static final float CANNON_Y = 0.07f;
         private static final float BUCKET_HALF = 0.13f;
         private final int[] colors = {0xFF4FA8F0, 0xFFFFA726, 0xFF66D17A, 0xFFC77DFF};
@@ -291,8 +282,22 @@ public class PegsActivity extends Activity {
         private final RectF rect = new RectF();
         private final Path path = new Path();
         private final Random rnd = new Random();
-        private final List<Peg> pegs = new ArrayList<>();
-        private final List<Ball> flying = new ArrayList<>();
+        private final List<PegBits.Peg> pegs = new ArrayList<>();
+        private final List<PegBits.Ball> flying = new ArrayList<>();
+        /** Shading for each color, made to fit the board's size. */
+        private Shader[] pegShade;
+        private Shader[] brickShade;
+        private Shader ballShade;
+        private float shadeWidth;
+        /** Seconds since the shot began, and when it last lit something new. */
+        private float shotClock;
+        private float lastNewHit;
+        private final PegBits.Hits hitter = new PegBits.Hits() {
+            @Override
+            public void hit(PegBits.Peg p) {
+                hitPeg(p);
+            }
+        };
         private int pendingLevel = -1;
         private int goldAtStart = 1;
 
@@ -318,7 +323,7 @@ public class PegsActivity extends Activity {
 
         int goldLeft() {
             int n = 0;
-            for (Peg p : pegs) {
+            for (PegBits.Peg p : pegs) {
                 if (p.kind == 1) n++;
             }
             return n;
@@ -346,19 +351,6 @@ public class PegsActivity extends Activity {
 
         // ---------- boards ----------
 
-        private void put(float x, float y) {
-            if (x < 0.06f || x > 0.94f) return;
-            for (Peg p : pegs) {
-                float dx = p.x - x;
-                float dy = p.y - y;
-                if (dx * dx + dy * dy < (PEG_R * 2.5f) * (PEG_R * 2.5f)) return;
-            }
-            Peg p = new Peg();
-            p.x = x;
-            p.y = y;
-            pegs.add(p);
-        }
-
         void build(int lvl) {
             if (getWidth() <= 0) {
                 // Not laid out yet; build once the size is known.
@@ -366,128 +358,16 @@ public class PegsActivity extends Activity {
                 return;
             }
             pendingLevel = -1;
-            pegs.clear();
             flying.clear();
             shooting = false;
             fever = false;
-            float h = heightUnits();
-            float top = 0.3f;
-            float bottom = h - 0.24f;
-            float span = bottom - top;
-            float mid = (top + bottom) / 2f;
-            switch ((lvl - 1) % BOARD_NAMES.length) {
-                case 0:
-                    // Four arcs, each sagging in the middle.
-                    for (int row = 0; row < 4; row++) {
-                        for (int i = 0; i < 10; i++) {
-                            float u = i / 9f;
-                            put(0.09f + 0.82f * u, top + row * span / 4f
-                                    + span * 0.2f * (float) Math.sin(Math.PI * u));
-                        }
-                    }
-                    break;
-                case 1:
-                    // Three rings around a center peg.
-                    put(0.5f, mid);
-                    for (int ring = 1; ring <= 3; ring++) {
-                        int n = ring * 7;
-                        float r = Math.min(0.42f, span / 2f) * ring / 3f;
-                        for (int i = 0; i < n; i++) {
-                            double a = Math.PI * 2 * i / n + ring;
-                            put(0.5f + r * (float) Math.cos(a), mid + r * (float) Math.sin(a));
-                        }
-                    }
-                    break;
-                case 2: {
-                    // Rows that widen to the middle and narrow again.
-                    int rows = 9;
-                    for (int row = 0; row < rows; row++) {
-                        int n = 2 + 2 * Math.min(row, rows - 1 - row);
-                        for (int i = 0; i < n; i++) {
-                            put(0.5f + (i - (n - 1) / 2f) * 0.088f, top + row * span / (rows - 1));
-                        }
-                    }
-                    break;
-                }
-                case 3:
-                    // Four wavy lines.
-                    for (int row = 0; row < 4; row++) {
-                        for (int i = 0; i < 11; i++) {
-                            float u = i / 10f;
-                            put(0.08f + 0.84f * u, top + (row + 0.5f) * span / 4f
-                                    + span * 0.09f * (float) Math.sin(u * Math.PI * 3
-                                    + row * 1.6f));
-                        }
-                    }
-                    break;
-                case 4:
-                    // Stacked V shapes.
-                    for (int row = 0; row < 4; row++) {
-                        for (int i = 0; i < 9; i++) {
-                            float u = i / 8f;
-                            put(0.1f + 0.8f * u, top + row * span / 4.2f
-                                    + span * 0.22f * (1 - Math.abs(u - 0.5f) * 2));
-                        }
-                    }
-                    break;
-                case 5:
-                    // Columns, every other one shifted down, under a small arch.
-                    for (int col = 0; col < 7; col++) {
-                        for (int i = 0; i < 6; i++) {
-                            put(0.11f + col * 0.13f, top + span * 0.16f + (i + (col % 2) * 0.5f)
-                                    * span * 0.15f);
-                        }
-                    }
-                    for (int i = 0; i < 7; i++) {
-                        float u = i / 6f;
-                        put(0.2f + 0.6f * u, top + span * 0.05f
-                                - span * 0.05f * (float) Math.sin(Math.PI * u));
-                    }
-                    break;
-                case 6:
-                    // A spiral winding out from the center.
-                    for (int i = 0; i < 46; i++) {
-                        double a = i * 0.52;
-                        float r = 0.04f + i * Math.min(0.42f, span / 2f) / 46f;
-                        put(0.5f + r * (float) Math.cos(a), mid + r * (float) Math.sin(a));
-                    }
-                    break;
-                default:
-                    // Two diagonals crossing, with a ring where they meet.
-                    for (int i = 0; i < 13; i++) {
-                        float u = i / 12f;
-                        put(0.1f + 0.8f * u, top + span * u);
-                        put(0.9f - 0.8f * u, top + span * u);
-                    }
-                    for (int i = 0; i < 10; i++) {
-                        double a = Math.PI * 2 * i / 10;
-                        put(0.5f + 0.2f * (float) Math.cos(a), mid + 0.2f * (float) Math.sin(a));
-                    }
-                    for (int i = 0; i < 5; i++) {
-                        put(0.1f + i * 0.05f, bottom - i * 0.004f);
-                        put(0.9f - i * 0.05f, bottom - i * 0.004f);
-                    }
-                    break;
-            }
-            // About a third of the pegs are gold, a few more each time round the boards.
-            List<Peg> pool = new ArrayList<>(pegs);
-            Collections.shuffle(pool, rnd);
-            int gold = Math.min(pool.size() - 6, Math.min(25, 12 + lvl));
-            for (int i = 0; i < gold; i++) pool.get(i).kind = 1;
-            for (int i = gold; i < gold + 2 && i < pool.size(); i++) pool.get(i).kind = 2;
-            goldAtStart = Math.max(1, gold);
-            pickPurple();
+            PegBits.build(lvl, heightUnits(), rnd, pegs);
+            goldAtStart = Math.max(1, goldLeft());
             invalidate();
         }
 
-        /** Moves the purple bonus peg to a different blue peg. */
         private void pickPurple() {
-            List<Peg> blue = new ArrayList<>();
-            for (Peg p : pegs) {
-                if (p.kind == 3) p.kind = 0;
-                if (p.kind == 0) blue.add(p);
-            }
-            if (!blue.isEmpty()) blue.get(rnd.nextInt(blue.size())).kind = 3;
+            PegBits.pickPurple(pegs, rnd);
         }
 
         @Override
@@ -514,7 +394,7 @@ public class PegsActivity extends Activity {
 
         void shoot() {
             if (shooting || balls <= 0 || getWidth() <= 0) return;
-            Ball b = new Ball();
+            PegBits.Ball b = new PegBits.Ball();
             b.x = 0.5f + (float) Math.sin(angle) * 0.05f;
             b.y = CANNON_Y + (float) Math.cos(angle) * 0.05f;
             b.vx = (float) Math.sin(angle) * SPEED;
@@ -528,6 +408,8 @@ public class PegsActivity extends Activity {
             balls--;
             shotHits = 0;
             shotPoints = 0;
+            shotClock = 0;
+            lastNewHit = 0;
             lastStep = SystemClock.uptimeMillis();
             shotStart = lastStep;
             Sfx.play(getContext(), Sfx.CHIPS);
@@ -535,58 +417,15 @@ public class PegsActivity extends Activity {
             invalidate();
         }
 
-        /**
-         * Moves one ball forward a small step.
-         *
-         * @param real false when only tracing the aim line, so nothing is scored
-         * @return true if the ball touched a peg or a wall on this step
-         */
-        private boolean step(Ball b, float dt, boolean real) {
-            boolean bounced = false;
-            b.vy += GRAVITY * dt;
-            b.x += b.vx * dt;
-            b.y += b.vy * dt;
-            if (b.x < BALL_R) {
-                b.x = BALL_R;
-                b.vx = Math.abs(b.vx) * 0.88f;
-                bounced = true;
-            } else if (b.x > 1 - BALL_R) {
-                b.x = 1 - BALL_R;
-                b.vx = -Math.abs(b.vx) * 0.88f;
-                bounced = true;
-            }
-            if (b.y < BALL_R) {
-                b.y = BALL_R;
-                b.vy = Math.abs(b.vy) * 0.88f;
-                bounced = true;
-            }
-            float reach = BALL_R + PEG_R;
-            for (int i = 0; i < pegs.size(); i++) {
-                Peg p = pegs.get(i);
-                float dx = b.x - p.x;
-                float dy = b.y - p.y;
-                float d2 = dx * dx + dy * dy;
-                if (d2 >= reach * reach || d2 == 0) continue;
-                float d = (float) Math.sqrt(d2);
-                float nx = dx / d;
-                float ny = dy / d;
-                // Push the ball back out of the peg and bounce it off.
-                b.x = p.x + nx * reach;
-                b.y = p.y + ny * reach;
-                float along = b.vx * nx + b.vy * ny;
-                if (along < 0) {
-                    b.vx -= 1.86f * along * nx;
-                    b.vy -= 1.86f * along * ny;
-                }
-                bounced = true;
-                if (real && !p.hit) hitPeg(p);
-            }
-            return bounced;
+        /** Moves one ball a small step; real = false when only tracing the aim line. */
+        private boolean step(PegBits.Ball b, float dt, boolean real) {
+            return PegBits.step(b, pegs, dt, real ? hitter : null);
         }
 
-        private void hitPeg(Peg p) {
+        private void hitPeg(PegBits.Peg p) {
             int before = multiplier();
             p.hit = true;
+            lastNewHit = shotClock;
             shotHits++;
             int base = p.kind == 1 ? 100 : (p.kind == 3 ? 500 : 10);
             // A long run of pegs in one shot builds a combo on top of the multiplier.
@@ -594,7 +433,7 @@ public class PegsActivity extends Activity {
             Sfx.play(getContext(), Sfx.PEG);
             if (p.kind == 2) {
                 // Green: a second ball bursts out of the peg.
-                Ball extra = new Ball();
+                PegBits.Ball extra = new PegBits.Ball();
                 extra.x = p.x;
                 extra.y = p.y - PEG_R * 2.2f;
                 extra.vx = (rnd.nextBoolean() ? 0.5f : -0.5f);
@@ -603,7 +442,7 @@ public class PegsActivity extends Activity {
             }
             if (p.kind == 1) {
                 boolean anyLeft = false;
-                for (Peg q : pegs) {
+                for (PegBits.Peg q : pegs) {
                     if (q.kind == 1 && !q.hit) anyLeft = true;
                 }
                 if (!anyLeft) fever = true;
@@ -619,8 +458,15 @@ public class PegsActivity extends Activity {
         private void advance(float dt) {
             float h = heightUnits();
             bucketPhase += dt * 0.75f;
+            shotClock += dt;
+            // A ball that rolls or rocks about without lighting anything new for a while
+            // (say in the bottom of a bowl) pops what it lit, so it can drop on through.
+            if (shotClock - lastNewHit > PegBits.NOTHING_NEW_SECONDS) {
+                clearHit();
+                lastNewHit = shotClock;
+            }
             for (int i = flying.size() - 1; i >= 0; i--) {
-                Ball b = flying.get(i);
+                PegBits.Ball b = flying.get(i);
                 step(b, dt, true);
                 // A ball resting on pegs would never finish, so once it has crawled for
                 // a while, pop the pegs it touched and let it fall.
@@ -680,7 +526,7 @@ public class PegsActivity extends Activity {
 
             // The aim line: the path up to the first bounce and a little after.
             if (!shooting && balls > 0) {
-                Ball t = new Ball();
+                PegBits.Ball t = new PegBits.Ball();
                 t.x = 0.5f + (float) Math.sin(angle) * 0.05f;
                 t.y = CANNON_Y + (float) Math.cos(angle) * 0.05f;
                 t.vx = (float) Math.sin(angle) * SPEED;
@@ -701,21 +547,8 @@ public class PegsActivity extends Activity {
                 paint.setAlpha(255);
             }
 
-            for (Peg p : pegs) {
-                int color = colors[p.kind];
-                if (p.hit) {
-                    paint.setColor((color & 0x00FFFFFF) | 0x66000000);
-                    cv.drawCircle(p.x * w, p.y * w, PEG_R * w * 1.8f, paint);
-                    paint.setColor(0xFFFFFFFF);
-                    cv.drawCircle(p.x * w, p.y * w, PEG_R * w, paint);
-                } else {
-                    paint.setColor(color);
-                    cv.drawCircle(p.x * w, p.y * w, PEG_R * w, paint);
-                    paint.setColor(0x66FFFFFF);
-                    cv.drawCircle(p.x * w - PEG_R * w * 0.3f, p.y * w - PEG_R * w * 0.3f,
-                            PEG_R * w * 0.38f, paint);
-                }
-            }
+            makeShading(w);
+            for (PegBits.Peg p : pegs) drawPiece(cv, p, w);
 
             if (fever) {
                 // Five bonus slots along the bottom for the final ball.
@@ -771,9 +604,128 @@ public class PegsActivity extends Activity {
                     paint);
             paint.setFakeBoldText(false);
 
-            paint.setColor(0xFFFFFFFF);
-            for (Ball b : flying) cv.drawCircle(b.x * w, b.y * w, BALL_R * w, paint);
+            for (PegBits.Ball b : flying) {
+                paint.setShader(null);
+                paint.setColor(0x55000000);
+                cv.drawCircle(b.x * w + 0.004f * w, b.y * w + 0.005f * w, BALL_R * w, paint);
+                cv.save();
+                cv.translate(b.x * w, b.y * w);
+                paint.setShader(ballShade);
+                cv.drawCircle(0, 0, BALL_R * w, paint);
+                paint.setShader(null);
+                cv.restore();
+            }
             postInvalidateOnAnimation();
+        }
+
+        /** Lighter or darker shade of a color: f above 1 lightens, below 1 darkens. */
+        private int tint(int color, float f) {
+            int r = (color >> 16) & 0xFF;
+            int g = (color >> 8) & 0xFF;
+            int b = color & 0xFF;
+            if (f >= 1) {
+                float k = f - 1;
+                r += (int) ((255 - r) * k);
+                g += (int) ((255 - g) * k);
+                b += (int) ((255 - b) * k);
+            } else {
+                r = (int) (r * f);
+                g = (int) (g * f);
+                b = (int) (b * f);
+            }
+            return 0xFF000000 | (Math.min(255, r) << 16) | (Math.min(255, g) << 8)
+                    | Math.min(255, b);
+        }
+
+        /**
+         * Builds the shiny shading once per board size. Shaders are centered on 0, 0 and
+         * each piece is drawn there after moving the canvas, so one shader serves them all.
+         * Index 4 is the lit (hit) look.
+         */
+        private void makeShading(float w) {
+            if (pegShade != null && shadeWidth == w) return;
+            shadeWidth = w;
+            int[] all = {colors[0], colors[1], colors[2], colors[3], 0xFFFFF4D6};
+            pegShade = new Shader[all.length];
+            brickShade = new Shader[all.length];
+            float r = PEG_R * w;
+            float t = BRICK_R * w;
+            for (int i = 0; i < all.length; i++) {
+                int c = all[i];
+                // Light from the upper left: a bright spot, the color, a darker rim.
+                pegShade[i] = new RadialGradient(-r * 0.35f, -r * 0.4f, r * 1.5f,
+                        new int[]{tint(c, 1.75f), c, tint(c, 0.5f)},
+                        new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP);
+                // A brick is lit along its top edge and shadowed along its bottom.
+                brickShade[i] = new LinearGradient(0, -t, 0, t,
+                        new int[]{tint(c, 1.6f), c, tint(c, 0.85f), tint(c, 0.5f)},
+                        new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP);
+            }
+            float br = BALL_R * w;
+            ballShade = new RadialGradient(-br * 0.35f, -br * 0.4f, br * 1.5f,
+                    new int[]{0xFFFFFFFF, 0xFFD5DCE6, 0xFF6B7585},
+                    new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP);
+        }
+
+        /** Draws one peg or brick with its shadow, shading and, when lit, a glow. */
+        private void drawPiece(Canvas cv, PegBits.Peg p, float w) {
+            int shade = p.hit ? 4 : p.kind;
+            float sx = 0.004f * w;
+            float sy = 0.005f * w;
+            if (p.brick) {
+                float x1 = p.x * w;
+                float y1 = p.y * w;
+                float len = (float) Math.hypot(p.x2 - p.x, p.y2 - p.y) * w;
+                float t = BRICK_R * w;
+                // Each end reaches a little past its point, so neighbours join up.
+                float over = t * 0.45f;
+                float deg = (float) Math.toDegrees(Math.atan2(p.y2 - p.y, p.x2 - p.x));
+                if (p.hit) {
+                    cv.save();
+                    cv.translate(x1, y1);
+                    cv.rotate(deg);
+                    paint.setShader(null);
+                    paint.setColor((colors[p.kind] & 0x00FFFFFF) | 0x66000000);
+                    rect.set(-over - t * 0.8f, -t * 1.8f, len + over + t * 0.8f, t * 1.8f);
+                    cv.drawRoundRect(rect, t * 1.8f, t * 1.8f, paint);
+                    cv.restore();
+                }
+                // Shadow.
+                cv.save();
+                cv.translate(x1 + sx, y1 + sy);
+                cv.rotate(deg);
+                paint.setShader(null);
+                paint.setColor(0x55000000);
+                rect.set(-over, -t, len + over, t);
+                cv.drawRoundRect(rect, t, t, paint);
+                cv.restore();
+                // The brick.
+                cv.save();
+                cv.translate(x1, y1);
+                cv.rotate(deg);
+                paint.setShader(brickShade[shade]);
+                rect.set(-over, -t, len + over, t);
+                cv.drawRoundRect(rect, t, t, paint);
+                paint.setShader(null);
+                cv.restore();
+            } else {
+                float x = p.x * w;
+                float y = p.y * w;
+                float r = PEG_R * w;
+                paint.setShader(null);
+                if (p.hit) {
+                    paint.setColor((colors[p.kind] & 0x00FFFFFF) | 0x66000000);
+                    cv.drawCircle(x, y, r * 1.9f, paint);
+                }
+                paint.setColor(0x55000000);
+                cv.drawCircle(x + sx, y + sy, r, paint);
+                cv.save();
+                cv.translate(x, y);
+                paint.setShader(pegShade[shade]);
+                cv.drawCircle(0, 0, r, paint);
+                paint.setShader(null);
+                cv.restore();
+            }
         }
     }
 }

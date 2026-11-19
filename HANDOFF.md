@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v21**.
+- Latest release: **v22**.
 
 ## Standing rules
 
@@ -67,7 +67,9 @@ Life tools, Helper, Sleep, Tables, Arcade.
 - Tables: Blackjack, Texas Hold'em vs a computer player named Rusty, Video poker
   (about 99.5% with good play), Roulette (single zero, about 97%).
 - Arcade: Block Drop (falling blocks; v21: 24 rows, smaller blocks, 1.2 s start speed,
-  calmer held buttons), Peg Pop (8 patterned boards). Owner still finds Peg Pop weak.
+  calmer held buttons), Peg Pop (v22 rework: `PegBits` holds boards and physics; ~100-150 packed
+  pegs plus capsule "bricks" joined into ramps the ball rolls down; shaded 3D look; 8 new
+  boards; a ball lighting nothing new for 2.5 s pops what it lit).
 - Market: portfolio, paper trading (1 KP = $10), price alerts (background check
   about every 15 min), economic calendar (Fed, minutes, CPI, PPI, PCE, GDP, jobs
   through Dec 2027, with live numbers from FRED), market Q&A.

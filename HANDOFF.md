@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v20**.
+- Latest release: **v21**.
 
 ## Standing rules
 
@@ -32,13 +32,17 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Show the odds/payback for every casino game.
 - Keep my email private.
 
-## What's in v20
+## What's in v21
 
 **Alarms and sleep:** alarms with MP3 or tones, pick a section of a song, fade-in,
 vibrate modes, big snooze, wake screen with today's events. Sleep sounds generated
 live in stereo with no loop: box fan, white, pink, brown, big floor fan, rain,
 airplane cabin, or my own recording (blends the join). Sliders for tone, hum and
-rumble.
+rumble. **Real fan** (v21): a real recording (`res/raw/real_fan.ogg`, by unfa on
+Freesound; license not yet confirmed, check before any Play Store release) played by
+`FanMixer`: split into hum (<400 Hz, phase-matched blends, same in both ears) and air
+(random pieces per ear), so it never loops. `RealFan` decodes it. Hum and Tone sliders
+work on it (tone 40 = as recorded).
 
 **Look:** 10 accent colors, night dim and red night mode, background studio (draw,
 or import a photo and crop, filter, brightness, text, save to gallery).
@@ -62,7 +66,8 @@ Life tools, Helper, Sleep, Tables, Arcade.
   high-roller perks.
 - Tables: Blackjack, Texas Hold'em vs a computer player named Rusty, Video poker
   (about 99.5% with good play), Roulette (single zero, about 97%).
-- Arcade: Block Drop (falling blocks), Peg Pop (8 patterned boards).
+- Arcade: Block Drop (falling blocks; v21: 24 rows, smaller blocks, 1.2 s start speed,
+  calmer held buttons), Peg Pop (8 patterned boards). Owner still finds Peg Pop weak.
 - Market: portfolio, paper trading (1 KP = $10), price alerts (background check
   about every 15 min), economic calendar (Fed, minutes, CPI, PPI, PCE, GDP, jobs
   through Dec 2027, with live numbers from FRED), market Q&A.

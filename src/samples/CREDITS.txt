@@ -39,4 +39,9 @@ p_salamander/   Salamander Grand: Salamander Grand Piano v3 (Yamaha C5) by Alexa
         https://github.com/sfzinstruments/SalamanderGrandPiano
 p_steinwayb/   Steinway B Grand: VCSL by Versilian Studios. CC0 1.0.  https://github.com/sgossner/VCSL
 
+p_pianet/   Pianet Electric Piano: Hohner Pianet T samples by Greg Sullivan (http://www.sullivang.net/).
+        Creative Commons Attribution 3.0 Unported. Changes made: trimmed, level-matched, converted to Ogg Vorbis.
+        https://github.com/sfzinstruments/GregSullivan.E-Pianos
+nylon/   Nylon Guitar: Spanish Classical Guitar by FreePats. CC0 1.0.  https://github.com/freepats/spanish-classical-guitar
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

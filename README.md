@@ -95,6 +95,7 @@ src/js/app.js        transport, shortcuts, files, export dialog
 - **Salamander Grand:** [Salamander Grand Piano](https://github.com/sfzinstruments/SalamanderGrandPiano) (Yamaha C5) by Alexander Holm, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/); two velocity layers, trimmed and converted. **Steinway B Grand:** VCSL, CC0.
 - **Pianet Electric Piano:** Hohner Pianet T samples by [Greg Sullivan](http://www.sullivang.net/), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), trimmed and converted. **Nylon Guitar:** [Spanish Classical Guitar](https://github.com/freepats/spanish-classical-guitar) by FreePats, CC0.
 - **Dark and Bright Bass Guitar:** [Black and Blue Basses](https://github.com/sfzinstruments/karoryfer.black-and-blue-basses) by Karoryfer Samples, CC0.
+- **Choir Pad and Synth Strings:** [FreePats](https://github.com/freepats) sound banks, CC0.
 
 Details are in `src/samples/CREDITS.txt`.
 

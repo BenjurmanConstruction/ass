@@ -47,4 +47,7 @@ nylon/   Nylon Guitar: Spanish Classical Guitar by FreePats. CC0 1.0.  https://g
 p_darkblack/ p_babyblue/   Dark and Bright Bass Guitar: Black and Blue Basses by Karoryfer Samples. CC0 1.0.
         https://github.com/sfzinstruments/karoryfer.black-and-blue-basses
 
+spchoir/ sstrings/   Choir Pad and Synth Strings: Synth Pad Choir and Synth Strings #1 sound banks by FreePats. CC0 1.0.
+        https://github.com/freepats/synth-pad-choir  https://github.com/freepats/synth-strings-1
+
 All sets were trimmed, level-matched and converted to Ogg Vorbis for Sable.

@@ -3,6 +3,8 @@ name: Build app
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'chart-analyzer/**'   # separate Python tool; no new app release needed
   workflow_dispatch:
 
 permissions:

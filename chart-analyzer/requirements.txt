@@ -1,0 +1,5 @@
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.7
+yfinance>=0.2.40     # only needed for ticker symbols (python analyze.py AAPL)
+anthropic>=0.40      # only needed for screenshot images

@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v24**.
+- Latest release: **v25**.
 
 ## Standing rules
 
@@ -83,6 +83,13 @@ Life tools, Helper, Sleep, Tables, Arcade.
   SPIN to stop early, tap the resting machine to spin, tap to start each bonus, Thunder
   Plains lets you pick free spins (all x1, half x2, a third x3), BIG/MEGA/EPIC WIN
   celebration at 10x/25x/50x, chasing cabinet lights. Owner prefers fun over realism.
+- Paper trading **Performance page** (v25, `PerformanceActivity`, math in `PaperPerf`):
+  account value over time vs the same money in SPY, scoreboard (realized/unrealized,
+  win rate, avg win/loss, best/worst sale, worst dip), holdings with weights and today's
+  change, allocation bar. History is rebuilt by undoing trades from current holdings and
+  pricing each day at the close. `Book` now stores structured events (`t`, flag `ev`);
+  the old 60-line text log is parsed once into events (`Book.readOldLog`). Every trade,
+  deposit, reset and open logs an event.
 - Market: portfolio, paper trading (1 KP = $10), price alerts (background check
   about every 15 min), economic calendar (Fed, minutes, CPI, PPI, PCE, GDP, jobs
   through Dec 2027, with live numbers from FRED), market Q&A.

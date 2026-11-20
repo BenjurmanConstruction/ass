@@ -66,11 +66,16 @@ public class PaperActivity extends Activity {
         super.onResume();
         if (root == null) return;
         book = Book.load(this, "paper");
+        if (!book.eventsReady) {
+            book.readOldLog(this);
+            book.save(this);
+        }
         if (book.deposited <= 0 && book.positions.isEmpty() && book.cash <= 0) {
             // First visit: a starting stake so there's something to trade with.
             book.cash = STARTER_CASH;
             book.deposited = STARTER_CASH;
             book.history.add(stamp() + "  Account opened with " + Book.money(STARTER_CASH));
+            book.log(PaperPerf.OPEN, "", 0, 0, STARTER_CASH, 0);
             book.save(this);
         }
         build();
@@ -148,6 +153,14 @@ public class PaperActivity extends Activity {
             }
         });
         hero.addView(trade, Ui.full(this, 14));
+        Button perf = Ui.button(this, "Performance", false);
+        perf.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(PaperActivity.this, PerformanceActivity.class));
+            }
+        });
+        hero.addView(perf, Ui.full(this, 8));
         root.addView(hero, Ui.full(this, 14));
 
         if (book.positions.isEmpty()) {
@@ -257,10 +270,12 @@ public class PaperActivity extends Activity {
                             public void onClick(DialogInterface d, int which) {
                                 book.positions.clear();
                                 book.history.clear();
+                                book.events.clear();
                                 book.cash = STARTER_CASH;
                                 book.deposited = STARTER_CASH;
                                 book.history.add(stamp() + "  Account reset to "
                                         + Book.money(STARTER_CASH));
+                                book.log(PaperPerf.RESET, "", 0, 0, STARTER_CASH, 0);
                                 book.save(PaperActivity.this);
                                 quotes.clear();
                                 build();
@@ -309,6 +324,7 @@ public class PaperActivity extends Activity {
                         book.deposited += add;
                         book.history.add(stamp() + "  Added " + Book.money(add) + " for " + kp
                                 + " Knowledge Points");
+                        book.log(PaperPerf.DEPOSIT, "", 0, 0, add, 0);
                         book.save(PaperActivity.this);
                         build();
                     }
@@ -413,6 +429,7 @@ public class PaperActivity extends Activity {
                             book.history.add(stamp() + "  Bought " + Book.qty(q) + " " + sym
                                     + " at " + Book.money(price) + " = "
                                     + Book.money(q * price));
+                            book.log(PaperPerf.BUY, sym, q, price, 0, 0);
                             book.save(PaperActivity.this);
                             say("Bought " + Book.qty(q) + " " + sym + ".");
                             build();
@@ -435,6 +452,7 @@ public class PaperActivity extends Activity {
                         book.history.add(stamp() + "  Sold " + Book.qty(q) + " " + sym
                                 + " at " + Book.money(price) + " = " + Book.money(q * price)
                                 + "  (" + Book.signed(gain) + ")");
+                        book.log(PaperPerf.SELL, sym, q, price, 0, gain);
                         book.save(PaperActivity.this);
                         say("Sold " + Book.qty(q) + " " + sym + " for " + Book.signed(gain)
                                 + ".");

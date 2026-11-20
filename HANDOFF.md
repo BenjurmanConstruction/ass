@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v25**.
+- Latest release: **v26**.
 
 ## Standing rules
 
@@ -64,12 +64,18 @@ Life tools, Helper, Sleep, Tables, Arcade.
 - Casino: Lucky Sevens slot (3 reels, 1/3/5/7 lines, wild diamond, three jackpots,
   about 95%), Royal Riches (5 reels, 10 lines, free spins, about 92%), free-spins and
   high-roller perks.
-- Tables: Blackjack, Texas Hold'em vs a computer player named Rusty, Video poker
+- Tables: Blackjack, Texas Hold'em (v26: no-limit, 2-6 players, see below), Video poker
   (about 99.5% with good play), Roulette (single zero, about 97%).
 - Arcade: Block Drop (falling blocks; v21: 24 rows, smaller blocks, 1.2 s start speed,
   calmer held buttons), Peg Pop (v22 rework: `PegBits` holds boards and physics; ~100-150 packed
   pegs plus capsule "bricks" joined into ramps the ball rolls down; shaded 3D look; 8 new
   boards; a ball lighting nothing new for 2.5 s pops what it lit).
+- **Texas Hold'em** (v26): `HoldemTable` (pure engine: NL betting, all-ins, side pots;
+  tested 25k hands, no chip leaks), `HoldemBot` (8 characters with styles, tilt, and lots
+  of trash talk; owner wants them to talk a LOT, especially when winning), `HoldemActivity`
+  (lobby with blinds/table size/buy-in, drawn table, bubbles, chat log, raise slider,
+  quick-chat replies). Your table stack is saved in Prefs `hemStack` and returned to the
+  wallet if the app closes.
 - **Slot Parlor** (v23, `ParlorActivity`, `MachineActivity`, `SlotMath`): outside the skill
   tree, one 75 KP unlock (id `parlor` in `treeOwned`), entry at top of Games and tools.
   Five machines, all math in `SlotMath` with frames played back by `MachineView`:

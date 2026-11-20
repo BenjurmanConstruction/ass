@@ -19,7 +19,7 @@ final class SlotMath {
             "Jackpot Wheel", "Gem Cascade"};
     static final String[] BLURBS = {
             "Old-school 3 reels: bars, sevens and cherries. Wilds double your win.",
-            "5 reels, 1,024 ways to win. Free spins with 2x and 3x wilds that multiply.",
+            "5 reels, 1,024 ways to win. Pick your free spins; 2x and 3x wilds multiply.",
             "Land 6 coins to hold & spin. Fill the screen for the Grand jackpot.",
             "Classic reels with a bonus wheel worth up to 1,000x your bet.",
             "Gems pay anywhere. Wins explode and new gems tumble in for more."};
@@ -29,7 +29,7 @@ final class SlotMath {
     static final int[] ROWS = {3, 4, 3, 3, 5};
     static final int[] COLS = {3, 5, 5, 3, 6};
 
-    static final int REELS = 0, CASCADE = 1, HOLD = 2, WHEEL_SPIN = 3, BANNER = 4;
+    static final int REELS = 0, CASCADE = 1, HOLD = 2, WHEEL_SPIN = 3, BANNER = 4, CHOICE = 5;
 
     private SlotMath() {
     }
@@ -57,6 +57,8 @@ final class SlotMath {
         String text;
         /** True if the screen should slow the last reels for suspense. */
         boolean tease;
+        /** True if, once this frame has landed, the player taps to go on (a bonus starts). */
+        boolean waitTap;
     }
 
     static final class Outcome {
@@ -66,9 +68,22 @@ final class SlotMath {
         boolean feature;
         /** Units won in the base spin alone, before any feature. */
         long baseWin;
+        /** Thunder Plains: free spins won but not yet chosen and played (0 = none). */
+        int pendingFree;
     }
 
+    /** Plays a spin through to the end, picking any free-spin choice at random. */
     static Outcome play(int machine, Random rnd) {
+        Outcome o = play(machine, rnd, false);
+        if (o.pendingFree > 0) waysFree(o, rnd, rnd.nextInt(FREE_CHOICES.length));
+        return o;
+    }
+
+    /**
+     * Plays a spin. With leaveChoice, a Thunder Plains free-spin win stops at a CHOICE
+     * frame so the player can pick; call waysFree with their pick to finish it.
+     */
+    static Outcome play(int machine, Random rnd, boolean leaveChoice) {
         switch (machine) {
             case CLASSIC:
                 return classic(rnd);
@@ -161,14 +176,14 @@ final class SlotMath {
     /** Symbols: - blank, C cherry, 1/2/3 one, two and three bars, 7 seven, W wild (x2). */
     static final String CLASSIC_SYMS = "C1237W";
     static final char[][] CLASSIC_STRIPS = {
-            strip(CLASSIC_SYMS, new int[]{2, 6, 4, 3, 2, 1}, true, 101),
-            strip(CLASSIC_SYMS, new int[]{1, 6, 4, 3, 2, 1}, true, 102),
-            strip(CLASSIC_SYMS, new int[]{1, 6, 4, 3, 2, 1}, true, 103)};
+            strip(CLASSIC_SYMS, new int[]{1, 7, 5, 4, 3, 1}, true, 101),
+            strip(CLASSIC_SYMS, new int[]{1, 7, 5, 4, 3, 1}, true, 102),
+            strip(CLASSIC_SYMS, new int[]{1, 7, 5, 4, 3, 1}, true, 103)};
     /** Three of a kind, as a multiple of the line bet: cherry, 1 bar, 2 bar, 3 bar, 7. */
-    static final int[] CLASSIC_PAY = {10, 10, 25, 40, 100};
-    static final int CLASSIC_ANY_BAR = 5;
+    static final int[] CLASSIC_PAY = {15, 10, 22, 35, 100};
+    static final int CLASSIC_ANY_BAR = 6;
     static final int CLASSIC_WILDS = 800;
-    static final int[] CLASSIC_CHERRY = {0, 1, 3, 10};
+    static final int[] CLASSIC_CHERRY = {0, 2, 6, 15};
     /** The five lines: top, middle, bottom, and the two diagonals. */
     static final int[][] CLASSIC_LINES = {{1, 1, 1}, {0, 0, 0}, {2, 2, 2}, {0, 1, 2},
             {2, 1, 0}};
@@ -235,23 +250,23 @@ final class SlotMath {
      */
     static final String WAYS_SYMS = "EFBDAKQJTNWS";
     static final char[][] WAYS_STRIPS = {
-            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 0, 1}, false, 201),
+            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 0, 2}, false, 201),
             strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 3, 2}, false, 202),
             strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 3, 2}, false, 203),
             strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 3, 2}, false, 204),
-            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 0, 1}, false, 205)};
+            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 0, 2}, false, 205)};
     /** Free spins use their own reels with more wilds, as real machines do. */
     static final char[][] WAYS_FREE_STRIPS = {
             strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 0, 1}, false, 211),
-            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 6, 2}, false, 212),
-            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 6, 2}, false, 213),
-            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 6, 2}, false, 214),
+            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 4, 2}, false, 212),
+            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 4, 2}, false, 213),
+            strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 4, 2}, false, 214),
             strip(WAYS_SYMS, new int[]{4, 5, 5, 6, 7, 7, 8, 8, 9, 9, 0, 1}, false, 215)};
     /** Pays per way for 3, 4 and 5 of a kind, in units (the bet is 40 units). */
     static final int[][] WAYS_PAY = {{15, 60, 250}, {12, 50, 175}, {10, 30, 125}, {8, 25, 100},
-            {5, 15, 50}, {5, 15, 50}, {4, 10, 40}, {4, 10, 40}, {3, 8, 30}, {3, 8, 30}};
+            {5, 15, 50}, {5, 15, 50}, {4, 10, 40}, {4, 10, 40}, {4, 8, 30}, {4, 8, 30}};
     /** Scatter pays in units (2x, 10x, 50x the bet) and the free spins given, for 3/4/5. */
-    static final int[] WAYS_SCATTER_PAY = {80, 400, 2000};
+    static final int[] WAYS_SCATTER_PAY = {160, 400, 2000};
     static final int[] WAYS_FREE = {8, 15, 20};
 
     /**
@@ -310,8 +325,36 @@ final class SlotMath {
         f.win = tenths;
         o.frames.add(f);
         o.baseWin = tenths;
-        long sum = tenths;
-        int left = free;
+        o.total = tenths;
+        if (free > 0) {
+            o.feature = true;
+            o.pendingFree = free;
+            Frame c = new Frame();
+            c.kind = CHOICE;
+            c.freeLeft = free;
+            c.text = "Pick your free spins";
+            c.waitTap = true;
+            o.frames.add(c);
+        }
+        return o;
+    }
+
+    /**
+     * Free-spin choices for Thunder Plains: how many of the won spins you get, and what
+     * every win is multiplied by. Fewer spins, bigger multiplier: the same on average.
+     */
+    static final int[][] FREE_CHOICES = {{1, 1}, {2, 2}, {3, 3}};
+
+    static int choiceSpins(int won, int choice) {
+        return (won + FREE_CHOICES[choice][0] - 1) / FREE_CHOICES[choice][0];
+    }
+
+    /** Plays the free spins after the player picks, adding frames and winnings. */
+    static void waysFree(Outcome o, Random rnd, int choice) {
+        int x = FREE_CHOICES[choice][1];
+        int left = choiceSpins(o.pendingFree, choice);
+        o.pendingFree = 0;
+        long sum = o.total;
         int played = 0;
         while (left > 0 && played < 200) {
             left--;
@@ -322,28 +365,28 @@ final class SlotMath {
                 for (int c = 0; c < 5; c++) wm[r][c] = fg[r][c] == 'W' ? 2 + rnd.nextInt(2) : 1;
             }
             Frame ff = frame(REELS, fg);
-            long t = waysPay(fg, wm, ff.lit);
+            long t = waysPay(fg, wm, ff.lit) * x;
             int sc = count(fg, 'S');
             if (sc >= 3) {
                 int i = Math.min(sc, 5) - 3;
                 t += WAYS_SCATTER_PAY[i];
-                left += WAYS_FREE[i];
+                int more = choiceSpins(WAYS_FREE[i], choice);
+                left += more;
                 lightAll(ff, 'S');
-                ff.text = "More free spins! +" + WAYS_FREE[i];
+                ff.text = "More free spins! +" + more;
             }
             ff.coins = new long[4][5];
             for (int r = 0; r < 4; r++) {
                 for (int c = 0; c < 5; c++) ff.coins[r][c] = fg[r][c] == 'W' ? wm[r][c] : 0;
             }
             ff.freeLeft = left;
+            ff.mult = x;
             ff.win = t;
             ff.tease = scatterTease(fg, 'S');
             o.frames.add(ff);
             sum += t;
         }
-        o.feature = free > 0;
         o.total = sum;
-        return o;
     }
 
     /** True when two scatters are already showing before the last reels stop. */
@@ -369,25 +412,25 @@ final class SlotMath {
             strip(VAULT_SYMS, new int[]{3, 4, 5, 5, 7, 7, 8, 8, 9}, false, 304),
             strip(VAULT_SYMS, new int[]{3, 4, 5, 5, 7, 7, 8, 8, 9}, false, 305)};
     /** Pays per way for 3, 4, 5 of a kind, in units (the bet is 20 units). */
-    static final int[][] VAULT_PAY = {{48, 180, 600}, {36, 120, 480}, {24, 96, 360}, {24, 72, 300},
-            {15, 48, 144}, {15, 48, 144}, {15, 36, 120}, {15, 36, 120}, {15, 24, 96}};
+    static final int[][] VAULT_PAY = {{40, 150, 500}, {32, 100, 400}, {24, 96, 360}, {24, 72, 300},
+            {25, 60, 150}, {25, 60, 150}, {22, 45, 120}, {22, 45, 120}, {21, 35, 100}};
     /** Chance of a coin on each cell in the base game. */
-    static final double VAULT_COIN_BASE = 0.13;
+    static final double VAULT_COIN_BASE = 0.155;
     /**
      * Chance of a coin on each empty cell on each respin, by how many cells are already
      * filled. It gets harder as the screen fills, so the Grand is a rare event.
      */
-    static final double[] VAULT_COIN_RESPIN = {0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.12,
-            0.12, 0.11, 0.09, 0.07, 0.055, 0.04, 0.02, 0.006, 0};
+    static final double[] VAULT_COIN_RESPIN = {0.105, 0.105, 0.105, 0.105, 0.105, 0.105, 0.105,
+            0.105, 0.1, 0.085, 0.07, 0.055, 0.04, 0.02, 0.006, 0};
     static final int VAULT_TRIGGER = 6;
     /** Coin values in units (bet = 20), with how often each turns up. */
-    static final long[] VAULT_VALUES = {25, 50, 75, 100, 150, 250, 500};
-    static final int[] VAULT_WEIGHTS = {30, 26, 14, 10, 8, 5, 3};
+    static final long[] VAULT_VALUES = {10, 20, 30, 40, 60, 100, 250};
+    static final int[] VAULT_WEIGHTS = {34, 28, 14, 9, 7, 5, 3};
     /** Jackpots in units: Mini 10x, Minor 25x, Major 100x, Grand 1,000x the bet. */
     static final long[] VAULT_JACKPOTS = {200, 500, 2000, 20000};
     static final String[] JACKPOT_NAMES = {"MINI", "MINOR", "MAJOR", "GRAND"};
     /** Out of 1,000 coins: how many are Mini, Minor, Major (Major only in respins). */
-    static final int VAULT_MINI = 30, VAULT_MINOR = 10, VAULT_MAJOR = 2;
+    static final int VAULT_MINI = 18, VAULT_MINOR = 8, VAULT_MAJOR = 2;
 
     /** A random coin: a value in units, or -1 to -3 for Mini, Minor, Major. */
     private static long coin(Random rnd, boolean respin) {
@@ -469,6 +512,7 @@ final class SlotMath {
         if (n >= VAULT_TRIGGER) {
             o.feature = true;
             f.text = n + " coins: HOLD & SPIN!";
+            f.waitTap = true;
             lightAll(f, 'O');
             long[][] held = new long[3][5];
             for (int r = 0; r < 3; r++) held[r] = cv[r].clone();
@@ -534,14 +578,14 @@ final class SlotMath {
     static final char[][] WHEEL_STRIPS = {
             strip("1237D", new int[]{6, 5, 4, 3, 1}, true, 401),
             strip("1237D", new int[]{6, 5, 4, 3, 1}, true, 402),
-            strip("1237DS", new int[]{18, 15, 12, 6, 3, 1}, true, 403)};
+            strip("1237DS", new int[]{16, 13, 10, 5, 3, 2}, true, 403)};
     /** Three of a kind on the line, as a multiple of the bet: 1 bar, 2 bar, 3 bar, 7. */
-    static final int[] WHEEL_PAY = {6, 12, 25, 70};
+    static final int[] WHEEL_PAY = {5, 10, 20, 55};
     static final int WHEEL_ANY_BAR = 2;
     static final int WHEEL_WILDS = 500;
     /** The wheel's 20 segments, as multiples of the bet. */
-    static final int[] WHEEL_SEGMENTS = {20, 50, 25, 100, 30, 40, 250, 25, 60, 30, 500, 20,
-            75, 40, 150, 25, 1000, 30, 50, 40};
+    static final int[] WHEEL_SEGMENTS = {10, 25, 15, 50, 10, 20, 100, 15, 30, 10, 250, 15,
+            40, 20, 75, 10, 1000, 20, 30, 15};
 
     static int wheelLine(char a, char b, char c) {
         char[] l = {a, b, c};
@@ -572,8 +616,8 @@ final class SlotMath {
      * The wheel's segments are not all equally likely: like a real wheel game, the big
      * ones are rarer. These are the weights for each segment, in the same order.
      */
-    static final int[] WHEEL_WEIGHTS = {14, 7, 12, 3, 11, 9, 1, 12, 6, 11, 1, 14, 5, 9, 2,
-            12, 1, 11, 7, 9};
+    static final int[] WHEEL_WEIGHTS = {14, 8, 12, 4, 14, 10, 2, 12, 6, 14, 1, 12, 4, 10, 3,
+            14, 1, 10, 6, 12};
 
     private static Outcome wheel(Random rnd) {
         Outcome o = new Outcome();
@@ -591,6 +635,7 @@ final class SlotMath {
             o.feature = true;
             f.lit[1][2] = true;
             f.text = "WHEEL BONUS!";
+            f.waitTap = true;
             int total = 0;
             for (int w : WHEEL_WEIGHTS) total += w;
             int pick = rnd.nextInt(total);
@@ -621,11 +666,11 @@ final class SlotMath {
     /** Gems from most to least valuable: R ruby, M emerald, P sapphire, A amethyst, T topaz,
      *  H heart, O star, C crescent; S is the scatter. */
     static final String GEM_SYMS = "RMPATHOCS";
-    static final int[] GEM_WEIGHTS = {10, 14, 18, 22, 26, 30, 34, 38, 3};
+    static final int[] GEM_WEIGHTS = {10, 14, 18, 22, 26, 30, 34, 38, 4};
     /** Pays anywhere on the board for 8-9, 10-11 and 12 or more, in units (bet = 20). */
     static final int[][] GEM_PAY = {{200, 500, 1000}, {50, 200, 500}, {40, 100, 300},
-            {22, 40, 240}, {15, 30, 200}, {12, 24, 160}, {8, 20, 100}, {6, 16, 80}};
-    static final int GEM_FREE = 15;
+            {22, 40, 240}, {15, 30, 200}, {12, 24, 160}, {9, 20, 100}, {7, 16, 80}};
+    static final int GEM_FREE = 10;
 
     private static char gem(Random rnd) {
         int total = 0;
@@ -719,16 +764,17 @@ final class SlotMath {
             last.win += scatterPay;
             last.text = sc + " stars: " + GEM_FREE + " free spins! Every tumble raises the "
                     + "multiplier.";
+            last.waitTap = true;
             sum += scatterPay;
             int left = GEM_FREE;
-            int[] mult = {3};
+            int[] mult = {2};
             int played = 0;
             while (left > 0 && played < 100) {
                 left--;
                 played++;
                 long pk = gemRound(o, rnd, mult, left);
                 sum += pk / 10;
-                if (pk % 10 >= 3) {
+                if (pk % 10 >= 4) {
                     left += 5;
                     o.frames.get(o.frames.size() - 1).text = "+5 free spins!";
                 }

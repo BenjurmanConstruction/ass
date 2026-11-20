@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v23**.
+- Latest release: **v24**.
 
 ## Standing rules
 
@@ -78,6 +78,11 @@ Life tools, Helper, Sleep, Tables, Arcade.
   ~1 in 270k, 94.3%), Jackpot Wheel (1 line + wheel, 93.2% exact), Gem Cascade (pay
   anywhere, tumbles, growing free-spin multiplier, 96.1%). Paybacks from 5M-spin sims;
   re-run a sim after any pay change and update the odds text in `MachineActivity`.
+  v24: owner found v23 joyless, so all five were retuned for fun (~98-99% payback,
+  bonuses 2-3x more often, more wins above the bet) and made interactive: tap reels or
+  SPIN to stop early, tap the resting machine to spin, tap to start each bonus, Thunder
+  Plains lets you pick free spins (all x1, half x2, a third x3), BIG/MEGA/EPIC WIN
+  celebration at 10x/25x/50x, chasing cabinet lights. Owner prefers fun over realism.
 - Market: portfolio, paper trading (1 KP = $10), price alerts (background check
   about every 15 min), economic calendar (Fed, minutes, CPI, PPI, PCE, GDP, jobs
   through Dec 2027, with live numbers from FRED), market Q&A.

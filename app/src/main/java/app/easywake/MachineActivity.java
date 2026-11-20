@@ -18,6 +18,7 @@ import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -48,7 +49,7 @@ public class MachineActivity extends Activity {
     private TextView winMeter;
     private Button spinBtn;
     private Button autoBtn;
-    private int betIndex = 1;
+    private int betIndex = 0;
     private boolean busy;
     private int autoLeft;
     private long shownWin;
@@ -79,13 +80,23 @@ public class MachineActivity extends Activity {
         android.graphics.drawable.GradientDrawable fg = Ui.round(this, CABINET[m], 22);
         fg.setStroke(Ui.dp(this, 3), TRIM[m]);
         view.setBackground(fg);
+        view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!busy) {
+                    autoLeft = 0;
+                    spin();
+                }
+            }
+        });
         root.addView(view, Ui.full(this, 10));
 
         winMeter = Ui.text(this, "", 26, Ui.ACCENT);
         winMeter.setTypeface(Ui.medium());
         winMeter.setGravity(Gravity.CENTER);
         root.addView(winMeter, Ui.full(this, 6));
-        message = Ui.text(this, SlotMath.BLURBS[m], 15, Ui.TEXT);
+        message = Ui.text(this, SlotMath.BLURBS[m] + "\nTap the machine or SPIN. Tap again to stop "
+                + "the reels.", 15, Ui.TEXT);
         message.setGravity(Gravity.CENTER);
         message.setMinLines(2);
         root.addView(message, Ui.full(this, 2));
@@ -132,7 +143,9 @@ public class MachineActivity extends Activity {
             @Override
             public void onClick(View v) {
                 autoLeft = 0;
-                spin();
+                // While the reels are spinning, SPIN stops them.
+                if (busy) view.slam();
+                else spin();
             }
         });
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, Ui.dp(this, 72), 1f);
@@ -240,7 +253,7 @@ public class MachineActivity extends Activity {
         winMeter.setText("");
         message.setText("Good luck!");
         paint();
-        final SlotMath.Outcome o = SlotMath.play(m, rnd);
+        final SlotMath.Outcome o = SlotMath.play(m, rnd, true);
         view.setBet(bet);
         view.play(o, new MachineView.Listener() {
             long units;
@@ -249,6 +262,14 @@ public class MachineActivity extends Activity {
             public void frameWon(long u) {
                 units += u;
                 rollTo(coupons(units));
+            }
+
+            @Override
+            public void featureStarted() {
+                autoLeft = 0;
+                message.setText("BONUS! Tap the machine to play it.");
+                Sfx.play(MachineActivity.this, Sfx.JACKPOT);
+                paint();
             }
 
             @Override
@@ -294,9 +315,14 @@ public class MachineActivity extends Activity {
             message.setText(String.format(Locale.US, "Winner! %,d coupons (%.1fx your bet)",
                     won, x));
         }
-        if (x >= 50 || (o.feature && x >= 20)) Sfx.play(this, Sfx.JACKPOT);
-        else if (x >= 5) Sfx.play(this, Sfx.BIG_WIN);
-        else if (won > 0) Sfx.play(this, Sfx.WIN);
+        // Wins of 10x and up already had their celebration on the machine.
+        if (x >= 10) {
+            // Nothing more to play.
+        } else if (x >= 3) {
+            Sfx.play(this, Sfx.BIG_WIN);
+        } else if (won > 0) {
+            Sfx.play(this, Sfx.WIN);
+        }
         Stats.bet(this, "parlor", bet, (int) Math.min(Integer.MAX_VALUE, won));
         sitting.round(bet, (int) Math.min(Integer.MAX_VALUE, won));
         busy = false;
@@ -333,10 +359,10 @@ public class MachineActivity extends Activity {
                         .append("   One cherry  ").append(SlotMath.CLASSIC_CHERRY[1])
                         .append("\n\n🔥 WILD stands in for any symbol and doubles the win; "
                                 + "two wilds make it 4x.\n\n"
-                                + "Odds: something pays about 1 spin in 2, though many of "
-                                + "those are small cherry wins worth less than your bet. "
-                                + "Pays back 94.2% over the long run, worked out exactly "
-                                + "from all 41,616 ways the reels can stop.");
+                                + "Odds: something pays about 1 spin in 2.3, and about 1 spin "
+                                + "in 3.4 pays more than your bet. Pays back 98.3% over the "
+                                + "long run, worked out exactly from all 74,088 ways the "
+                                + "reels can stop.");
                 break;
             case SlotMath.WAYS:
                 sb.append("1,024 ways: any symbol on each reel next to the one before it, "
@@ -350,13 +376,15 @@ public class MachineActivity extends Activity {
                             .append(SlotMath.WAYS_PAY[i][2]).append('\n');
                 }
                 sb.append("\n🌅 WILD appears on reels 2, 3 and 4 only.\n🌕 Three, four or "
-                        + "five gold moons anywhere pay 2x, 10x or 50x your bet and give 8, "
-                        + "15 or 20 free spins. In free spins the reels carry more wilds, "
-                        + "each wild is 2x or 3x, and wins through several wilds multiply "
-                        + "together.\n\nOdds: something pays about 1 spin in 1.7 (often less "
-                        + "than your bet). Free spins about 1 in 173 spins, worth about 50x "
-                        + "your bet on average. Pays back about 93.6% (5 million test "
-                        + "spins).");
+                        + "five gold moons anywhere pay 4x, 10x or 50x your bet and win 8, "
+                        + "15 or 20 free spins. Then you pick: all the spins with wins x1, "
+                        + "half of them with wins x2, or a third of them with wins x3. In "
+                        + "free spins the reels carry more wilds, each wild is 2x or 3x, and "
+                        + "wins through several wilds multiply together.\n\nOdds: something "
+                        + "pays about 1 spin in 1.7, and about 1 in 5.7 pays more than your "
+                        + "bet. Free spins about 1 in 86 spins, worth about 26x your bet on "
+                        + "average (the three picks come out about the same). Pays back "
+                        + "about 98.1% (4 million test spins).");
                 break;
             case SlotMath.COINS:
                 sb.append("243 ways from the left. Pays for a 20-coupon bet per way, scaled "
@@ -369,13 +397,13 @@ public class MachineActivity extends Activity {
                 }
                 sb.append("\n🪙 HOLD & SPIN: land 6 or more coins. They lock in place and "
                         + "you get 3 respins; every new coin resets the respins to 3. When "
-                        + "they run out, every coin pays its value. Coins are worth 1.25x to "
-                        + "25x your bet, or a jackpot:\nMINI 10x  •  MINOR 25x  •  MAJOR "
-                        + "100x  •  GRAND 1,000x (fill all 15 spots)\n\nOdds: something "
-                        + "pays about 1 spin in 4. Hold & spin about 1 in 119 spins, worth "
-                        + "about 50x on average. Jackpots, per spin: Mini about 1 in 370, "
-                        + "Minor 1 in 1,100, Major 1 in 13,000, Grand about 1 in 270,000. "
-                        + "Pays back about 94.3% (5 million test spins).");
+                        + "they run out, every coin pays its value. Coins are worth half to "
+                        + "12.5x your bet, or a jackpot:\nMINI 10x  •  MINOR 25x  •  MAJOR "
+                        + "100x  •  GRAND 1,000x (fill all 15 spots)\n\nOdds: about 1 spin "
+                        + "in 4.2 pays more than your bet. Hold & spin about 1 in 51 spins, "
+                        + "worth about 22x on average. Jackpots, per spin: Mini about 1 in "
+                        + "270, Minor 1 in 600, Major 1 in 6,200, Grand about 1 in 110,000. "
+                        + "Pays back about 99% (4 million test spins).");
                 break;
             case SlotMath.WHEEL:
                 sb.append("One line, through the middle. Pays are times your bet.\n\n");
@@ -390,22 +418,7 @@ public class MachineActivity extends Activity {
                                 + "bonus wheel:\n");
                 int tw = 0;
                 for (int x : SlotMath.WHEEL_WEIGHTS) tw += x;
-                int[] seen = new int[SlotMath.WHEEL_SEGMENTS.length];
-                for (int i = 0; i < SlotMath.WHEEL_SEGMENTS.length; i++) {
-                    int val = SlotMath.WHEEL_SEGMENTS[i];
-                    boolean dup = false;
-                    for (int j = 0; j < i; j++) {
-                        if (SlotMath.WHEEL_SEGMENTS[j] == val) dup = true;
-                    }
-                    if (dup) continue;
-                    int wsum = 0;
-                    for (int j = 0; j < SlotMath.WHEEL_SEGMENTS.length; j++) {
-                        if (SlotMath.WHEEL_SEGMENTS[j] == val) wsum += SlotMath.WHEEL_WEIGHTS[j];
-                    }
-                    seen[i] = wsum;
-                }
-                for (int val : new int[]{1000, 500, 250, 150, 100, 75, 60, 50, 40, 30, 25,
-                        20}) {
+                for (int val : new int[]{1000, 250, 100, 75, 50, 40, 30, 25, 20, 15, 10}) {
                     int wsum = 0;
                     for (int j = 0; j < SlotMath.WHEEL_SEGMENTS.length; j++) {
                         if (SlotMath.WHEEL_SEGMENTS[j] == val) wsum += SlotMath.WHEEL_WEIGHTS[j];
@@ -415,9 +428,9 @@ public class MachineActivity extends Activity {
                                 val, 100.0 * wsum / tw));
                     }
                 }
-                sb.append("\nOdds: the wheel comes up about 1 spin in 110 and pays about 47x "
-                        + "your bet on average. Something pays about 1 spin in 11.5. Pays "
-                        + "back 93.2%, worked out exactly from every reel stop.");
+                sb.append("\nOdds: the wheel comes up about 1 spin in 49 and pays about 26x "
+                        + "your bet on average. Something pays about 1 spin in 10. Pays "
+                        + "back 98.3%, worked out exactly from every reel stop.");
                 break;
             default:
                 sb.append("Gems pay anywhere: 8 or more of the same gem on the board wins, "
@@ -433,12 +446,12 @@ public class MachineActivity extends Activity {
                 }
                 sb.append("\n💫 Four or more shooting stars pay 3x, 5x or 100x your bet and "
                         + "give ").append(SlotMath.GEM_FREE).append(" free spins. The free "
-                        + "spin multiplier starts at x3 and goes up by one with every "
-                        + "winning tumble, and it never resets during the round. Three "
+                        + "spin multiplier starts at x2 and goes up by one with every "
+                        + "winning tumble, and it never resets during the round. Four "
                         + "stars in free spins add 5 more.\n\nOdds: something pays about 1 "
-                        + "spin in 2.2. Free spins about 1 in 366 spins, worth about 119x "
-                        + "your bet on average. Pays back about 96.1% (5 million test "
-                        + "spins).");
+                        + "spin in 2.2, and about 1 in 4.9 pays more than your bet. Free "
+                        + "spins about 1 in 138 spins, worth about 49x your bet on average. "
+                        + "Pays back about 98.1% (5 million test spins).");
                 break;
         }
         sb.append("\n\nPlay money only. It's for fun.");
@@ -459,11 +472,15 @@ public class MachineActivity extends Activity {
         interface Listener {
             void frameWon(long units);
 
+            /** A bonus has started: stop auto play, the player takes over. */
+            void featureStarted();
+
             void done();
         }
 
         private static final int IDLE = 0, SPIN = 1, DROP = 2, CASCADE = 3, HOLD = 4,
-                WHEEL = 5, SHOW = 6;
+                WHEEL = 5, SHOW = 6, WAIT = 7, CHOOSE = 8, PARTY = 9;
+        private static final int COINS_FALLING = 46;
 
         private final int machine;
         private final int rows;
@@ -501,6 +518,16 @@ public class MachineActivity extends Activity {
         private float wheelTo;
         private float wheelAngle;
         private int token;
+        /** Bumped whenever a frame's landing is rescheduled (tap to stop). */
+        private int phaseId;
+        private String waitText;
+        private final RectF[] choiceBox = {new RectF(), new RectF(), new RectF()};
+        private String partyTitle;
+        private long partyCoupons;
+        private final float[] px = new float[COINS_FALLING];
+        private final float[] py = new float[COINS_FALLING];
+        private final float[] pv = new float[COINS_FALLING];
+        private final float[] pr = new float[COINS_FALLING];
 
         MachineView(Context c, int machine) {
             super(c);
@@ -574,10 +601,12 @@ public class MachineActivity extends Activity {
         private void nextFrame(final int mine) {
             index++;
             if (index >= outcome.frames.size()) {
-                phase = IDLE;
-                invalidate();
-                Listener l = listener;
-                if (l != null) l.done();
+                double x = outcome.total / (double) SlotMath.UNITS[machine];
+                if (x >= 10) {
+                    startParty(mine, x);
+                    return;
+                }
+                finish();
                 return;
             }
             frame = outcome.frames.get(index);
@@ -653,16 +682,121 @@ public class MachineActivity extends Activity {
                     wheelTo = wheelFrom + turns + delta;
                     Sfx.play(getContext(), Sfx.SPIN);
                     break;
+                case SlotMath.CHOICE:
+                    // Thunder Plains: the player picks how to take their free spins.
+                    phase = CHOOSE;
+                    if (listener != null) listener.featureStarted();
+                    invalidate();
+                    return;
                 default:
                     phase = SHOW;
                     phaseLength = 600;
                     break;
             }
             invalidate();
+            scheduleLand(mine);
+        }
+
+        private void scheduleLand(final int mine) {
+            final int pid = ++phaseId;
             after(phaseLength, mine, new Runnable() {
                 @Override
                 public void run() {
-                    landFrame(mine);
+                    if (pid == phaseId) landFrame(mine);
+                }
+            });
+        }
+
+        private void finish() {
+            phase = IDLE;
+            invalidate();
+            Listener l = listener;
+            if (l != null) l.done();
+        }
+
+        /** Tap to stop: the reels still spinning stop now, one after another. */
+        void slam() {
+            if (phase != SPIN || stopAt == null) return;
+            long t = SystemClock.uptimeMillis() - phaseStart;
+            int k = 0;
+            for (int c = 0; c < cols; c++) {
+                if (stopAt[c] > t + 60) stopAt[c] = t + 60 + 80L * k++;
+            }
+            if (k == 0) return;
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            phaseLength = stopAt[cols - 1] + 150;
+            scheduleLand(token);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            if (e.getAction() != MotionEvent.ACTION_DOWN) return true;
+            final int mine = token;
+            switch (phase) {
+                case SPIN:
+                    slam();
+                    break;
+                case WAIT:
+                    phase = SHOW;
+                    waitText = null;
+                    nextFrame(mine);
+                    break;
+                case CHOOSE:
+                    for (int i = 0; i < choiceBox.length; i++) {
+                        if (choiceBox[i].contains(e.getX(), e.getY())) {
+                            int spins = SlotMath.choiceSpins(outcome.pendingFree, i);
+                            SlotMath.waysFree(outcome, fx, i);
+                            banner = spins + " FREE SPINS, ALL WINS x" + SlotMath.FREE_CHOICES[i][1];
+                            bannerAt = SystemClock.uptimeMillis();
+                            Sfx.play(getContext(), Sfx.CHIPS);
+                            phase = SHOW;
+                            nextFrame(mine);
+                            break;
+                        }
+                    }
+                    break;
+                case PARTY:
+                    // Skip ahead: show the full amount, then finish.
+                    phaseStart = SystemClock.uptimeMillis() - 3000;
+                    phaseLength = 3600;
+                    final int pid = ++phaseId;
+                    after(600, mine, new Runnable() {
+                        @Override
+                        public void run() {
+                            if (pid == phaseId) finish();
+                        }
+                    });
+                    break;
+                case IDLE:
+                    // Tapping the resting machine spins it.
+                    performClick();
+                    break;
+                default:
+                    break;
+            }
+            return true;
+        }
+
+        /** BIG WIN, MEGA WIN or EPIC WIN: a shower of coins and a counter. */
+        private void startParty(final int mine, double x) {
+            partyTitle = x >= 50 ? "EPIC WIN!" : (x >= 25 ? "MEGA WIN!" : "BIG WIN!");
+            partyCoupons = Math.round(outcome.total * (double) bet / SlotMath.UNITS[machine]);
+            for (int i = 0; i < COINS_FALLING; i++) {
+                px[i] = fx.nextFloat();
+                py[i] = -fx.nextFloat() * 1.2f;
+                pv[i] = 0.25f + fx.nextFloat() * 0.35f;
+                pr[i] = 0.6f + fx.nextFloat() * 0.6f;
+            }
+            phase = PARTY;
+            phaseStart = SystemClock.uptimeMillis();
+            phaseLength = x >= 50 ? 5200 : (x >= 25 ? 4400 : 3600);
+            Sfx.play(getContext(), x >= 25 ? Sfx.JACKPOT : Sfx.BIG_WIN);
+            invalidate();
+            final int pid = ++phaseId;
+            after(phaseLength, mine, new Runnable() {
+                @Override
+                public void run() {
+                    if (pid == phaseId) finish();
                 }
             });
         }
@@ -702,10 +836,21 @@ public class MachineActivity extends Activity {
             if (frame.freeLeft >= 0 && frame.win == 0 && frame.text == null) hold = 250;
             phaseLength = hold;
             invalidate();
+            final boolean tap = frame.waitTap;
+            if (tap && listener != null) listener.featureStarted();
+            final String tapText = machine == SlotMath.COINS ? "TAP TO START HOLD & SPIN"
+                    : (machine == SlotMath.WHEEL ? "TAP TO SPIN THE WHEEL"
+                    : "TAP TO START FREE SPINS");
             after(hold, mine, new Runnable() {
                 @Override
                 public void run() {
-                    nextFrame(mine);
+                    if (tap) {
+                        phase = WAIT;
+                        waitText = tapText;
+                        invalidate();
+                    } else {
+                        nextFrame(mine);
+                    }
                 }
             });
         }
@@ -762,6 +907,7 @@ public class MachineActivity extends Activity {
             long now = SystemClock.uptimeMillis();
             long t = now - phaseStart;
 
+            drawLights(cv, w, p, now);
             drawBand(cv, w, p, now);
 
             // The glass behind the reels.
@@ -896,7 +1042,145 @@ public class MachineActivity extends Activity {
                 drawWheel(cv, w / 2f, top + gh / 2f, Math.min(gw, gh) * 0.48f, a);
             }
 
+            if (phase == WAIT) drawWait(cv, w, top, gh, now);
+            if (phase == CHOOSE) drawChoice(cv, p, top, gw, gh, now);
+            if (phase == PARTY) drawParty(cv, w, top, gh, t);
+
             if (phase != IDLE) postInvalidateOnAnimation();
+            else postInvalidateDelayed(110);
+        }
+
+        /** Chasing bulbs around the cabinet; they go wild on a win or a bonus. */
+        private void drawLights(Canvas cv, float w, float p, long now) {
+            float h = getHeight();
+            float in = p * 0.5f;
+            float step = p * 1.6f;
+            float r = p * 0.22f;
+            boolean wild = phase == PARTY || phase == WAIT || phase == CHOOSE
+                    || (phase == SHOW && frame != null && frame.win > 0);
+            long tick = now / (wild ? 70 : 140);
+            int i = 0;
+            paint.setShader(null);
+            float perim = 2 * (w - 2 * in) + 2 * (h - 2 * in);
+            for (float d = 0; d < perim; d += step, i++) {
+                float x, y;
+                float a = w - 2 * in;
+                float b = h - 2 * in;
+                if (d < a) {
+                    x = in + d;
+                    y = in;
+                } else if (d < a + b) {
+                    x = w - in;
+                    y = in + d - a;
+                } else if (d < 2 * a + b) {
+                    x = w - in - (d - a - b);
+                    y = h - in;
+                } else {
+                    x = in;
+                    y = h - in - (d - 2 * a - b);
+                }
+                boolean on = wild ? ((i + tick) % 2 == 0) : ((i + tick) % 4 == 0);
+                paint.setColor(on ? (wild && (tick % 6 < 3) ? 0xFFFFFFFF : TRIM[machine])
+                        : 0x44FFFFFF);
+                cv.drawCircle(x, y, on ? r * 1.25f : r, paint);
+            }
+        }
+
+        private void drawWait(Canvas cv, float w, float top, float gh, long now) {
+            paint.setShader(null);
+            paint.setColor(0x99000000);
+            cv.drawRect(0, top, w, top + gh, paint);
+            float pulse = 1 + 0.08f * (float) Math.sin(now / 150.0);
+            float cy = top + gh / 2;
+            cv.save();
+            cv.scale(pulse, pulse, w / 2, cy);
+            label(cv, waitText == null ? "TAP TO START" : waitText, w / 2, cy - gh * 0.08f,
+                    fitText(waitText, w * 0.86f, gh * 0.11f), 0xFFFFEB3B, 255);
+            cv.restore();
+            emoji(cv, "👆", w / 2, cy + gh * 0.18f + (float) Math.sin(now / 120.0) * gh * 0.03f,
+                    gh * 0.16f, 255);
+        }
+
+        private float fitText(String text, float maxW, float size) {
+            if (text == null) return size;
+            paint.setFakeBoldText(true);
+            paint.setTextSize(size);
+            while (paint.measureText(text) > maxW && size > 8) {
+                size -= 1;
+                paint.setTextSize(size);
+            }
+            paint.setFakeBoldText(false);
+            return size;
+        }
+
+        private void drawChoice(Canvas cv, float p, float top, float gw, float gh, long now) {
+            paint.setShader(null);
+            paint.setColor(0xCC000000);
+            cv.drawRect(0, top, getWidth(), top + gh, paint);
+            float w = getWidth();
+            label(cv, "PICK YOUR FREE SPINS", w / 2, top + gh * 0.12f,
+                    fitText("PICK YOUR FREE SPINS", gw * 0.9f, gh * 0.09f), 0xFFFFD54F, 255);
+            int[] fill = {0xFF1565C0, 0xFF6A1B9A, 0xFFC62828};
+            float bw = gw / 3f;
+            for (int i = 0; i < 3; i++) {
+                float x0 = p + i * bw + bw * 0.06f;
+                float x1 = p + (i + 1) * bw - bw * 0.06f;
+                float y0 = top + gh * 0.24f;
+                float y1 = top + gh * 0.94f;
+                choiceBox[i].set(x0, y0, x1, y1);
+                float bob = (float) Math.sin(now / 200.0 + i) * gh * 0.012f;
+                rect.set(x0, y0 + bob, x1, y1 + bob);
+                paint.setShader(new LinearGradient(0, rect.top, 0, rect.bottom,
+                        0xFFFFFFFF & (fill[i] | 0xFF404040), fill[i], Shader.TileMode.CLAMP));
+                cv.drawRoundRect(rect, bw * 0.12f, bw * 0.12f, paint);
+                paint.setShader(null);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(bw * 0.03f);
+                paint.setColor(0xFFFFD54F);
+                cv.drawRoundRect(rect, bw * 0.12f, bw * 0.12f, paint);
+                paint.setStyle(Paint.Style.FILL);
+                int spins = SlotMath.choiceSpins(outcome.pendingFree, i);
+                float cx = rect.centerX();
+                label(cv, String.valueOf(spins), cx, rect.top + rect.height() * 0.3f,
+                        rect.width() * 0.42f, 0xFFFFFFFF, 255);
+                label(cv, "SPINS", cx, rect.top + rect.height() * 0.52f, rect.width() * 0.16f,
+                        0xFFFFFFFF, 255);
+                label(cv, "WINS x" + SlotMath.FREE_CHOICES[i][1], cx,
+                        rect.top + rect.height() * 0.78f, rect.width() * 0.15f, 0xFFFFEB3B, 255);
+            }
+        }
+
+        private void drawParty(Canvas cv, float w, float top, float gh, long t) {
+            float h = getHeight();
+            paint.setShader(null);
+            paint.setColor(0xAA000000);
+            cv.drawRect(0, 0, w, h, paint);
+            // Falling coins.
+            float sec = t / 1000f;
+            for (int i = 0; i < COINS_FALLING; i++) {
+                float y = (py[i] + pv[i] * sec * 1.6f) % 1.3f;
+                float x = px[i] * w + (float) Math.sin(sec * 3 + i) * w * 0.02f;
+                float r = w * 0.025f * pr[i];
+                float squash = Math.abs((float) Math.cos(sec * 6 + i));
+                rect.set(x - r * squash, y * h - r, x + r * squash, y * h + r);
+                paint.setShader(new RadialGradient(x - r * 0.3f, y * h - r * 0.3f, r * 1.4f,
+                        0xFFFFF8E1, 0xFFFFA000, Shader.TileMode.CLAMP));
+                cv.drawOval(rect, paint);
+                paint.setShader(null);
+            }
+            float pulse = 1 + 0.07f * (float) Math.sin(t / 110.0);
+            int[] cycle = {0xFFFFEB3B, 0xFFFF5252, 0xFF69F0AE, 0xFF40C4FF, 0xFFE040FB};
+            int color = cycle[(int) ((t / 180) % cycle.length)];
+            float cy = h * 0.42f;
+            cv.save();
+            cv.scale(pulse, pulse, w / 2, cy);
+            label(cv, partyTitle, w / 2, cy, fitText(partyTitle, w * 0.9f, h * 0.14f), color, 255);
+            cv.restore();
+            float k = easeOut(t / 2600f);
+            long shownAmount = Math.round(partyCoupons * (double) k);
+            label(cv, String.format(Locale.US, "%,d", shownAmount), w / 2, h * 0.62f,
+                    h * 0.11f, 0xFFFFFFFF, 255);
+            label(cv, "tap to skip", w / 2, h * 0.78f, h * 0.035f, 0xAAFFFFFF, 255);
         }
 
         private static float wheelEase(float t) {

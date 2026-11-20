@@ -22,9 +22,9 @@ public class ParlorActivity extends Activity {
     static final int COST = 75;
     private static final String ID = "parlor";
     /** Payback for each machine, worked out from millions of test spins (see SlotMath). */
-    static final String[] PAYBACK = {"94.2%", "93.6%", "94.3%", "93.2%", "96.1%"};
-    static final String[] FEEL = {"Steady small wins", "Swingy, big free spins",
-            "Rare big bonus", "Rare, big wheel", "Swingy, huge free spins"};
+    static final String[] PAYBACK = {"98%", "98%", "99%", "98%", "98%"};
+    static final String[] FEEL = {"Wins often", "Free spins about 1 in 86, you pick",
+            "Hold & spin about 1 in 51", "Wheel about 1 in 49", "Free spins about 1 in 138"};
 
     private LinearLayout root;
 

@@ -74,7 +74,7 @@ public class ParlorActivity extends Activity {
             TextView t = Ui.text(this, "Unlock every machine", 18, Ui.TEXT);
             t.setTypeface(Ui.medium());
             card.addView(t);
-            card.addView(Ui.text(this, "One unlock opens all five new machines below. "
+            card.addView(Ui.text(this, "One unlock opens every machine below, coupon and penny. "
                     + COST + " Knowledge Points, once.", 14, Ui.SUB), Ui.full(this, 4));
             Button buy = Ui.button(this, "Unlock for " + COST + " KP", true);
             buy.setOnClickListener(new View.OnClickListener() {
@@ -111,8 +111,8 @@ public class ParlorActivity extends Activity {
             root.addView(card, Ui.full(this, 12));
         }
 
-        root.addView(Ui.heading(this, "Machines"), Ui.full(this, 18));
-        for (int i = 0; i < SlotMath.NAMES.length; i++) {
+        root.addView(Ui.heading(this, "Coupon machines"), Ui.full(this, 18));
+        for (int i = 0; i < SlotMath.COUPON_MACHINES; i++) {
             final int m = i;
             LinearLayout card = card();
             TextView name = Ui.text(this, SlotMath.NAMES[i], 18, open ? Ui.TEXT : Ui.SUB);
@@ -132,6 +132,54 @@ public class ParlorActivity extends Activity {
                         return;
                     }
                     startActivity(new Intent(ParlorActivity.this, MachineActivity.class)
+                            .putExtra("machine", m));
+                }
+            });
+            root.addView(card, Ui.full(this, 10));
+        }
+
+        // The penny machines on the shared jackpot bank.
+        root.addView(Ui.heading(this, "Penny Palace"), Ui.full(this, 22));
+        JackpotBank bank = PennyActivity.loadBank(this, new java.util.Random());
+        LinearLayout jp = card();
+        TextView grand = Ui.text(this, String.format(Locale.US, "GRAND  %,.2f",
+                bank.meter[JackpotBank.GRAND] / 100.0), 22, 0xFFFFD54F);
+        grand.setTypeface(Ui.medium());
+        jp.addView(grand);
+        jp.addView(Ui.text(this, String.format(Locale.US, "MAJOR %,.2f   •   MINOR %,.2f   •   "
+                        + "MINI %,.2f", bank.meter[JackpotBank.MAJOR] / 100.0,
+                bank.meter[JackpotBank.MINOR] / 100.0, bank.meter[JackpotBank.MINI] / 100.0),
+                13, Ui.TEXT), Ui.full(this, 2));
+        jp.addView(Ui.text(this, String.format(Locale.US, "Mystery %,.2f (must hit by 25)   •   "
+                        + "Mega mystery %,.2f (must hit by 250)",
+                bank.meter[JackpotBank.MYSTERY_SMALL] / 100.0,
+                bank.meter[JackpotBank.MYSTERY_BIG] / 100.0), 12, Ui.SUB), Ui.full(this, 2));
+        long cr = PennyActivity.credits(this);
+        jp.addView(Ui.text(this, "Shared progressive jackpots on every penny machine, in "
+                + "coupons. Bets from 25 credits (¼ coupon)."
+                + (cr > 0 ? String.format(Locale.US, " You have %,d credits in the machines.",
+                cr) : ""), 12, Ui.SUB), Ui.full(this, 6));
+        root.addView(jp, Ui.full(this, 8));
+        for (int i = SlotMath.COUPON_MACHINES; i < SlotMath.NAMES.length; i++) {
+            final int m = i;
+            LinearLayout card = card();
+            TextView name = Ui.text(this, SlotMath.NAMES[i], 18, open ? Ui.TEXT : Ui.SUB);
+            name.setTypeface(Ui.medium());
+            card.addView(name);
+            card.addView(Ui.text(this, SlotMath.BLURBS[i], 14, Ui.SUB), Ui.full(this, 2));
+            card.addView(Ui.text(this, "Penny machine  •  free spins  •  linked jackpots"
+                    + (open ? "" : "  •  Locked"), 13, open ? Ui.ACCENT : Ui.SUB),
+                    Ui.full(this, 6));
+            card.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (!owned(ParlorActivity.this)) {
+                        android.widget.Toast.makeText(ParlorActivity.this,
+                                "Unlock the Slot Parlor first (" + COST + " KP).",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    startActivity(new Intent(ParlorActivity.this, PennyActivity.class)
                             .putExtra("machine", m));
                 }
             });

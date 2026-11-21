@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v26**.
+- Latest release: **v27**.
 
 ## Standing rules
 
@@ -70,6 +70,15 @@ Life tools, Helper, Sleep, Tables, Arcade.
   calmer held buttons), Peg Pop (v22 rework: `PegBits` holds boards and physics; ~100-150 packed
   pegs plus capsule "bricks" joined into ramps the ball rolls down; shaded 3D look; 8 new
   boards; a ball lighting nothing new for 2.5 s pops what it lit).
+- **Penny Palace** (v27, inside the Slot Parlor unlock): `PennyActivity`, math in
+  `PennyMath` (SlotMath machines 5-8: Jade Dragon Link hold & spin, Fortune Drums pick
+  bonus, Thunder Jackpot Wheel, Lucky 7s Jackpot; all have free spins), shared jackpots in
+  `JackpotBank` (MINI/MINOR/MAJOR/GRAND progressives + 2 must-hit-by mysteries; saved in
+  Prefs `jackpotBank`). Credits: 100 credits = 1 coupon, kept in Prefs `pennyCredits`,
+  cashed out as a ticket. Each spin rolls once for a progressive (chance per credit bet);
+  machines just present it. ~98% total payback incl. jackpots (4M-spin sims). Owner chose
+  progressives only; didn't want pick/wild/collect themes beyond that. Owner wants free
+  spins on machines.
 - **Texas Hold'em** (v26): `HoldemTable` (pure engine: NL betting, all-ins, side pots;
   tested 25k hands, no chip leaks), `HoldemBot` (8 characters with styles, tilt, and lots
   of trash talk; owner wants them to talk a LOT, especially when winning), `HoldemActivity`

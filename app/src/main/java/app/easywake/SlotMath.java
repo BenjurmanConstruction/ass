@@ -16,20 +16,29 @@ import java.util.Random;
 final class SlotMath {
     static final int CLASSIC = 0, WAYS = 1, COINS = 2, WHEEL = 3, GEMS = 4;
     static final String[] NAMES = {"Blazing Bars", "Thunder Plains", "Coin Vault",
-            "Jackpot Wheel", "Gem Cascade"};
+            "Jackpot Wheel", "Gem Cascade", "Jade Dragon Link", "Fortune Drums",
+            "Thunder Jackpot Wheel", "Lucky 7s Jackpot"};
+    /** How many of the machines above are the original coupon machines; the rest are penny
+     *  machines on the shared jackpot bank (see PennyMath). */
+    static final int COUPON_MACHINES = 5;
     static final String[] BLURBS = {
             "Old-school 3 reels: bars, sevens and cherries. Wilds double your win.",
             "5 reels, 1,024 ways to win. Pick your free spins; 2x and 3x wilds multiply.",
             "Land 6 coins to hold & spin. Fill the screen for the Grand jackpot.",
             "Classic reels with a bonus wheel worth up to 1,000x your bet.",
-            "Gems pay anywhere. Wins explode and new gems tumble in for more."};
+            "Gems pay anywhere. Wins explode and new gems tumble in for more.",
+            "Land 6 coins to hold & spin for credit prizes and the linked jackpots.",
+            "Drums can strike on any spin: pick coins until three match a jackpot.",
+            "Three wheel symbols spin the jackpot wheel: credits, free spins or jackpots.",
+            "Classic 7s on 5 reels. Gold 7s pay anywhere; 9 of them pay 1,000x."};
     /** The total bet, in units, for each machine. */
-    static final int[] UNITS = {5, 40, 20, 1, 20};
+    static final int[] UNITS = {5, 40, 20, 1, 20, 100, 100, 100, 100};
     /** Rows and columns shown. */
-    static final int[] ROWS = {3, 4, 3, 3, 5};
-    static final int[] COLS = {3, 5, 5, 3, 6};
+    static final int[] ROWS = {3, 4, 3, 3, 5, 3, 3, 3, 3};
+    static final int[] COLS = {3, 5, 5, 3, 6, 5, 5, 5, 5};
 
-    static final int REELS = 0, CASCADE = 1, HOLD = 2, WHEEL_SPIN = 3, BANNER = 4, CHOICE = 5;
+    static final int REELS = 0, CASCADE = 1, HOLD = 2, WHEEL_SPIN = 3, BANNER = 4, CHOICE = 5,
+            PICK = 6, JACKPOT = 7;
 
     private SlotMath() {
     }
@@ -59,6 +68,10 @@ final class SlotMath {
         boolean tease;
         /** True if, once this frame has landed, the player taps to go on (a bonus starts). */
         boolean waitTap;
+        /** A jackpot this frame pays (JackpotBank level), or -1. */
+        int jackpot = -1;
+        /** Pick bonus: what each pick reveals, in order ('0'-'3' for MINI to GRAND). */
+        char[] picks;
     }
 
     static final class Outcome {
@@ -70,6 +83,8 @@ final class SlotMath {
         long baseWin;
         /** Thunder Plains: free spins won but not yet chosen and played (0 = none). */
         int pendingFree;
+        /** Penny machines: jackpots won on this spin (JackpotBank levels). */
+        final List<Integer> jackpots = new ArrayList<>();
     }
 
     /** Plays a spin through to the end, picking any free-spin choice at random. */
@@ -99,6 +114,27 @@ final class SlotMath {
     }
 
     // ------------------------------------------------------------------ shared helpers
+
+    /** Reel strips for the penny machines are built the same way. */
+    static char[] pennyStrip(String symbols, int[] counts, long seed) {
+        return strip(symbols, counts, false, seed);
+    }
+
+    static char[][] spin(char[][] strips, int rows, Random rnd) {
+        return spinStrips(strips, rows, rnd);
+    }
+
+    static Frame newFrame(int kind, char[][] grid) {
+        return frame(kind, grid);
+    }
+
+    static int countOf(char[][] g, char s) {
+        return count(g, s);
+    }
+
+    static void light(Frame f, char s) {
+        lightAll(f, s);
+    }
 
     /**
      * Builds a reel strip from symbol counts, with blanks between symbols if asked, in an

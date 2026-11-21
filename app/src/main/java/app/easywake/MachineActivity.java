@@ -63,7 +63,7 @@ public class MachineActivity extends Activity {
             finish();
             return;
         }
-        m = Math.max(0, Math.min(SlotMath.NAMES.length - 1,
+        m = Math.max(0, Math.min(SlotMath.COUPON_MACHINES - 1,
                 getIntent().getIntExtra("machine", 0)));
         sitting = new Stats.Sitting(SlotMath.NAMES[m], "spin");
 
@@ -462,8 +462,10 @@ public class MachineActivity extends Activity {
                 .show();
     }
 
-    static final int[] CABINET = {0xEE3A0D0D, 0xEE1E1408, 0xEE3A0A12, 0xEE0D1F3A, 0xEE1A0D33};
-    static final int[] TRIM = {0xFFFF7043, 0xFFFFB300, 0xFFFFD54F, 0xFF4FC3F7, 0xFFE040FB};
+    static final int[] CABINET = {0xEE3A0D0D, 0xEE1E1408, 0xEE3A0A12, 0xEE0D1F3A, 0xEE1A0D33,
+            0xEE0B2A1C, 0xEE3A1408, 0xEE141A3A, 0xEE2A0A0A};
+    static final int[] TRIM = {0xFFFF7043, 0xFFFFB300, 0xFFFFD54F, 0xFF4FC3F7, 0xFFE040FB,
+            0xFF4CE0A0, 0xFFFF8F00, 0xFF82B1FF, 0xFFFF1744};
 
     // ================================================================== the machine view
 
@@ -479,7 +481,7 @@ public class MachineActivity extends Activity {
         }
 
         private static final int IDLE = 0, SPIN = 1, DROP = 2, CASCADE = 3, HOLD = 4,
-                WHEEL = 5, SHOW = 6, WAIT = 7, CHOOSE = 8, PARTY = 9;
+                WHEEL = 5, SHOW = 6, WAIT = 7, CHOOSE = 8, PARTY = 9, PICKING = 10;
         private static final int COINS_FALLING = 46;
 
         private final int machine;
@@ -528,6 +530,13 @@ public class MachineActivity extends Activity {
         private final float[] py = new float[COINS_FALLING];
         private final float[] pv = new float[COINS_FALLING];
         private final float[] pr = new float[COINS_FALLING];
+        /** Pick bonus: which script entry each of the 12 coins shows (-1 = still hidden). */
+        private final int[] pickShown = new int[12];
+        private final RectF[] pickBox = new RectF[12];
+        private int picksMade;
+        private boolean picksDone;
+        /** Run after a celebration started by jackpotParty, instead of the usual finish. */
+        private Runnable afterParty;
 
         MachineView(Context c, int machine) {
             super(c);
@@ -550,10 +559,11 @@ public class MachineActivity extends Activity {
 
         /** Fills the screen with a random-looking resting board. */
         void showIdle(Random rnd) {
-            SlotMath.Outcome o = SlotMath.play(machine, rnd);
+            SlotMath.Outcome o = machine >= SlotMath.COUPON_MACHINES
+                    ? PennyMath.play(machine, rnd, 0) : SlotMath.play(machine, rnd);
             SlotMath.Frame f = o.frames.get(0);
             shown = f.grid;
-            coins = machine == SlotMath.COINS ? f.coins : null;
+            coins = machine == SlotMath.COINS || machine == PennyMath.DRAGON ? f.coins : null;
             lit = new boolean[rows][cols];
             invalidate();
         }
@@ -670,7 +680,7 @@ public class MachineActivity extends Activity {
                 case SlotMath.WHEEL_SPIN:
                     phase = WHEEL;
                     phaseLength = 5200;
-                    int n = SlotMath.WHEEL_SEGMENTS.length;
+                    int n = wheelSlices();
                     float segDeg = 360f / n;
                     wheelFrom = wheelAngle % 360f;
                     // The pointer is at the top; land the chosen segment under it, a little
@@ -681,6 +691,20 @@ public class MachineActivity extends Activity {
                     float delta = ((target - wheelFrom) % 360f + 360f) % 360f;
                     wheelTo = wheelFrom + turns + delta;
                     Sfx.play(getContext(), Sfx.SPIN);
+                    break;
+                case SlotMath.PICK:
+                    // Fortune Drums: the player taps coins until three match.
+                    phase = PICKING;
+                    picksMade = 0;
+                    picksDone = false;
+                    for (int i = 0; i < 12; i++) pickShown[i] = -1;
+                    if (listener != null) listener.featureStarted();
+                    invalidate();
+                    return;
+                case SlotMath.JACKPOT:
+                    phase = SHOW;
+                    phaseLength = 300;
+                    Sfx.play(getContext(), Sfx.JACKPOT);
                     break;
                 case SlotMath.CHOICE:
                     // Thunder Plains: the player picks how to take their free spins.
@@ -710,8 +734,49 @@ public class MachineActivity extends Activity {
         private void finish() {
             phase = IDLE;
             invalidate();
+            if (afterParty != null) {
+                Runnable r = afterParty;
+                afterParty = null;
+                r.run();
+                return;
+            }
             Listener l = listener;
             if (l != null) l.done();
+        }
+
+        /** A jackpot celebration with its own title and amount; then runs after. */
+        void jackpotParty(String title, long amount, Runnable after) {
+            final int mine = ++token;
+            afterParty = after;
+            partyTitle = title;
+            partyCoupons = amount;
+            for (int i = 0; i < COINS_FALLING; i++) {
+                px[i] = fx.nextFloat();
+                py[i] = -fx.nextFloat() * 1.2f;
+                pv[i] = 0.25f + fx.nextFloat() * 0.35f;
+                pr[i] = 0.6f + fx.nextFloat() * 0.6f;
+            }
+            phase = PARTY;
+            phaseStart = SystemClock.uptimeMillis();
+            phaseLength = 5200;
+            Sfx.play(getContext(), Sfx.JACKPOT);
+            invalidate();
+            final int pid = ++phaseId;
+            after(phaseLength, mine, new Runnable() {
+                @Override
+                public void run() {
+                    if (pid == phaseId) finish();
+                }
+            });
+        }
+
+        private boolean penny() {
+            return machine >= SlotMath.COUPON_MACHINES;
+        }
+
+        private int wheelSlices() {
+            return machine == PennyMath.WHEEL ? PennyMath.WHEEL_SLICES.length
+                    : SlotMath.WHEEL_SEGMENTS.length;
         }
 
         /** Tap to stop: the reels still spinning stop now, one after another. */
@@ -740,6 +805,37 @@ public class MachineActivity extends Activity {
                     phase = SHOW;
                     waitText = null;
                     nextFrame(mine);
+                    break;
+                case PICKING:
+                    if (picksDone) break;
+                    for (int i = 0; i < 12; i++) {
+                        if (pickBox[i] == null || pickShown[i] >= 0
+                                || !pickBox[i].contains(e.getX(), e.getY())) continue;
+                        pickShown[i] = picksMade++;
+                        Sfx.play(getContext(), Sfx.PEG);
+                        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                        if (picksMade >= PennyMath.picksNeeded(frame.picks, frame.jackpot)) {
+                            picksDone = true;
+                            after(900, mine, new Runnable() {
+                                @Override
+                                public void run() {
+                                    // Show what the other coins were hiding.
+                                    for (int k = 0; k < 12; k++) {
+                                        if (pickShown[k] < 0) pickShown[k] = picksMade++;
+                                    }
+                                    invalidate();
+                                    after(1100, mine, new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            landFrame(mine);
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                        invalidate();
+                        break;
+                    }
                     break;
                 case CHOOSE:
                     for (int i = 0; i < choiceBox.length; i++) {
@@ -807,7 +903,7 @@ public class MachineActivity extends Activity {
             shown = frame.grid != null ? frame.grid : shown;
             lit = frame.lit != null ? frame.lit : new boolean[rows][cols];
             if (frame.kind == SlotMath.HOLD || machine == SlotMath.COINS
-                    || machine == SlotMath.WAYS) {
+                    || machine == SlotMath.WAYS || penny()) {
                 coins = frame.coins;
             }
             if (frame.kind == SlotMath.HOLD) {
@@ -817,6 +913,9 @@ public class MachineActivity extends Activity {
                 }
             }
             if (frame.kind == SlotMath.WHEEL_SPIN) wheelAngle = wheelTo;
+            if (frame.kind == SlotMath.PICK) {
+                frame.text = JackpotBank.NAMES[frame.jackpot] + " JACKPOT!";
+            }
             freeLeft = frame.freeLeft;
             mult = frame.mult;
             if (frame.text != null) {
@@ -886,6 +985,18 @@ public class MachineActivity extends Activity {
                     break;
                 case SlotMath.WHEEL:
                     set = "123-7-D-S-1-2";
+                    break;
+                case PennyMath.DRAGON:
+                    set = "RGXLAYQJTWSO";
+                    break;
+                case PennyMath.DRUMS:
+                    set = "DIFPAYQJTWS";
+                    break;
+                case PennyMath.WHEEL:
+                    set = "HBEUAYQJTWS";
+                    break;
+                case PennyMath.SEVENS:
+                    set = "RU321CWGF";
                     break;
                 default:
                     set = "RMPATHOC";
@@ -1042,12 +1153,70 @@ public class MachineActivity extends Activity {
                 drawWheel(cv, w / 2f, top + gh / 2f, Math.min(gw, gh) * 0.48f, a);
             }
 
+            if (phase == PICKING) drawPick(cv, p, top, gw, gh, now);
             if (phase == WAIT) drawWait(cv, w, top, gh, now);
             if (phase == CHOOSE) drawChoice(cv, p, top, gw, gh, now);
             if (phase == PARTY) drawParty(cv, w, top, gh, t);
 
             if (phase != IDLE) postInvalidateOnAnimation();
             else postInvalidateDelayed(110);
+        }
+
+        private static final int[] JACK_COLOR = {0xFF42A5F5, 0xFF66BB6A, 0xFFEC407A, 0xFFFFD600};
+
+        /** The drum bonus: 12 gold coins; tap until three show the same jackpot. */
+        private void drawPick(Canvas cv, float p, float top, float gw, float gh, long now) {
+            paint.setShader(null);
+            paint.setColor(0xDD000000);
+            cv.drawRect(0, top, getWidth(), top + gh, paint);
+            int[] found = new int[4];
+            for (int i = 0; i < 12; i++) {
+                if (pickShown[i] >= 0 && pickShown[i] < frame.picks.length) {
+                    found[frame.picks[pickShown[i]] - '0']++;
+                }
+            }
+            float header = gh * 0.16f;
+            StringBuilder sb = new StringBuilder();
+            for (int k = 3; k >= 0; k--) {
+                sb.append(JackpotBank.NAMES[k]).append(' ');
+                for (int j = 0; j < 3; j++) sb.append(j < found[k] ? '●' : '○');
+                if (k > 0) sb.append("   ");
+            }
+            label(cv, picksDone ? "YOU WIN!" : "PICK UNTIL 3 MATCH", getWidth() / 2f,
+                    top + header * 0.35f, fitText("PICK UNTIL 3 MATCH", gw * 0.9f, header * 0.42f),
+                    0xFFFFD54F, 255);
+            label(cv, sb.toString(), getWidth() / 2f, top + header * 0.85f,
+                    fitText(sb.toString(), gw * 0.96f, header * 0.3f), 0xFFFFFFFF, 255);
+            float cw = gw / 4f;
+            float ch = (gh - header) / 3f;
+            for (int i = 0; i < 12; i++) {
+                int r = i / 4;
+                int c = i % 4;
+                float x = p + (c + 0.5f) * cw;
+                float y = top + header + (r + 0.5f) * ch;
+                float size = Math.min(cw, ch);
+                if (pickBox[i] == null) pickBox[i] = new RectF();
+                pickBox[i].set(x - cw / 2, y - ch / 2, x + cw / 2, y + ch / 2);
+                int shown = pickShown[i];
+                if (shown < 0) {
+                    float bob = (float) Math.sin(now / 250.0 + i) * size * 0.03f;
+                    drawCoin(cv, x, y + bob, size * 0.95f, 255, 0);
+                    label(cv, "?", x, y + bob, size * 0.3f, 0xFF5D4037, 255);
+                } else {
+                    int k = frame.picks[shown] - '0';
+                    boolean winner = picksDone && k == frame.jackpot;
+                    boolean late = shown >= PennyMath.picksNeeded(frame.picks, frame.jackpot);
+                    int alpha = late ? 110 : 255;
+                    if (winner && !late) {
+                        float pulse = 0.5f + 0.5f * (float) Math.sin(now / 110.0);
+                        paint.setColor(0xFFFFD54F);
+                        paint.setAlpha((int) (90 + 120 * pulse));
+                        cv.drawCircle(x, y, size * 0.48f, paint);
+                        paint.setAlpha(255);
+                    }
+                    drawCoin(cv, x, y, size * 0.95f, alpha, -(k + 1));
+                }
+            }
         }
 
         /** Chasing bulbs around the cabinet; they go wild on a win or a bonus. */
@@ -1203,7 +1372,8 @@ public class MachineActivity extends Activity {
                 main = "HOLD & SPIN   RESPINS " + dots;
             } else if (freeLeft >= 0) {
                 main = "FREE SPINS: " + freeLeft + " LEFT"
-                        + (machine == SlotMath.GEMS ? "   MULTIPLIER x" + mult : "");
+                        + (machine == SlotMath.GEMS ? "   MULTIPLIER x" + mult : "")
+                        + (penny() && mult > 1 ? "   WINS x" + mult : "");
             } else {
                 main = SlotMath.NAMES[machine].toUpperCase(Locale.US);
                 if (machine == SlotMath.COINS) {
@@ -1283,8 +1453,12 @@ public class MachineActivity extends Activity {
                     if (s == 'O') drawCoin(cv, x, y, size, alpha, coinVal);
                     else drawVault(cv, s, x, y, size, alpha);
                     break;
-                default:
+                case SlotMath.GEMS:
                     drawGem(cv, s, x, y, size, alpha);
+                    break;
+                default:
+                    if (s == 'O') drawCoin(cv, x, y, size, alpha, coinVal);
+                    else drawPenny(cv, s, x, y, size, alpha);
                     break;
             }
             paint.setAlpha(255);
@@ -1312,6 +1486,108 @@ public class MachineActivity extends Activity {
             paint.setColor(color);
             paint.setAlpha(alpha);
             cv.drawText(text, x, y - (paint.ascent() + paint.descent()) / 2f, paint);
+            paint.setFakeBoldText(false);
+        }
+
+        /** Symbols for the penny machines. */
+        private void drawPenny(Canvas cv, char s, float x, float y, float size, int alpha) {
+            String card = null;
+            String emoji = null;
+            String tag = null;
+            int tagColor = 0xFFFFEB3B;
+            switch (machine) {
+                case PennyMath.DRAGON:
+                    switch (s) {
+                        case 'R': emoji = "🐉"; break;
+                        case 'G': emoji = "🐯"; break;
+                        case 'X': emoji = "🐟"; break;
+                        case 'L': emoji = "🏮"; break;
+                        case 'W': emoji = "🀄"; tag = "WILD"; break;
+                        case 'S': emoji = "🧧"; tag = "BONUS"; tagColor = 0xFFFF5252; break;
+                        default: card = String.valueOf(s);
+                    }
+                    break;
+                case PennyMath.DRUMS:
+                    switch (s) {
+                        case 'D': emoji = "🥁"; break;
+                        case 'I': emoji = "💰"; break;
+                        case 'F': emoji = "🍊"; break;
+                        case 'P': emoji = "🐸"; break;
+                        case 'W': emoji = "🀄"; tag = "WILD"; break;
+                        case 'S': emoji = "🧨"; tag = "BONUS"; tagColor = 0xFFFF5252; break;
+                        default: card = String.valueOf(s);
+                    }
+                    break;
+                case PennyMath.WHEEL:
+                    switch (s) {
+                        case 'H': emoji = "🐎"; break;
+                        case 'B': emoji = "🐂"; break;
+                        case 'E': emoji = "🦅"; break;
+                        case 'U': emoji = "🌵"; break;
+                        case 'W': emoji = "⚡"; tag = "WILD"; break;
+                        case 'S': emoji = "🎡"; tag = "WHEEL"; tagColor = 0xFF82B1FF; break;
+                        default: card = String.valueOf(s);
+                    }
+                    break;
+                default:
+                    switch (s) {
+                        case 'R':
+                            seven(cv, x, y, size, alpha, 0xFFFF5252, 0xFF8B0000);
+                            return;
+                        case 'U':
+                            seven(cv, x, y, size, alpha, 0xFF64B5F6, 0xFF0D47A1);
+                            return;
+                        case 'G':
+                            seven(cv, x, y - size * 0.06f, size * 0.9f, alpha, 0xFFFFF59D,
+                                    0xFFFF8F00);
+                            label(cv, "PAYS ANY", x, y + size * 0.32f, size * 0.12f,
+                                    0xFFFFD54F, alpha);
+                            return;
+                        case '1':
+                        case '2':
+                        case '3':
+                            drawClassic(cv, s, x, y, size, alpha);
+                            return;
+                        case 'C': emoji = "🍒"; break;
+                        case 'W': emoji = "🔥"; tag = "WILD"; break;
+                        case 'F': emoji = "⭐"; tag = "BONUS"; break;
+                        default: card = String.valueOf(s);
+                    }
+                    break;
+            }
+            if (emoji != null) {
+                if (tag == null) {
+                    emoji(cv, emoji, x, y, size * 0.55f, alpha);
+                } else {
+                    emoji(cv, emoji, x, y - size * 0.07f, size * 0.46f, alpha);
+                    label(cv, tag, x, y + size * 0.32f, size * 0.15f, tagColor, alpha);
+                }
+                return;
+            }
+            if (card != null) {
+                String t = s == 'T' ? "10" : (s == 'Y' ? "K" : card);
+                int[] colors = {0xFFEF5350, 0xFF42A5F5, 0xFF66BB6A, 0xFFAB47BC, 0xFFFFA726};
+                int idx = "AYQJT".indexOf(s);
+                label(cv, t, x, y, size * 0.48f, colors[Math.max(0, idx)], alpha);
+            }
+        }
+
+        private void seven(Canvas cv, float x, float y, float size, int alpha, int light,
+                           int dark) {
+            paint.setTextSize(size * 0.75f);
+            paint.setFakeBoldText(true);
+            float by = y - (paint.ascent() + paint.descent()) / 2f;
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(size * 0.06f);
+            paint.setColor(0xFFFFFFFF);
+            paint.setAlpha(alpha);
+            cv.drawText("7", x, by, paint);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setShader(new LinearGradient(0, y - size * 0.35f, 0, y + size * 0.35f, light,
+                    dark, Shader.TileMode.CLAMP));
+            paint.setAlpha(alpha);
+            cv.drawText("7", x, by, paint);
+            paint.setShader(null);
             paint.setFakeBoldText(false);
         }
 
@@ -1457,8 +1733,9 @@ public class MachineActivity extends Activity {
             if (val < 0) {
                 int[][] jack = {{0xFFE3F2FD, 0xFF42A5F5, 0xFF0D47A1},
                         {0xFFE8F5E9, 0xFF66BB6A, 0xFF1B5E20},
-                        {0xFFFCE4EC, 0xFFEC407A, 0xFF880E4F}};
-                rim = jack[(int) Math.min(2, -val - 1)];
+                        {0xFFFCE4EC, 0xFFEC407A, 0xFF880E4F},
+                        {0xFFFFFDE7, 0xFFFFD600, 0xFFE65100}};
+                rim = jack[(int) Math.min(3, -val - 1)];
             }
             paint.setShader(new RadialGradient(x - r * 0.3f, y - r * 0.35f, r * 1.4f, rim,
                     new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
@@ -1572,7 +1849,8 @@ public class MachineActivity extends Activity {
         }
 
         private void drawWheel(Canvas cv, float cx, float cy, float r, float angle) {
-            int n = SlotMath.WHEEL_SEGMENTS.length;
+            int n = wheelSlices();
+            boolean pw = machine == PennyMath.WHEEL;
             float seg = 360f / n;
             paint.setShader(null);
             paint.setColor(0xCC000000);
@@ -1581,16 +1859,25 @@ public class MachineActivity extends Activity {
             cv.rotate(angle, cx, cy);
             rect.set(cx - r, cy - r, cx + r, cy + r);
             for (int i = 0; i < n; i++) {
-                int val = SlotMath.WHEEL_SEGMENTS[i];
-                int color = val >= 500 ? 0xFFFFD600 : (val >= 100 ? 0xFFE53935
-                        : (i % 2 == 0 ? 0xFF1E88E5 : 0xFF3949AB));
+                int val = pw ? PennyMath.WHEEL_SLICES[i] : SlotMath.WHEEL_SEGMENTS[i];
+                int color;
+                String text;
+                if (pw) {
+                    text = PennyMath.sliceLabel(val);
+                    color = val < 0 ? JACK_COLOR[-val - 1] : (val > 100 ? 0xFF7E57C2
+                            : (i % 2 == 0 ? 0xFF1E88E5 : 0xFF3949AB));
+                } else {
+                    text = String.valueOf(val);
+                    color = val >= 500 ? 0xFFFFD600 : (val >= 100 ? 0xFFE53935
+                            : (i % 2 == 0 ? 0xFF1E88E5 : 0xFF3949AB));
+                }
                 paint.setColor(color);
                 // Segment i is centered straight up when the wheel is turned to -i * seg.
                 cv.drawArc(rect, -90 + i * seg - seg / 2, seg, true, paint);
                 cv.save();
                 cv.rotate(i * seg, cx, cy);
-                label(cv, String.valueOf(val), cx, cy - r * 0.72f, r * 0.12f,
-                        val >= 500 ? 0xFF000000 : 0xFFFFFFFF, 255);
+                label(cv, text, cx, cy - r * 0.72f, r * (text.length() > 4 ? 0.085f : 0.12f),
+                        (!pw && val >= 500) || (pw && val == -4) ? 0xFF000000 : 0xFFFFFFFF, 255);
                 cv.restore();
             }
             paint.setStyle(Paint.Style.STROKE);

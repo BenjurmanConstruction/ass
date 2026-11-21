@@ -189,6 +189,11 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".PennyActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".RouletteActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

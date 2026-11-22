@@ -296,7 +296,7 @@ final class CasinoWorld {
         }
 
         /** One triangle, with an upward normal for flat tops. map: world box to uv box. */
-        private void vertexTri(float[] a, float[] b, float[] c, int color, float emit, int tex,
+        void vertexTri(float[] a, float[] b, float[] c, int color, float emit, int tex,
                                float[] map) {
             float[][] ps = {a, b, c};
             for (float[] q : ps) {
@@ -317,18 +317,41 @@ final class CasinoWorld {
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
+
     // ================================================================== layout
 
+    /** The casino's main room. */
     static final float X0 = -18, X1 = 18, Z0 = -14, Z1 = 14, CEIL = 5.4f;
+    /** The whole walkable world. */
+    static final float WX0 = -48, WX1 = 48, WZ0 = -28, WZ1 = 42;
     static final float SPAWN_X = 0, SPAWN_Z = 11.5f;
+    /** Where security drops you: the sidewalk outside the front door. */
+    static final float OUT_X = 0, OUT_Z = 16.5f;
+    /** Wall thickness. */
+    static final float T = 0.24f;
+    static final float PI = (float) Math.PI;
+    static final float NORTH = 0, EAST = PI / 2, SOUTH = PI, WEST = -PI / 2;
 
-    /** Something you can walk up to and play. */
+    // Palette: dark and warm, not candy.
+    static final int WALL = 0xFF2B1A14, WAINSCOT = 0xFF1A0F0B, GOLD = 0xFFB8862E,
+            CEILING = 0xFF120D0C, CABINET = 0xFF16161C, FELT = 0xFF0E5A34, RAIL = 0xFF3A2114,
+            MARBLE = 0xFF8A8078, BRASS = 0xFFC9A24A, STONE = 0xFF3A3029;
+
+    /** What a spot is. */
+    static final int GAME = 0, DOOR = 1, LOOT = 2, NOTE = 3, CHIP = 4, KEY = 5, SHOP = 6,
+            HIDE = 7;
+
+    /** Something you can walk up to and use. */
     static final class Spot {
-        final String label, key, unlock;
-        final int extra;
-        final float x, z, yaw;
+        int type;
+        String id, label, key, unlock, text, chip;
+        int extra, pins, reward, capacity, used;
+        float x, z, y = 0.9f, yaw;
+        boolean vip;
+        Door door;
 
         Spot(String label, String key, int extra, String unlock, float x, float z, float yaw) {
+            this.type = GAME;
             this.label = label;
             this.key = key;
             this.extra = extra;
@@ -337,45 +360,111 @@ final class CasinoWorld {
             this.z = z;
             this.yaw = yaw;
         }
+
+        Spot(int type, String id, String label, float x, float z) {
+            this.type = type;
+            this.id = id;
+            this.label = label;
+            this.x = x;
+            this.z = z;
+        }
     }
 
-    /** A hanging or wall sign whose words the phone can float as a label. */
-    final List<Spot> spots = new ArrayList<>();
-    /** Things you can't walk through: x0, z0, x1, z1. */
-    final List<float[]> walls = new ArrayList<>();
-    final Mesh mesh = new Mesh();
-    /** Where on the wall the live jackpot board sits, for redrawing. */
-    static final float PI = (float) Math.PI;
-    static final float NORTH = 0, EAST = PI / 2, SOUTH = PI, WEST = -PI / 2;
+    /** A door in a doorway. Locked ones need picking (pins) or a key card (key). */
+    static final class Door {
+        final String id, label;
+        String key;
+        int pins;
+        final float x, z, w;
+        final boolean alongX;
+        int color;
+        /** 0 shut, 1 swung open. */
+        float open;
+        /** Seconds an employee is holding it open. */
+        float held;
+        boolean unlocked;
 
-    // Palette: dark and warm, not candy.
-    static final int WALL = 0xFF2B1A14, WAINSCOT = 0xFF1A0F0B, GOLD = 0xFFB8862E,
-            CEILING = 0xFF120D0C, CABINET = 0xFF16161C, FELT = 0xFF0E5A34, RAIL = 0xFF3A2114,
-            MARBLE = 0xFF8A8078, BRASS = 0xFFC9A24A;
+        Door(String id, String label, float x, float z, boolean alongX, float w, int pins,
+             int color) {
+            this.id = id;
+            this.label = label;
+            this.x = x;
+            this.z = z;
+            this.alongX = alongX;
+            this.w = w;
+            this.pins = pins;
+            this.color = color;
+        }
+
+        boolean shut() {
+            return !unlocked && held <= 0 && open < 0.5f;
+        }
+
+        float[] box() {
+            float hw = w / 2, t = 0.12f;
+            return alongX ? new float[]{x - hw, z - t, x + hw, z + t}
+                    : new float[]{x - t, z - hw, x + t, z + hw};
+        }
+    }
+
+    final List<Spot> spots = new ArrayList<>();
+    /** Things you can't walk through: x0, z0, x1, z1, height. */
+    final List<float[]> walls = new ArrayList<>();
+    final List<Door> doors = new ArrayList<>();
+    /** Rooms with a ceiling: x0, z0, x1, z1, ceiling height. Outside is anywhere else. */
+    final List<float[]> regions = new ArrayList<>();
+    /** Off-limits areas: x0, z0, x1, z1, level (1 staff, 2 private, 3 nobody). */
+    final List<float[]> zones = new ArrayList<>();
+    /** Lights that make pools on the floor: x, z, radius, strength, r, g, b. */
+    final List<float[]> lamps = new ArrayList<>();
+    /** Things that are done or found, saved by the phone: "door:vault", "chip:moon"... */
+    final java.util.Set<String> flags = new java.util.HashSet<>();
+    final Mesh mesh = new Mesh();
+
+    float[] boardPanel;
+    final float[][] holdemSeats = new float[6][];
+    float[] dealer, croupier, cashier;
+    final List<float[]> machines = new ArrayList<>();
+    final List<float[]> islandSeats = new ArrayList<>();
+    /** Seats elsewhere for regulars: x, z, facing. */
+    final List<float[]> extraSeats = new ArrayList<>();
+    /** Workers elsewhere: x, z, facing, and a name index. */
+    final List<float[]> extraStaff = new ArrayList<>();
+    final List<String> extraStaffNames = new ArrayList<>();
 
     private void build() {
         Mesh m = mesh;
-        // Floor and ceiling.
+        // Floor, ceiling and roof.
         m.floor(X0, Z0, X1, Z1, 0, 0xFFFFFFFF, 2, 2.2f);
         m.ceiling(X0, Z0, X1, Z1, CEIL, CEILING, 0);
-        // Light panels in the ceiling, set in a darker coffer.
+        m.floor(X0 - T / 2, Z0 - T / 2, X1 + T / 2, Z1 + T / 2, CEIL + 0.3f, 0xFF15110F, 0, 1);
+        regions.add(new float[]{X0, Z0, X1, Z1, CEIL});
         for (float x = -14; x <= 14.1f; x += 7) {
             for (float z = -10; z <= 10.1f; z += 6.5f) {
                 m.ceiling(x - 1.3f, z - 1.3f, x + 1.3f, z + 1.3f, CEIL - 0.02f, 0xFF0A0807, 0);
                 m.ceiling(x - 0.9f, z - 0.9f, x + 0.9f, z + 0.9f, CEIL - 0.04f, 0xFFFFD9A0,
                         0.85f);
+                lamps.add(new float[]{x, z, 3, 0.35f, 1, 0.85f, 0.6f});
             }
         }
-        // Walls: wood above a dark lower panel, with gold trim lines.
-        wall(X0, Z0, X1, Z0, SOUTH); // north wall faces south
-        wall(X1, Z1, X0, Z1, NORTH); // south wall
-        wall(X0, Z1, X0, Z0, EAST); // west wall
-        wall(X1, Z0, X1, Z1, WEST); // east wall
-        // The way out: a lit doorway in the south wall.
-        m.panel(0, Z1 - 0.02f, NORTH, 3.2f, 0, 3.0f, 0xFF3A2A18, 0.15f, null);
-        m.panel(0, Z1 - 0.03f, NORTH, 2.8f, 0, 2.8f, 0xFFFFE6B0, 0.55f, null);
-        m.boxAA(-1.8f, 0, Z1 - 0.25f, -1.55f, 3.2f, Z1, BRASS, 0.1f);
-        m.boxAA(1.55f, 0, Z1 - 0.25f, 1.8f, 3.2f, Z1, BRASS, 0.1f);
+        // Walls: thick stone outside, wood and gold trim inside.
+        wallX(Z0, X0 - T / 2, X1 + T / 2, CEIL + 0.3f, STONE, 15.2f, 16.4f);
+        decorX(Z0 + T / 2 + 0.003f, X0, X1, SOUTH, 15.2f, 16.4f);
+        wallX(Z1, X0 - T / 2, X1 + T / 2, CEIL + 0.3f, STONE, -1.6f, 1.6f);
+        decorX(Z1 - T / 2 - 0.003f, X0, X1, NORTH, -1.6f, 1.6f);
+        wallZ(X0, Z0, Z1, CEIL + 0.3f, STONE);
+        decorZ(X0 + T / 2 + 0.003f, Z0, Z1, EAST);
+        wallZ(X1, Z0, Z1, CEIL + 0.3f, STONE);
+        decorZ(X1 - T / 2 - 0.003f, Z0, Z1, WEST);
+        // Brass frame on the way out.
+        m.boxAA(-1.75f, 0, Z1 - 0.3f, -1.6f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
+        m.boxAA(1.6f, 0, Z1 - 0.3f, 1.75f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
+        m.boxAA(-1.75f, 2.6f, Z1 - 0.3f, 1.75f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
+        // The staff door, tucked in the north-east corner.
+        Door staff = new Door("staff", "Staff Only", 15.8f, Z0, true, 1.2f, 3, 0xFF4A4E55);
+        doors.add(staff);
+        m.panel(15.8f, Z0 + T / 2 + 0.01f, SOUTH, 1.6f, 2.7f, 3.1f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.STAFF));
 
         // Pillars with brass bands.
         float[][] pillars = {{-6, -3}, {3, -3}, {-6, 8}, {5, 8}};
@@ -386,22 +475,23 @@ final class CasinoWorld {
                     0.25f);
             m.boxAA(p[0] - 0.5f, CEIL - 0.4f, p[1] - 0.5f, p[0] + 0.5f, CEIL, p[1] + 0.5f,
                     0xFF2A2420, 0);
-            solid(p[0] - 0.5f, p[1] - 0.5f, p[0] + 0.5f, p[1] + 0.5f);
+            solid(p[0] - 0.5f, p[1] - 0.5f, p[0] + 0.5f, p[1] + 0.5f, CEIL);
         }
 
+        float wz = Z0 + T / 2;
         // ---- Penny Palace: four games on the north wall under the live jackpot board.
         for (int i = 0; i < 4; i++) {
             float x = -15 + i * 1.9f;
-            cabinet(x, Z0 + 0.45f, SOUTH, 5 + i, true);
-            spots.add(new Spot(SlotMath.NAMES[5 + i], "penny", 5 + i, "parlor", x, Z0 + 1.75f,
+            cabinet(x, wz + 0.33f, SOUTH, 5 + i, true);
+            spots.add(new Spot(SlotMath.NAMES[5 + i], "penny", 5 + i, "parlor", x, wz + 1.63f,
                     NORTH));
         }
         float boardX = -15 + 1.5f * 1.9f;
-        m.boxAA(boardX - 3.0f, 2.45f, Z0, boardX + 3.0f, 4.75f, Z0 + 0.12f, 0xFF050507, 0);
-        m.panel(boardX, Z0 + 0.13f, SOUTH, 5.8f, 2.5f, 4.7f, 0xFFFFFFFF, 1,
+        m.boxAA(boardX - 3.0f, 2.45f, wz, boardX + 3.0f, 4.75f, wz + 0.12f, 0xFF050507, 0);
+        m.panel(boardX, wz + 0.13f, SOUTH, 5.8f, 2.5f, 4.7f, 0xFFFFFFFF, 1,
                 CasinoArt.JACKPOT_BOARD);
-        boardPanel = new float[]{boardX, Z0 + 0.13f};
-        m.panel(boardX, Z0 + 0.05f, SOUTH, 4.6f, 4.8f, 5.3f, 0xFFFFFFFF, 1,
+        boardPanel = new float[]{boardX, wz + 0.13f};
+        m.panel(boardX, wz + 0.05f, SOUTH, 4.6f, 4.8f, 5.3f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.PENNY));
         // A penny island with regulars glued to their stools.
         for (int i = 0; i < 3; i++) {
@@ -409,17 +499,17 @@ final class CasinoWorld {
             cabinetSmall(x, -6.6f, SOUTH, 5 + (i % 4));
             cabinetSmall(x, -7.4f, NORTH, 5 + ((i + 2) % 4));
         }
-        solid(-15.1f, -7.9f, -12.0f, -6.1f);
+        solid(-15.1f, -7.9f, -12.0f, -6.1f, 2.2f);
         m.boxAA(-15.1f, 0, -7.1f, -11.9f, 0.08f, -6.9f, 0xFF4CE0A0, 0.8f);
 
         // ---- Slot Parlor: the five coupon machines on the north wall.
         for (int i = 0; i < 5; i++) {
             float x = 4 + i * 1.9f;
-            cabinet(x, Z0 + 0.45f, SOUTH, i, true);
-            spots.add(new Spot(SlotMath.NAMES[i], "machine", i, "parlor", x, Z0 + 1.75f,
+            cabinet(x, wz + 0.33f, SOUTH, i, true);
+            spots.add(new Spot(SlotMath.NAMES[i], "machine", i, "parlor", x, wz + 1.63f,
                     NORTH));
         }
-        m.panel(4 + 2 * 1.9f, Z0 + 0.05f, SOUTH, 4.6f, 3.0f, 3.5f, 0xFFFFFFFF, 1,
+        m.panel(4 + 2 * 1.9f, wz + 0.02f, SOUTH, 4.6f, 3.0f, 3.5f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.PARLOR));
 
         // ---- Classic slots island (Lucky Sevens faces south, Royal Riches north).
@@ -427,7 +517,7 @@ final class CasinoWorld {
         cabinet(-1.4f, -8.0f, SOUTH, 9, false);
         cabinet(-2.6f, -8.8f, NORTH, 10, false);
         cabinet(-1.4f, -8.8f, NORTH, 10, false);
-        solid(-3.1f, -9.3f, -0.9f, -7.5f);
+        solid(-3.1f, -9.3f, -0.9f, -7.5f, 2.4f);
         spots.add(new Spot("Lucky Sevens", "slot", 0, "slot", -2.0f, -6.7f, NORTH));
         spots.add(new Spot("Royal Riches", "slot2", 0, "slot2", -2.0f, -10.1f, SOUTH));
         hangingSign(-2.0f, -8.4f, 3.6f, CasinoArt.CLASSIC, 0);
@@ -438,7 +528,7 @@ final class CasinoWorld {
         m.cylinder(hx, hz, 2.15f, 1.2f, 0.62f, 0.8f, RAIL, 0xFF2A1810, 0, 32);
         m.ovalTop(hx, hz, 1.85f, 0.95f, 0.81f, 0xFFFFFFFF, 32, CasinoArt.HOLDEM_FELT);
         m.cylinder(hx, hz, 2.18f, 1.23f, 0.79f, 0.84f, 0xFF120B08, 0, 0, 32);
-        solid(hx - 2.0f, hz - 1.05f, hx + 2.0f, hz + 1.05f);
+        solid(hx - 2.0f, hz - 1.05f, hx + 2.0f, hz + 1.05f, 0.85f);
         for (int i = 0; i < 6; i++) {
             double a = Math.PI / 2 + i * Math.PI / 3;
             float sx = hx + (float) Math.cos(a) * 2.75f, sz = hz + (float) Math.sin(a) * 1.75f;
@@ -453,11 +543,14 @@ final class CasinoWorld {
         float bx = -1, bz = 2.5f;
         m.boxAA(bx - 1.6f, 0, bz - 0.35f, bx + 1.6f, 0.78f, bz + 0.2f, 0xFF1A120E, 0);
         halfMoon(bx, bz - 0.4f, 1.75f, 1.25f, CasinoArt.BLACKJACK_FELT);
-        solid(bx - 1.8f, bz - 0.5f, bx + 1.8f, bz + 1.0f);
+        solid(bx - 1.8f, bz - 0.5f, bx + 1.8f, bz + 1.0f, 0.85f);
         for (int i = 0; i < 4; i++) {
             double a = Math.PI * (0.2 + 0.2 * i);
-            stool(bx + (float) Math.cos(a) * 2.15f, bz - 0.4f + (float) Math.sin(a) * 1.75f,
-                    0xFF1A3A5A);
+            float sx = bx + (float) Math.cos(a) * 2.15f;
+            float sz = bz - 0.4f + (float) Math.sin(a) * 1.75f;
+            stool(sx, sz, 0xFF1A3A5A);
+            blackjackSeats[i] = new float[]{sx, sz,
+                    (float) Math.atan2(bx - sx, -((bz - 0.4f) - sz))};
         }
         dealer = new float[]{bx, bz - 1.0f, SOUTH};
         spots.add(new Spot("Blackjack", "blackjack", 0, "blackjack", bx, bz + 1.9f, NORTH));
@@ -467,7 +560,6 @@ final class CasinoWorld {
         float rx = -10, rz = 3;
         m.boxAA(rx - 1.5f, 0, rz - 0.75f, rx + 1.6f, 0.8f, rz + 0.75f, RAIL, 0);
         {
-            // The betting layout on top.
             CasinoArt.Region r = CasinoArt.ROULETTE_LAYOUT;
             float[] a = {rx - 1.35f, 0.812f, rz + 0.6f}, b = {rx + 1.45f, 0.812f, rz + 0.6f};
             float[] c = {rx + 1.45f, 0.812f, rz - 0.6f}, d = {rx - 1.35f, 0.812f, rz - 0.6f};
@@ -477,51 +569,102 @@ final class CasinoWorld {
         m.cylinder(rx - 2.05f, rz, 0.5f, 0.5f, 0.8f, 0.92f, 0xFF4A2A14, 0xFF6A3A1A, 0, 24);
         wheelTop(rx - 2.05f, rz, 0.46f, 0.925f);
         m.cylinder(rx - 2.05f, rz, 0.05f, 0.05f, 0.92f, 1.05f, BRASS, BRASS, 0.3f, 8);
-        solid(rx - 2.7f, rz - 0.85f, rx + 1.7f, rz + 0.85f);
+        solid(rx - 2.7f, rz - 0.85f, rx + 1.7f, rz + 0.85f, 1.0f);
         croupier = new float[]{rx - 2.05f, rz - 1.15f, SOUTH};
         spots.add(new Spot("Roulette", "roulette", 0, "roulette", rx, rz + 1.45f, NORTH));
         hangingSign(rx, rz, 3.8f, CasinoArt.ROULETTE, 0);
 
         // ---- Video poker bar along the east wall.
-        m.boxAA(X1 - 1.0f, 0, -3.2f, X1, 1.05f, 4.2f, 0xFF2A1810, 0);
-        m.boxAA(X1 - 1.15f, 1.05f, -3.3f, X1, 1.12f, 4.3f, 0xFF120B08, 0);
-        m.boxAA(X1 - 1.02f, 0.06f, -3.2f, X1 - 0.98f, 0.12f, 4.2f, 0xFF40C4FF, 0.9f);
-        solid(X1 - 1.2f, -3.3f, X1, 4.3f);
+        float ex = X1 - T / 2;
+        m.boxAA(ex - 1.0f, 0, -3.2f, ex, 1.05f, 4.2f, 0xFF2A1810, 0);
+        m.boxAA(ex - 1.15f, 1.05f, -3.3f, ex, 1.12f, 4.3f, 0xFF120B08, 0);
+        m.boxAA(ex - 1.02f, 0.06f, -3.2f, ex - 0.98f, 0.12f, 4.2f, 0xFF40C4FF, 0.9f);
+        solid(ex - 1.2f, -3.3f, ex, 4.3f, 1.6f);
         for (int i = 0; i < 4; i++) {
             float z = -2.3f + i * 1.8f;
-            barTop(X1 - 0.55f, z, WEST);
-            stool(X1 - 1.75f, z, 0xFF1A3A5A);
+            barTop(ex - 0.55f, z, WEST);
+            stool(ex - 1.75f, z, 0xFF1A3A5A);
         }
-        spots.add(new Spot("Video Poker", "vpoker", 0, "vpoker", X1 - 2.0f, 0.4f, EAST));
-        m.panel(X1 - 0.05f, 0.45f, WEST, 4.6f, 2.6f, 3.1f, 0xFFFFFFFF, 1,
+        spots.add(new Spot("Video Poker", "vpoker", 0, "vpoker", ex - 2.0f, 0.4f, EAST));
+        m.panel(ex - 0.02f, 0.45f, WEST, 4.6f, 2.6f, 3.1f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.POKER));
 
         // ---- Cashier cage in the south-west corner.
-        float cz = 9.6f;
-        m.boxAA(X0, 0, cz, -13.4f, 1.1f, cz + 0.5f, 0xFF2A1810, 0);
-        m.boxAA(X0, 1.1f, cz - 0.05f, -13.35f, 1.16f, cz + 0.55f, BRASS, 0.15f);
-        for (float x = X0 + 0.3f; x < -13.4f; x += 0.28f) {
+        float cx0 = X0 + T / 2, cz = 9.6f;
+        m.boxAA(cx0, 0, cz, -13.4f, 1.1f, cz + 0.5f, 0xFF2A1810, 0);
+        m.boxAA(cx0, 1.1f, cz - 0.05f, -13.35f, 1.16f, cz + 0.55f, BRASS, 0.15f);
+        for (float x = cx0 + 0.3f; x < -13.4f; x += 0.28f) {
             m.boxAA(x, 1.16f, cz + 0.2f, x + 0.04f, 2.6f, cz + 0.26f, BRASS, 0.1f);
         }
-        m.boxAA(X0, 2.6f, cz + 0.1f, -13.35f, 3.4f, cz + 0.4f, 0xFF1A0F0B, 0);
+        m.boxAA(cx0, 2.6f, cz + 0.1f, -13.35f, 3.4f, cz + 0.4f, 0xFF1A0F0B, 0);
         m.panel(-15.7f, cz + 0.09f, NORTH, 3.6f, 2.68f, 3.32f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.CASHIER));
-        m.boxAA(-13.4f, 0, cz, -13.3f, 3.4f, Z1, 0xFF2A1810, 0);
-        solid(X0, cz, -13.3f, Z1);
+        m.boxAA(-13.4f, 0, cz, -13.3f, 3.4f, Z1 - T / 2, 0xFF2A1810, 0);
+        solid(X0, cz, -13.3f, Z1, 3.4f);
         cashier = new float[]{-15.7f, cz + 1.0f, NORTH};
         spots.add(new Spot("Cashier", "cashier", 0, null, -15.7f, cz - 0.7f, SOUTH));
 
         // A low brass rail around the jackpot corner, purely for looks.
         m.boxAA(-16.5f, 0.85f, -11.0f, -7.6f, 0.92f, -10.92f, BRASS, 0.2f);
+
+        // Everything outside the main room.
+        CasinoPlaces.build(this);
     }
 
-    float[] boardPanel;
-    final float[][] holdemSeats = new float[6][];
-    float[] dealer, croupier, cashier;
+    final float[][] blackjackSeats = new float[4][];
 
-    private void wall(float ax, float az, float bx, float bz, float faceYaw) {
-        float cx = (ax + bx) / 2, cz = (az + bz) / 2;
-        float len = (float) Math.hypot(bx - ax, bz - az);
+    // ---------------------------------------------------------------- building helpers
+
+    /** Splits a to b into the solid stretches between gaps (pairs of start, end). */
+    static List<float[]> split(float a, float b, float[] gaps) {
+        List<float[]> out = new ArrayList<>();
+        float cur = a;
+        for (int i = 0; i + 1 < gaps.length; i += 2) {
+            if (gaps[i] > cur) out.add(new float[]{cur, gaps[i]});
+            cur = Math.max(cur, gaps[i + 1]);
+        }
+        if (cur < b) out.add(new float[]{cur, b});
+        return out;
+    }
+
+    /** A thick wall running east-west at z, with doorway gaps. */
+    void wallX(float z, float x0, float x1, float h, int color, float... gaps) {
+        for (float[] s : split(x0, x1, gaps)) {
+            mesh.boxAA(s[0], 0, z - T / 2, s[1], h, z + T / 2, color, 0);
+            solid(s[0], z - T / 2, s[1], z + T / 2, h);
+        }
+        for (int i = 0; i + 1 < gaps.length; i += 2) {
+            mesh.boxAA(gaps[i], 2.6f, z - T / 2, gaps[i + 1], h, z + T / 2, color, 0);
+            walls.add(new float[]{gaps[i], z - T / 2, gaps[i + 1], z + T / 2, h, 2.6f});
+        }
+    }
+
+    /** A thick wall running north-south at x, with doorway gaps. */
+    void wallZ(float x, float z0, float z1, float h, int color, float... gaps) {
+        for (float[] s : split(z0, z1, gaps)) {
+            mesh.boxAA(x - T / 2, 0, s[0], x + T / 2, h, s[1], color, 0);
+            solid(x - T / 2, s[0], x + T / 2, s[1], h);
+        }
+        for (int i = 0; i + 1 < gaps.length; i += 2) {
+            mesh.boxAA(x - T / 2, 2.6f, gaps[i], x + T / 2, h, gaps[i + 1], color, 0);
+            walls.add(new float[]{x - T / 2, gaps[i], x + T / 2, gaps[i + 1], h, 2.6f});
+        }
+    }
+
+    /** The casino's wood-and-gold wall dressing on one face, skipping doorways. */
+    private void decorX(float z, float x0, float x1, float faceYaw, float... gaps) {
+        for (float[] s : split(x0, x1, gaps)) decor((s[0] + s[1]) / 2, z, faceYaw, s[1] - s[0]);
+        for (int i = 0; i + 1 < gaps.length; i += 2) {
+            float c = (gaps[i] + gaps[i + 1]) / 2, w = gaps[i + 1] - gaps[i];
+            mesh.panel(c, z, faceYaw, w, 2.6f, CEIL, WALL, 0, null);
+        }
+    }
+
+    private void decorZ(float x, float z0, float z1, float faceYaw) {
+        decor(x, (z0 + z1) / 2, faceYaw, z1 - z0);
+    }
+
+    private void decor(float cx, float cz, float faceYaw, float len) {
         float fx = (float) Math.sin(faceYaw) * 0.001f, fz = (float) -Math.cos(faceYaw) * 0.001f;
         mesh.panel(cx, cz, faceYaw, len, 0, CEIL, WALL, 0, null);
         mesh.panel(cx + fx * 2, cz + fz * 2, faceYaw, len, 0, 1.1f, WAINSCOT, 0, null);
@@ -531,18 +674,21 @@ final class CasinoWorld {
         mesh.panel(cx + fx * 4, cz + fz * 4, faceYaw, len, 0, 0.12f, 0xFF0C0806, 0, null);
     }
 
-    private void solid(float x0, float z0, float x1, float z1) {
-        walls.add(new float[]{x0, z0, x1, z1});
+    void solid(float x0, float z0, float x1, float z1) {
+        solid(x0, z0, x1, z1, 2.4f);
+    }
+
+    void solid(float x0, float z0, float x1, float z1, float h) {
+        walls.add(new float[]{x0, z0, x1, z1, h});
     }
 
     /** A full-size slot cabinet with its screen, topper and stool. */
-    private void cabinet(float x, float z, float yaw, int art, boolean stool) {
+    void cabinet(float x, float z, float yaw, int art, boolean stool) {
         Mesh m = mesh;
         float fx = (float) Math.sin(yaw), fz = (float) -Math.cos(yaw);
         int glow = CasinoArt.GLOW[art];
         m.box(x, z, yaw, 0.38f, 0.3f, 0, 0.95f, CABINET, 0);
         m.box(x + fx * 0.32f, z + fz * 0.32f, yaw, 0.36f, 0.06f, 0.88f, 0.98f, 0xFF22222A, 0);
-        // Buttons on the deck.
         for (int b = 0; b < 4; b++) {
             float off = -0.24f + b * 0.16f;
             float rx = (float) -Math.cos(yaw) * off, rz = (float) -Math.sin(yaw) * off;
@@ -552,7 +698,6 @@ final class CasinoWorld {
         m.box(x - fx * 0.05f, z - fz * 0.05f, yaw, 0.37f, 0.22f, 0.95f, 1.92f, CABINET, 0);
         m.panel(x + fx * 0.172f, z + fz * 0.172f, yaw, 0.62f, 1.06f, 1.78f, 0xFFFFFFFF, 0.92f,
                 CasinoArt.screen(art));
-        // Glow strips up both sides of the screen.
         for (int sgn = -1; sgn <= 1; sgn += 2) {
             float rx = (float) -Math.cos(yaw) * 0.355f * sgn;
             float rz = (float) -Math.sin(yaw) * 0.355f * sgn;
@@ -562,10 +707,9 @@ final class CasinoWorld {
         m.box(x - fx * 0.05f, z - fz * 0.05f, yaw, 0.39f, 0.24f, 1.92f, 2.4f, 0xFF0E0E12, 0);
         m.panel(x + fx * 0.192f, z + fz * 0.192f, yaw, 0.74f, 1.95f, 2.37f, 0xFFFFFFFF, 1,
                 CasinoArt.topper(art));
-        // Floor glow under the front edge.
         m.box(x + fx * 0.31f, z + fz * 0.31f, yaw, 0.38f, 0.01f, 0.02f, 0.06f, glow, 1);
         solid(Math.min(x - 0.4f, x + fx * 0.36f), Math.min(z - 0.4f, z + fz * 0.36f),
-                Math.max(x + 0.4f, x + fx * 0.36f), Math.max(z + 0.4f, z + fz * 0.36f));
+                Math.max(x + 0.4f, x + fx * 0.36f), Math.max(z + 0.4f, z + fz * 0.36f), 2.4f);
         if (stool) stool(x + fx * 0.85f, z + fz * 0.85f, 0xFF5A1A1A);
         machines.add(new float[]{x, z, yaw, art});
     }
@@ -587,7 +731,6 @@ final class CasinoWorld {
         islandSeats.add(new float[]{x + fx * 0.95f, z + fz * 0.95f, yaw + PI});
     }
 
-    /** A low bar-top video poker machine set into the bar. */
     private void barTop(float x, float z, float yaw) {
         Mesh m = mesh;
         float fx = (float) Math.sin(yaw), fz = (float) -Math.cos(yaw);
@@ -597,13 +740,13 @@ final class CasinoWorld {
                 CasinoArt.screen(CasinoArt.VIDEO_POKER));
     }
 
-    private void stool(float x, float z, int seat) {
+    void stool(float x, float z, int seat) {
         mesh.cylinder(x, z, 0.04f, 0.04f, 0, 0.62f, 0xFF2A2420, 0, 0, 6);
         mesh.cylinder(x, z, 0.2f, 0.2f, 0.0f, 0.03f, 0xFF2A2420, 0xFF2A2420, 0, 10);
         mesh.cylinder(x, z, 0.22f, 0.22f, 0.58f, 0.68f, shade(seat, 0.8f), seat, 0, 12);
     }
 
-    private void hangingSign(float x, float z, float y, int sign, float yaw) {
+    void hangingSign(float x, float z, float y, int sign, float yaw) {
         Mesh m = mesh;
         m.boxAA(x - 0.015f, y + 0.5f, z - 0.015f, x + 0.015f, CEIL, z + 0.015f, 0xFF2A2420, 0);
         m.box(x, z, NORTH + yaw, 1.45f, 0.06f, y - 0.02f, y + 0.52f, 0xFF050507, 0);
@@ -619,7 +762,6 @@ final class CasinoWorld {
             double a0 = Math.PI * i / segs, a1 = Math.PI * (i + 1) / segs;
             float x0 = cx + (float) Math.cos(a0) * rx, z0 = cz + (float) Math.sin(a0) * rz;
             float x1 = cx + (float) Math.cos(a1) * rx, z1 = cz + (float) Math.sin(a1) * rz;
-            // Padded rail edge.
             m.quad(new float[]{x0, 0.62f, z0}, new float[]{x1, 0.62f, z1},
                     new float[]{x1, 0.82f, z1}, new float[]{x0, 0.82f, z0}, RAIL, 0);
             float ix0 = cx + (float) Math.cos(a0) * (rx - 0.22f);
@@ -637,7 +779,6 @@ final class CasinoWorld {
                 new float[]{cx - rx, 0.82f, cz}, new float[]{cx + rx, 0.82f, cz}, RAIL, 0);
     }
 
-    /** The top of the roulette wheel: alternating red and black pockets. */
     private void wheelTop(float cx, float cz, float r, float y) {
         int segs = 37;
         for (int i = 0; i < segs; i++) {
@@ -651,57 +792,133 @@ final class CasinoWorld {
                 16);
     }
 
-    final List<float[]> machines = new ArrayList<>();
-    final List<float[]> islandSeats = new ArrayList<>();
+    // ================================================================== lighting map
+
+    /** Light map resolution: texels per metre is 1 / LM_STEP. */
+    static final float LM_STEP = 0.25f;
+    static final int LM_W = (int) ((WX1 - WX0) / LM_STEP), LM_H = (int) ((WZ1 - WZ0) / LM_STEP);
+
+    /** Which room a point is in, or -1 outside. */
+    int regionAt(float x, float z) {
+        for (int i = 0; i < regions.size(); i++) {
+            float[] r = regions.get(i);
+            if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Bakes the floor light pools and which places are indoors into one picture: RGB is the
+     * extra light (half scale), alpha is 255 indoors and 0 outside.
+     */
+    int[] bakeLight() {
+        int[] out = new int[LM_W * LM_H];
+        float[] acc = new float[LM_W * LM_H * 3];
+        int[] reg = new int[LM_W * LM_H];
+        for (int j = 0; j < LM_H; j++) {
+            for (int i = 0; i < LM_W; i++) {
+                reg[j * LM_W + i] = regionAt(WX0 + (i + 0.5f) * LM_STEP, WZ0 + (j + 0.5f) * LM_STEP);
+            }
+        }
+        for (float[] l : lamps) {
+            int lr = regionAt(l[0], l[1]);
+            float rad = l[2];
+            int i0 = Math.max(0, (int) ((l[0] - rad * 2.6f - WX0) / LM_STEP));
+            int i1 = Math.min(LM_W - 1, (int) ((l[0] + rad * 2.6f - WX0) / LM_STEP));
+            int j0 = Math.max(0, (int) ((l[1] - rad * 2.6f - WZ0) / LM_STEP));
+            int j1 = Math.min(LM_H - 1, (int) ((l[1] + rad * 2.6f - WZ0) / LM_STEP));
+            for (int j = j0; j <= j1; j++) {
+                for (int i = i0; i <= i1; i++) {
+                    int k = j * LM_W + i;
+                    if (reg[k] != lr) continue;
+                    float dx = WX0 + (i + 0.5f) * LM_STEP - l[0];
+                    float dz = WZ0 + (j + 0.5f) * LM_STEP - l[1];
+                    float v = (float) Math.exp(-(dx * dx + dz * dz) / (rad * rad)) * l[3];
+                    acc[k * 3] += v * l[4];
+                    acc[k * 3 + 1] += v * l[5];
+                    acc[k * 3 + 2] += v * l[6];
+                }
+            }
+        }
+        for (int k = 0; k < out.length; k++) {
+            int r = Math.min(255, (int) (acc[k * 3] * 0.5f * 255));
+            int g = Math.min(255, (int) (acc[k * 3 + 1] * 0.5f * 255));
+            int b = Math.min(255, (int) (acc[k * 3 + 2] * 0.5f * 255));
+            out[k] = ((reg[k] >= 0 ? 255 : 0) << 24) | (r << 16) | (g << 8) | b;
+        }
+        return out;
+    }
 
     // ================================================================== people
 
-    static final int WANDER = 0, SEATED = 1, STAFF = 2, GUARD = 3, PLAYER = 4;
+    static final int WANDER = 0, SEATED = 1, STAFF = 2, GUARD = 3, PLAYER = 4, ROUTE = 5;
+    /** Outfits. Staff and cooks get into staff areas; security gets in almost anywhere. */
+    static final int CIVILIAN = 0, STAFF_OUTFIT = 1, SECURITY = 2, COOK = 3;
+    static final String[] OUTFIT_NAMES = {"your own clothes", "a staff uniform",
+            "a security uniform", "a cook's whites"};
 
     static final class Person {
         int kind;
         String name;
         float x, z, yaw, scale = 1;
         int skin, shirt, pants, hair;
-        boolean vest, hat;
-        // Where a seated or working person belongs.
+        boolean vest, hat, tie;
+        int outfit;
         float homeX, homeZ, homeYaw;
         boolean sitting;
-        // Walking.
         float tx, tz, speed = 1.1f, phase, walk, idle, stuck, lastDist;
-        // Hit and falling: down counts down from DOWN_TIME; fall is 0 standing, 1 flat.
-        float down, fall, kx, kz, angry, punch, shake, pushX, pushZ;
+        float down, fall, fallRaw, kx, kz, angry, punch, shake, pushX, pushZ;
         boolean tough, swung;
-        /** Seconds of bloody nose left. */
         float bleed;
         String bubble;
         float bubbleT;
         boolean active = true;
+        /** Where a wanderer roams: x0, z0, x1, z1. */
+        float[] area;
+        /** Out cold, dead, found by someone, outfit taken, stuffed somewhere. */
+        boolean ko, dead, found, stripped, hidden;
+        /** A loop of stops: x, z, seconds to wait, facing (NaN for any), sit (1). */
+        float[][] route;
+        int routeI;
+        float wait;
+        boolean target;
+        float flee;
+        /** When the player last hit them, for blaming car accidents. */
+        float hitAt = -100;
+        String[] talk;
+        float talkT;
     }
 
     static final float DOWN_TIME = 3.4f;
     static final float PUNCH_TIME = 0.42f;
-    static final float SPEED = 3.3f;
+    static final float SPEED = 3.3f, DRAG_SPEED = 1.7f;
 
     final List<Person> people = new ArrayList<>();
-    /** Flying drops of blood: x, y, z, vx, vy, vz, size. */
-    final List<float[]> drops = new ArrayList<>();
-    /** Blood on the carpet: x, z, size, turn, age. */
-    final List<float[]> splats = new ArrayList<>();
-    static final float SPLAT_LIFE = 45;
     final Person player = new Person();
-    Person guard;
+    final List<Person> guards = new ArrayList<>();
     private final Random rnd;
     float time;
     float camYaw = 0, camPitch = 0.32f, camDist = 4.6f;
-    /** Bits for the phone to play sounds: 1 a punch landed, 2 a swing missed. */
+    /** Bits for the phone to play sounds: 1 a hit landed, 2 a swing missed, 4 a shot. */
     int sounds;
     /** A short message to show, or null. */
     String toast;
     /** Above 0 while security is walking you out (the screen fades). */
     float escort;
-    private final List<Float> recentHits = new ArrayList<>();
     private float tableTalk = 6;
+
+    // Suspicion and alarm.
+    float suspicion;
+    boolean alarm;
+    float alarmT;
+    /** Someone's eyes on you right now, for the overlay. */
+    boolean watched;
+    private boolean warned;
+    /** Lock picking in progress (the phone sets this). */
+    boolean picking;
+    boolean hasPistol;
+    Person dragging;
+    private int playerShirt, playerPants;
 
     private static final int[] SKIN = {0xFFF1C9A5, 0xFFE0AC84, 0xFFC68A5E, 0xFF9C6644,
             0xFF6E4630, 0xFFF5D7BE};
@@ -727,6 +944,16 @@ final class CasinoWorld {
             "That's going in my report.", "I don't get paid enough for this."};
     static final String[] GUARD_LINES = {"Alright, champ. Let's go.",
             "Hands where I can see them.", "Nice try.", "Walk with me."};
+    static final String[] TRESPASS = {"Hey! You can't be back here.",
+            "Excuse me. Staff only.", "Who let you in here?", "You lost, pal?"};
+    static final String[] ODD = {"What are you doing?", "Is that... a body?",
+            "Hey. HEY. What is that?", "I'm calling someone."};
+    static final String[] BODY_FOUND = {"Oh my god! Somebody help!", "Security! Body!",
+            "Is he breathing?!", "Nobody touch anything!"};
+    static final String[] PANIC = {"AAAH!", "Run!", "He's got a gun!", "Not today!",
+            "I'm too young for this!"};
+    static final String[] ALARM_GUARD = {"Stop right there!", "Got eyes on him!",
+            "Don't let him leave!"};
 
     CasinoWorld(long seed) {
         rnd = new Random(seed);
@@ -734,7 +961,7 @@ final class CasinoWorld {
         setupPeople();
     }
 
-    private Person newPerson(int kind) {
+    Person newPerson(int kind) {
         Person p = new Person();
         p.kind = kind;
         p.skin = SKIN[rnd.nextInt(SKIN.length)];
@@ -748,33 +975,53 @@ final class CasinoWorld {
         return p;
     }
 
+    static void dress(Person p, int outfit) {
+        p.outfit = outfit;
+        p.vest = false;
+        p.tie = false;
+        switch (outfit) {
+            case STAFF_OUTFIT:
+                p.shirt = 0xFFE8E4DC;
+                p.pants = 0xFF141418;
+                p.vest = true;
+                break;
+            case SECURITY:
+                p.shirt = 0xFF141418;
+                p.pants = 0xFF141418;
+                p.tie = true;
+                break;
+            case COOK:
+                p.shirt = 0xFFF2F0EA;
+                p.pants = 0xFF5A5A60;
+                break;
+            default:
+                break;
+        }
+    }
+
     private void setupPeople() {
         player.kind = PLAYER;
         player.x = SPAWN_X;
         player.z = SPAWN_Z;
         player.yaw = NORTH;
         player.skin = 0xFFE0AC84;
-        player.shirt = 0xFF1F6F78;
-        player.pants = 0xFF22252B;
+        player.shirt = playerShirt = 0xFF1F6F78;
+        player.pants = playerPants = 0xFF22252B;
         player.hair = 0xFF1A120C;
         camYaw = NORTH;
 
-        for (int i = 0; i < 8; i++) {
-            Person p = newPerson(WANDER);
-            float[] at = openSpot();
-            p.x = at[0];
-            p.z = at[1];
-            p.speed = 0.9f + rnd.nextFloat() * 0.5f;
-            pickTarget(p);
+        float[] casinoArea = {X0 + 1, Z0 + 1.5f, X1 - 1, Z1 - 1};
+        for (int i = 0; i < 7; i++) wanderer(casinoArea);
+        for (float[] a : CasinoPlaces.OUTSIDE_AREAS) {
+            wanderer(a);
+            if (a[2] - a[0] > 40) wanderer(a);
         }
-        // Regulars at the island machines.
         int[] taken = {0, 2, 3, 5};
         for (int t : taken) {
             if (t >= islandSeats.size()) continue;
             float[] s = islandSeats.get(t);
             seat(newPerson(SEATED), s[0], s[1], s[2]);
         }
-        // The hold'em regulars (seat 0 is yours).
         String[] names = {"Rusty", "Big Tony", "Grandma Mae", "Chad", "Jolene"};
         int[] shirts = {0xFF7A4A2A, 0xFF2E2E36, 0xFF8A6A8A, 0xFFD8D8DC, 0xFF8A3A4A};
         for (int i = 1; i < 6; i++) {
@@ -793,18 +1040,43 @@ final class CasinoWorld {
             if (i == 4) p.hat = true;
             seat(p, s[0], s[1], s[2]);
         }
-        // Staff.
-        staff(dealer, "Dealer");
-        staff(croupier, "Croupier");
-        staff(cashier, "Cashier");
-        // Security waits out of sight until needed.
-        guard = newPerson(GUARD);
-        guard.shirt = 0xFF141418;
-        guard.pants = 0xFF141418;
-        guard.scale = 1.12f;
-        guard.speed = 3.5f;
-        guard.active = false;
-        guard.name = "Security";
+        for (float[] s : extraSeats) seat(newPerson(SEATED), s[0], s[1], s[2]);
+        staff(dealer, "Dealer", STAFF_OUTFIT);
+        staff(croupier, "Croupier", STAFF_OUTFIT);
+        staff(cashier, "Cashier", STAFF_OUTFIT);
+        for (int i = 0; i < extraStaff.size(); i++) {
+            float[] s = extraStaff.get(i);
+            Person p = staff(s, extraStaffNames.get(i), (int) s[3]);
+            if (s.length > 4 && s[4] > 0) p.talk = CasinoPlaces.DICE_TALK;
+        }
+        // Security on patrol: one on the floor, one in the back.
+        Person g1 = guard(CasinoPlaces.FLOOR_PATROL);
+        Person g2 = guard(CasinoPlaces.BACK_PATROL);
+        g1.name = "Security";
+        g2.name = "Security";
+    }
+
+    private void wanderer(float[] area) {
+        Person p = newPerson(WANDER);
+        p.area = area;
+        float[] at = openSpot(area);
+        p.x = at[0];
+        p.z = at[1];
+        p.speed = 0.9f + rnd.nextFloat() * 0.5f;
+        pickTarget(p);
+    }
+
+    private Person guard(float[][] route) {
+        Person g = newPerson(GUARD);
+        dress(g, SECURITY);
+        g.scale = 1.1f;
+        g.speed = 1.2f;
+        g.tough = true;
+        g.route = route;
+        g.x = route[0][0];
+        g.z = route[0][1];
+        guards.add(g);
+        return g;
     }
 
     private void seat(Person p, float x, float z, float yaw) {
@@ -814,29 +1086,28 @@ final class CasinoWorld {
         p.sitting = true;
     }
 
-    private void staff(float[] at, String name) {
+    private Person staff(float[] at, String name, int outfit) {
         Person p = newPerson(STAFF);
         p.homeX = p.x = at[0];
         p.homeZ = p.z = at[1];
         p.homeYaw = p.yaw = at[2];
-        p.shirt = 0xFFE8E4DC;
-        p.vest = true;
-        p.pants = 0xFF141418;
+        dress(p, outfit);
         p.name = name;
+        return p;
     }
 
-    private float[] openSpot() {
+    private float[] openSpot(float[] a) {
         for (int tries = 0; tries < 200; tries++) {
-            float x = -16 + rnd.nextFloat() * 32;
-            float z = -11 + rnd.nextFloat() * 23;
+            float x = a[0] + rnd.nextFloat() * (a[2] - a[0]);
+            float z = a[1] + rnd.nextFloat() * (a[3] - a[1]);
             if (free(x, z, 0.9f)) return new float[]{x, z};
         }
-        return new float[]{0, 6};
+        return new float[]{(a[0] + a[2]) / 2, (a[1] + a[3]) / 2};
     }
 
     private boolean free(float x, float z, float margin) {
-        if (x < X0 + 1 || x > X1 - 1 || z < Z0 + 1.5f || z > Z1 - 1) return false;
         for (float[] w : walls) {
+            if (w.length > 5) continue;
             if (x > w[0] - margin && x < w[2] + margin && z > w[1] - margin && z < w[3] + margin) {
                 return false;
             }
@@ -845,14 +1116,79 @@ final class CasinoWorld {
     }
 
     private void pickTarget(Person p) {
-        float[] t = openSpot();
+        float[] t = openSpot(p.area == null ? new float[]{X0 + 1, Z0 + 1.5f, X1 - 1, Z1 - 1}
+                : p.area);
         p.tx = t[0];
         p.tz = t[1];
         p.stuck = 0;
         p.lastDist = 1e9f;
     }
 
+    // ================================================================== cars
+
+    /** Cars on the strip: x, lane z, direction, speed, color. */
+    final List<float[]> cars = new ArrayList<>();
+    static final float LANE_W = 20, LANE_E = 24, CAR_TOP = 10;
+
+    private void spawnCars() {
+        int[] colors = {0xFF7A1C1C, 0xFF1C3A6A, 0xFFB8B8C0, 0xFF1A1A1E, 0xFF2E5A3A, 0xFFC9A24A};
+        for (int i = 0; i < 5; i++) {
+            boolean west = i % 2 == 0;
+            cars.add(new float[]{-50 + i * 23, west ? LANE_W : LANE_E, west ? -1 : 1,
+                    CAR_TOP, colors[i % colors.length]});
+        }
+    }
+
+    private void updateCars(float dt) {
+        if (cars.isEmpty()) spawnCars();
+        for (float[] c : cars) {
+            // Brake for anyone walking in the lane ahead.
+            boolean brake = false;
+            for (Person p : allPeople()) {
+                if (!p.active || p.fall > 0.05f) continue;
+                if (Math.abs(p.z - c[1]) > 1.7f) continue;
+                float ahead = (p.x - c[0]) * c[2];
+                if (ahead > 0 && ahead < 10) brake = true;
+            }
+            float want = brake ? 0 : CAR_TOP;
+            c[3] += Math.max(-22 * dt, Math.min(5 * dt, want - c[3]));
+            c[0] += c[2] * c[3] * dt;
+            if (c[0] > WX1 + 8) c[0] = WX0 - 8;
+            if (c[0] < WX0 - 8) c[0] = WX1 + 8;
+            if (c[3] < 3) continue;
+            for (Person p : allPeople()) {
+                if (!p.active || p.dead || p.hidden) continue;
+                if (Math.abs(p.z - c[1]) > 1.25f || Math.abs(p.x - c[0]) > 2.4f) continue;
+                if (p == player) {
+                    player.pushZ = (p.z < 22 ? -1 : 1) * 9;
+                    player.pushX = c[2] * 4;
+                    player.shake = 0.6f;
+                    player.bleed = 8;
+                    spray(p.x, 1.3f, p.z, c[2], 0, 12);
+                    sounds |= 1;
+                    toast = "Watch the road.";
+                } else {
+                    p.kx = c[2] * 7;
+                    p.kz = (p.z < 22 ? -1 : 1) * 3;
+                    spray(p.x, 1.3f, p.z, c[2], 0, 18);
+                    sounds |= 1;
+                    boolean blame = time - p.hitAt < 4;
+                    kill(p, blame ? KILL_PUSH : KILL_CAR);
+                }
+            }
+        }
+    }
+
     // ================================================================== moving
+
+    private final List<Person> all = new ArrayList<>();
+
+    List<Person> allPeople() {
+        all.clear();
+        all.add(player);
+        all.addAll(people);
+        return all;
+    }
 
     /**
      * Moves everything forward by dt seconds. sx, sy: the joystick, -1..1, with sy negative
@@ -867,14 +1203,19 @@ final class CasinoWorld {
             float before = escort;
             escort -= dt;
             if (before > 0.6f && escort <= 0.6f) {
-                // Behind the fade: back to the door.
-                player.x = SPAWN_X;
-                player.z = SPAWN_Z;
-                player.yaw = NORTH;
-                camYaw = NORTH;
-                guard.active = false;
-                recentHits.clear();
-                toast = "Security walked you out. Keep your hands to yourself.";
+                if (dragging != null) dragging = null;
+                player.x = OUT_X;
+                player.z = OUT_Z;
+                player.yaw = SOUTH;
+                camYaw = SOUTH;
+                alarm = false;
+                suspicion = 0;
+                for (Person g : guards) {
+                    g.x = g.route[0][0];
+                    g.z = g.route[0][1];
+                    g.routeI = 0;
+                }
+                toast = "Security threw you out. Lie low for a bit.";
             }
             sx = sy = 0;
         }
@@ -882,7 +1223,8 @@ final class CasinoWorld {
         // ---- the player
         Person me = player;
         float mag = (float) Math.min(1, Math.hypot(sx, sy));
-        if (me.down > 0) mag = 0;
+        if (picking) mag = 0;
+        float speed = dragging != null ? DRAG_SPEED : SPEED;
         if (mag > 0.08f) {
             float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
             float rx = (float) Math.cos(camYaw), rz = (float) Math.sin(camYaw);
@@ -892,20 +1234,27 @@ final class CasinoWorld {
             dz /= l;
             float want = (float) Math.atan2(dx, -dz);
             me.yaw = turn(me.yaw, want, dt * 12);
-            me.x += dx * SPEED * mag * dt;
-            me.z += dz * SPEED * mag * dt;
+            me.x += dx * speed * mag * dt;
+            me.z += dz * speed * mag * dt;
             me.walk = mag;
-            me.phase += dt * 9.5f * mag;
+            me.phase += dt * 9.5f * mag * speed / SPEED;
         } else {
             me.walk = Math.max(0, me.walk - dt * 6);
         }
-        // Being shoved by someone swinging back.
         me.x += me.pushX * dt;
         me.z += me.pushZ * dt;
         me.pushX *= (float) Math.pow(0.02, dt);
         me.pushZ *= (float) Math.pow(0.02, dt);
         collide(me, 0.33f);
         if (me.shake > 0) me.shake -= dt;
+        if (me.bleed > 0) me.bleed -= dt;
+        if (dragging != null) {
+            float fx = (float) Math.sin(me.yaw), fz = (float) -Math.cos(me.yaw);
+            Person b = dragging;
+            b.x += (me.x - fx * 1.0f - b.x) * Math.min(1, dt * 10);
+            b.z += (me.z - fz * 1.0f - b.z) * Math.min(1, dt * 10);
+            b.yaw = me.yaw + PI;
+        }
 
         if (me.punch > 0) {
             float before = me.punch;
@@ -914,28 +1263,9 @@ final class CasinoWorld {
             if (before > hitAt && me.punch <= hitAt) landPunch();
         }
 
-        // ---- blood
-        for (int i = drops.size() - 1; i >= 0; i--) {
-            float[] d = drops.get(i);
-            d[4] -= 9.8f * dt;
-            d[0] += d[3] * dt;
-            d[1] += d[4] * dt;
-            d[2] += d[5] * dt;
-            if (d[1] <= 0.01f) {
-                drops.remove(i);
-                if (d[0] > X0 && d[0] < X1 && d[2] > Z0 && d[2] < Z1) {
-                    splats.add(new float[]{d[0], d[2], d[6] * (3.5f + rnd.nextFloat() * 3.5f),
-                            rnd.nextFloat() * PI, 0});
-                }
-            }
-        }
-        for (int i = splats.size() - 1; i >= 0; i--) {
-            float[] sp = splats.get(i);
-            sp[4] += dt;
-            if (sp[4] > SPLAT_LIFE) splats.remove(i);
-        }
-        while (splats.size() > 140) splats.remove(0);
-        if (me.bleed > 0) me.bleed -= dt;
+        updateCars(dt);
+        updateBlood(dt);
+        updateDoors(dt);
 
         // ---- everyone else
         for (Person p : people) {
@@ -944,12 +1274,25 @@ final class CasinoWorld {
             if (p.angry > 0) p.angry -= dt;
             if (p.bleed > 0) {
                 p.bleed -= dt;
-                // The odd drip while they stand there.
-                if (p.down <= 0 && rnd.nextFloat() < dt * 1.5f) {
+                if (p.down <= 0 && !p.ko && !p.dead && rnd.nextFloat() < dt * 1.5f) {
                     float fx = (float) Math.sin(p.yaw), fz = (float) -Math.cos(p.yaw);
                     drops.add(new float[]{p.x + fx * 0.18f, 1.62f * p.scale, p.z + fz * 0.18f,
                             0, 0, 0, 0.03f});
                 }
+            }
+            if (p.ko || p.dead) {
+                p.fallRaw = Math.min(1, p.fallRaw + dt * 3.3f);
+                p.fall = ease(p.fallRaw);
+                if (p != dragging) {
+                    p.x += p.kx * dt;
+                    p.z += p.kz * dt;
+                    p.kx *= (float) Math.pow(0.01, dt);
+                    p.kz *= (float) Math.pow(0.01, dt);
+                    collide(p, 0.3f);
+                }
+                p.walk = 0;
+                p.sitting = false;
+                continue;
             }
             if (p.down > 0) {
                 p.down -= dt;
@@ -980,19 +1323,34 @@ final class CasinoWorld {
                 if (before > hitAt && p.punch <= hitAt) npcLands(p);
                 continue;
             }
+            if (p.flee > 0) {
+                p.flee -= dt;
+                float dx = p.x - me.x, dz = p.z - me.z;
+                float l = Math.max(0.01f, (float) Math.hypot(dx, dz));
+                float sp = p.speed;
+                p.speed = 3.0f;
+                p.sitting = false;
+                step(p, p.x + dx / l * 3, p.z + dz / l * 3, dt);
+                p.speed = sp;
+                continue;
+            }
+            if (p.kind == GUARD && alarm && escort <= 0) {
+                chase(p, dt);
+                continue;
+            }
             switch (p.kind) {
                 case WANDER:
                     wander(p, dt);
                     break;
                 case GUARD:
-                    chase(p, dt);
+                case ROUTE:
+                    followRoute(p, dt);
                     break;
                 default:
                     goHome(p, dt);
                     break;
             }
-            // A tough one who just got up may come back for you.
-            if (p.tough && p.angry > 0 && !p.swung && me.down <= 0 && escort <= 0) {
+            if (p.tough && p.angry > 0 && !p.swung && escort <= 0) {
                 float d = dist(p, me);
                 if (d < 1.1f) {
                     p.yaw = (float) Math.atan2(me.x - p.x, -(me.z - p.z));
@@ -1003,32 +1361,38 @@ final class CasinoWorld {
                     p.tz = me.z;
                 }
             }
+            if (p.talk != null && dist(p, me) < 9) {
+                p.talkT -= dt;
+                if (p.talkT <= 0) {
+                    p.talkT = 6 + rnd.nextFloat() * 7;
+                    say(p, p.talk);
+                }
+            }
         }
 
-        // The hold'em table never shuts up.
         tableTalk -= dt;
         if (tableTalk <= 0) {
             tableTalk = 7 + rnd.nextFloat() * 8;
             List<Person> seated = new ArrayList<>();
             for (Person p : people) {
-                if (p.name != null && p.kind == SEATED && p.sitting && p.down <= 0) seated.add(p);
+                if (p.name != null && p.kind == SEATED && p.sitting && p.down <= 0 && !p.ko
+                        && !p.dead) {
+                    seated.add(p);
+                }
             }
             if (!seated.isEmpty() && dist2(8, 1.5f, me.x, me.z) < 9 * 9) {
                 say(seated.get(rnd.nextInt(seated.size())), TABLE_TALK);
             }
         }
 
-        // Clean up old hits for the security count.
-        while (!recentHits.isEmpty() && time - recentHits.get(0) > 60) recentHits.remove(0);
-        if (recentHits.size() >= 3 && !guard.active && escort <= 0) {
-            guard.active = true;
-            guard.x = SPAWN_X + 0.8f;
-            guard.z = Z1 - 0.6f;
-            guard.yaw = NORTH;
-            guard.down = 0;
-            guard.fall = 0;
-            say(guard, new String[]{GUARD_LINES[0]});
-            toast = "Security's coming for you.";
+        updateSuspicion(dt);
+        if (alarm && escort <= 0) {
+            alarmT -= dt;
+            if (alarmT <= 0) {
+                alarm = false;
+                suspicion = 0.5f;
+                toast = "Security lost you.";
+            }
         }
     }
 
@@ -1045,7 +1409,6 @@ final class CasinoWorld {
             if (p.angry <= 0) p.speed = 0.9f + rnd.nextFloat() * 0.5f;
             return;
         }
-        // Give up on targets we can't reach.
         p.stuck += dt;
         if (p.stuck > 1.2f) {
             if (d > p.lastDist - 0.3f) pickTarget(p);
@@ -1053,6 +1416,31 @@ final class CasinoWorld {
             p.stuck = 0;
         }
         step(p, p.tx, p.tz, dt);
+    }
+
+    /** Walks a loop of stops, waiting (and maybe sitting) at each. */
+    private void followRoute(Person p, float dt) {
+        float[] s = p.route[p.routeI];
+        float d = (float) Math.hypot(s[0] - p.x, s[1] - p.z);
+        if (d > 0.15f) {
+            p.sitting = false;
+            float sp = p.speed;
+            if (p.kind == GUARD) p.speed = 1.25f;
+            step(p, s[0], s[1], dt, d > 1.0f);
+            p.speed = sp;
+            p.wait = s[2];
+            return;
+        }
+        p.x = s[0];
+        p.z = s[1];
+        if (!Float.isNaN(s[3])) p.yaw = turn(p.yaw, s[3], dt * 6);
+        p.sitting = s.length > 4 && s[4] > 0;
+        p.walk = Math.max(0, p.walk - dt * 5);
+        p.wait -= dt;
+        if (p.wait <= 0) {
+            p.routeI = (p.routeI + 1) % p.route.length;
+            p.wait = p.route[p.routeI][2];
+        }
     }
 
     private void chase(Person g, float dt) {
@@ -1067,7 +1455,10 @@ final class CasinoWorld {
             say(g, new String[]{GUARD_LINES[3]});
             return;
         }
+        float sp = g.speed;
+        g.speed = 3.45f;
         step(g, me.x, me.z, dt);
+        g.speed = sp;
     }
 
     private void goHome(Person p, float dt) {
@@ -1081,7 +1472,6 @@ final class CasinoWorld {
             return;
         }
         p.sitting = false;
-        // Walk straight back; tables are in the way, so slip through them on the last bit.
         float sp = p.speed;
         p.speed = 1.2f;
         step(p, p.homeX, p.homeZ, dt, d > 1.2f);
@@ -1092,7 +1482,24 @@ final class CasinoWorld {
         step(p, tx, tz, dt, true);
     }
 
+    /** True when stepping off the curb now would put someone in front of a car. */
+    private boolean carComing(Person p, float tx, float tz) {
+        for (float[] c : cars) {
+            float lane = c[1];
+            boolean inLane = Math.abs(p.z - lane) < 1.7f;
+            boolean crosses = Math.min(p.z, tz) < lane + 1.7f && Math.max(p.z, tz) > lane - 1.7f;
+            if (inLane || !crosses) continue;
+            float ahead = (p.x - c[0]) * c[2];
+            if (ahead > -3f && ahead < 18) return true;
+        }
+        return false;
+    }
+
     private void step(Person p, float tx, float tz, float dt, boolean solid) {
+        if (p != player && p.kind != GUARD && carComing(p, tx, tz)) {
+            p.walk = Math.max(0, p.walk - dt * 5);
+            return;
+        }
         float dx = tx - p.x, dz = tz - p.z;
         float d = (float) Math.hypot(dx, dz);
         if (d < 1e-4f) return;
@@ -1107,52 +1514,235 @@ final class CasinoWorld {
         if (solid) collide(p, 0.3f);
     }
 
-    /** Pushes someone out of walls and furniture. */
+    /** Pushes someone out of walls, furniture and shut doors. */
     private void collide(Person p, float r) {
         for (int pass = 0; pass < 2; pass++) {
             for (float[] w : walls) {
-                float cx = Math.max(w[0], Math.min(p.x, w[2]));
-                float cz = Math.max(w[1], Math.min(p.z, w[3]));
-                float dx = p.x - cx, dz = p.z - cz;
-                float d2 = dx * dx + dz * dz;
-                if (d2 >= r * r) continue;
-                if (d2 < 1e-8f) {
-                    // Inside: push out the nearest side.
-                    float l = p.x - w[0], rr = w[2] - p.x, t = p.z - w[1], b = w[3] - p.z;
-                    float min = Math.min(Math.min(l, rr), Math.min(t, b));
-                    if (min == l) p.x = w[0] - r;
-                    else if (min == rr) p.x = w[2] + r;
-                    else if (min == t) p.z = w[1] - r;
-                    else p.z = w[3] + r;
-                } else {
-                    float d = (float) Math.sqrt(d2);
-                    p.x = cx + dx / d * r;
-                    p.z = cz + dz / d * r;
-                }
+                if (w.length < 6) push(p, r, w);
+            }
+            for (Door d : doors) {
+                if (d.shut()) push(p, r, d.box());
             }
         }
-        p.x = Math.max(X0 + r, Math.min(X1 - r, p.x));
-        p.z = Math.max(Z0 + r, Math.min(Z1 - r, p.z));
+        p.x = Math.max(WX0 + r, Math.min(WX1 - r, p.x));
+        p.z = Math.max(WZ0 + r, Math.min(WZ1 - r, p.z));
     }
 
-    // ================================================================== punching
+    private static void push(Person p, float r, float[] w) {
+        if (p.x < w[0] - r || p.x > w[2] + r || p.z < w[1] - r || p.z > w[3] + r) return;
+        float cx = Math.max(w[0], Math.min(p.x, w[2]));
+        float cz = Math.max(w[1], Math.min(p.z, w[3]));
+        float dx = p.x - cx, dz = p.z - cz;
+        float d2 = dx * dx + dz * dz;
+        if (d2 >= r * r) return;
+        if (d2 < 1e-8f) {
+            float l = p.x - w[0], rr = w[2] - p.x, t = p.z - w[1], b = w[3] - p.z;
+            float min = Math.min(Math.min(l, rr), Math.min(t, b));
+            if (min == l) p.x = w[0] - r;
+            else if (min == rr) p.x = w[2] + r;
+            else if (min == t) p.z = w[1] - r;
+            else p.z = w[3] + r;
+        } else {
+            float d = (float) Math.sqrt(d2);
+            p.x = cx + dx / d * r;
+            p.z = cz + dz / d * r;
+        }
+    }
 
-    /** Starts a punch, if not already swinging. */
+    // ================================================================== doors
+
+    private void updateDoors(float dt) {
+        for (Door d : doors) {
+            if (d.held > 0) d.held -= dt;
+            // Employees and targets have keys: the door opens for them, briefly.
+            if (!d.unlocked) {
+                for (Person p : people) {
+                    if (!p.active || p.ko || p.dead) continue;
+                    if (p.kind != ROUTE && p.kind != GUARD) continue;
+                    if (dist2(p.x, p.z, d.x, d.z) < 1.6f * 1.6f) d.held = 2.2f;
+                }
+            }
+            float want = d.unlocked || d.held > 0 ? 1 : 0;
+            d.open += Math.max(-dt * 2.5f, Math.min(dt * 2.5f, want - d.open));
+        }
+    }
+
+    void unlockDoor(Door d) {
+        d.unlocked = true;
+        flags.add("door:" + d.id);
+    }
+
+    /** Applies saved flags: unlocked doors, found things. */
+    void applyFlags() {
+        for (Door d : doors) {
+            if (flags.contains("door:" + d.id)) {
+                d.unlocked = true;
+                d.open = 1;
+            }
+        }
+    }
+
+    // ================================================================== suspicion
+
+    /** Whether w can see the point x, z: in range, in front, nothing solid between. */
+    boolean canSee(Person w, float x, float z, float range) {
+        float dx = x - w.x, dz = z - w.z;
+        float d = (float) Math.hypot(dx, dz);
+        if (d > range || d < 0.01f) return d < 0.01f;
+        float fx = (float) Math.sin(w.yaw), fz = (float) -Math.cos(w.yaw);
+        if ((dx * fx + dz * fz) / d < 0.42f) return false;
+        return clear(w.x, w.z, x, z);
+    }
+
+    /** Nothing tall between two points. */
+    boolean clear(float ax, float az, float bx, float bz) {
+        for (float[] w : walls) {
+            if (w[4] < 1.7f || w.length > 5) continue;
+            if (hits(ax, az, bx, bz, w)) return false;
+        }
+        for (Door d : doors) {
+            if (d.shut() && hits(ax, az, bx, bz, d.box())) return false;
+        }
+        return true;
+    }
+
+    private static boolean hits(float ax, float az, float bx, float bz, float[] w) {
+        float t0 = 0, t1 = 1;
+        float dx = bx - ax, dz = bz - az;
+        float[] p = {-dx, dx, -dz, dz};
+        float[] q = {ax - w[0], w[2] - ax, az - w[1], w[3] - az};
+        for (int i = 0; i < 4; i++) {
+            if (Math.abs(p[i]) < 1e-7f) {
+                if (q[i] < 0) return false;
+            } else {
+                float t = q[i] / p[i];
+                if (p[i] < 0) t0 = Math.max(t0, t);
+                else t1 = Math.min(t1, t);
+                if (t0 > t1) return false;
+            }
+        }
+        return true;
+    }
+
+    /** How restricted a place is: 0 public, 1 staff, 2 private, 3 nobody. */
+    int zoneAt(float x, float z) {
+        int lvl = 0;
+        for (float[] zn : zones) {
+            if (x >= zn[0] && x <= zn[2] && z >= zn[1] && z <= zn[3]) lvl = Math.max(lvl, (int) zn[4]);
+        }
+        return lvl;
+    }
+
+    static int allowed(int outfit) {
+        return outfit == SECURITY ? 2 : (outfit == CIVILIAN ? 0 : 1);
+    }
+
+    boolean trespassing() {
+        return zoneAt(player.x, player.z) > allowed(player.outfit);
+    }
+
+    private boolean awake(Person p) {
+        return p.active && !p.ko && !p.dead && p.down <= 0 && p.kind != PLAYER;
+    }
+
+    private void updateSuspicion(float dt) {
+        if (escort > 0) return;
+        Person me = player;
+        boolean trespass = trespassing();
+        float rate = 0;
+        Person who = null;
+        for (Person w : people) {
+            if (!awake(w) || w == dragging) continue;
+            if (!canSee(w, me.x, me.z, 11)) continue;
+            float r = 0;
+            if (trespass) r += w.kind == GUARD ? 0.9f : 0.4f;
+            if (dragging != null) r += 1.6f;
+            if (picking) r += 1.1f;
+            if (me.outfit == SECURITY && w.kind == GUARD && dist(w, me) < 3.5f) r += 0.35f;
+            if (r > rate) {
+                rate = r;
+                who = w;
+            }
+        }
+        watched = rate > 0;
+        // Bodies lying in plain sight.
+        for (Person b : people) {
+            if (!b.active || !(b.ko || b.dead) || b.found || b == dragging) continue;
+            for (Person w : people) {
+                if (w == b || !awake(w) || w.target) continue;
+                if (!canSee(w, b.x, b.z, 9)) continue;
+                b.found = true;
+                bodyFound = true;
+                say(w, BODY_FOUND);
+                if (w.kind == WANDER || w.kind == SEATED) w.flee = 4;
+                raiseAlarm("Someone found a body.");
+                break;
+            }
+        }
+        if (rate > 0) {
+            suspicion += rate * dt;
+            if (!warned && suspicion > 0.3f && who != null) {
+                warned = true;
+                say(who, dragging != null || picking ? ODD : TRESPASS);
+            }
+        } else {
+            suspicion = Math.max(0, suspicion - 0.12f * dt);
+            if (suspicion < 0.1f) warned = false;
+        }
+        if (suspicion >= 1 && !alarm) raiseAlarm("You've been spotted.");
+    }
+
+    /** Anyone who sees the player right now reacts to violence. Returns true if seen. */
+    private boolean witnessed(float amount, boolean scary) {
+        return witnessed(amount, scary, null);
+    }
+
+    private boolean witnessed(float amount, boolean scary, Person victim) {
+        boolean seen = false;
+        for (Person w : people) {
+            if (!awake(w) || w == dragging || w == victim) continue;
+            if (!canSee(w, player.x, player.z, 12)) continue;
+            seen = true;
+            if (scary && (w.kind == WANDER || w.kind == SEATED || w.kind == STAFF)) {
+                w.flee = 4 + rnd.nextFloat() * 2;
+                say(w, PANIC);
+            }
+        }
+        if (seen) {
+            suspicion += amount;
+            if (suspicion >= 1) raiseAlarm("You've been spotted.");
+        }
+        return seen;
+    }
+
+    private void raiseAlarm(String why) {
+        if (contract != null) spotted = true;
+        suspicion = 1;
+        alarmT = 35;
+        if (!alarm) {
+            alarm = true;
+            toast = why + " Security's coming.";
+            for (Person g : guards) {
+                if (awake(g)) say(g, ALARM_GUARD);
+            }
+        }
+    }
+
+    // ================================================================== punching & takedowns
+
     void punch() {
-        if (player.punch > 0 || player.down > 0 || escort > 0) return;
-        // Turn toward whoever's closest in front, so you don't have to aim perfectly.
+        if (player.punch > 0 || escort > 0 || dragging != null) return;
         Person t = target(1.6f, 1.1f);
         if (t != null) player.yaw = (float) Math.atan2(t.x - player.x, -(t.z - player.z));
         player.punch = PUNCH_TIME;
     }
 
-    /** The nearest person within reach and roughly in front. */
     private Person target(float reach, float cone) {
         Person best = null;
         float bestD = reach;
         float fx = (float) Math.sin(player.yaw), fz = (float) -Math.cos(player.yaw);
         for (Person p : people) {
-            if (!p.active || p.down > 0) continue;
+            if (!p.active || p.down > 0 || p.ko || p.dead) continue;
             float dx = p.x - player.x, dz = p.z - player.z;
             float d = (float) Math.hypot(dx, dz);
             if (d > bestD || d < 1e-3f) continue;
@@ -1171,16 +1761,18 @@ final class CasinoWorld {
             return;
         }
         sounds |= 1;
+        p.hitAt = time;
+        witnessed(0.45f, false);
         if (p.kind == GUARD) {
             say(p, new String[]{GUARD_LINES[2]});
             player.shake = 0.25f;
+            raiseAlarm("You hit a guard.");
             return;
         }
         float fx = (float) Math.sin(player.yaw), fz = (float) -Math.cos(player.yaw);
         p.down = DOWN_TIME;
         p.kx = fx * 4.2f;
         p.kz = fz * 4.2f;
-        // Fall away from the punch.
         p.yaw = (float) Math.atan2(-fx, fz);
         p.sitting = false;
         p.idle = 0;
@@ -1188,7 +1780,6 @@ final class CasinoWorld {
         p.bubble = null;
         p.bleed = 12;
         spray(p.x + fx * 0.1f, 1.62f * p.scale, p.z + fz * 0.1f, fx, fz, 16);
-        recentHits.add(time);
     }
 
     private void npcLands(Person p) {
@@ -1205,7 +1796,452 @@ final class CasinoWorld {
         say(p, SWING_BACK);
     }
 
-    /** A burst of blood from a hit, flying mostly the way the punch went. */
+    /** Someone you can take down quietly: close, from behind, not on alert. */
+    Person takedownTarget() {
+        if (dragging != null || escort > 0) return null;
+        Person best = null;
+        float bestD = 1.35f;
+        for (Person p : people) {
+            if (!awake(p) || p.flee > 0) continue;
+            if (p.kind == GUARD && alarm) continue;
+            float dx = player.x - p.x, dz = player.z - p.z;
+            float d = (float) Math.hypot(dx, dz);
+            if (d > bestD || d < 1e-3f) continue;
+            float fx = (float) Math.sin(p.yaw), fz = (float) -Math.cos(p.yaw);
+            // You have to be behind them.
+            if ((dx * fx + dz * fz) / d > -0.25f) continue;
+            best = p;
+            bestD = d;
+        }
+        return best;
+    }
+
+    /** Takes someone down from behind: out cold, or for a contract target, for good. */
+    void takedown(Person p) {
+        player.yaw = (float) Math.atan2(p.x - player.x, -(p.z - player.z));
+        player.punch = PUNCH_TIME;
+        sounds |= 1;
+        p.kx = (float) Math.sin(player.yaw) * 1.2f;
+        p.kz = (float) -Math.cos(player.yaw) * 1.2f;
+        p.bubble = null;
+        boolean seen = witnessed(0.7f, true, p);
+        p.yaw = player.yaw + PI;
+        if (p.target) {
+            kill(p, KILL_TAKEDOWN);
+            if (seen) targetWitnessed = true;
+        } else {
+            p.ko = true;
+            p.fallRaw = 0;
+        }
+    }
+
+    /** The person the gun would hit, if any. */
+    Person aimTarget() {
+        if (!hasPistol || dragging != null) return null;
+        Person best = null;
+        float bestScore = 0;
+        float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
+        for (Person p : people) {
+            if (!p.active || p.ko || p.dead) continue;
+            float dx = p.x - player.x, dz = p.z - player.z;
+            float d = (float) Math.hypot(dx, dz);
+            if (d > 16 || d < 0.3f) continue;
+            float cos = (dx * fx + dz * fz) / d;
+            if (cos < 0.965f) continue;
+            if (!clear(player.x, player.z, p.x, p.z)) continue;
+            float score = cos * 10 - d * 0.1f;
+            if (score > bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    void shoot() {
+        if (!hasPistol || escort > 0 || dragging != null) return;
+        sounds |= 4;
+        player.yaw = camYaw;
+        player.punch = PUNCH_TIME * 0.6f;
+        Person p = aimTarget();
+        boolean seen = witnessed(1.0f, true, p);
+        if (p == null) return;
+        float dx = p.x - player.x, dz = p.z - player.z;
+        float d = Math.max(0.01f, (float) Math.hypot(dx, dz));
+        p.kx = dx / d * 2.5f;
+        p.kz = dz / d * 2.5f;
+        p.yaw = (float) Math.atan2(-dx, dz);
+        spray(p.x, 1.4f * p.scale, p.z, dx / d, dz / d, 22);
+        if (p.target && seen) targetWitnessed = true;
+        if (p.kind == GUARD && !p.target) raiseAlarm("You shot a guard.");
+        kill(p, KILL_SHOT);
+    }
+
+    static final int KILL_TAKEDOWN = 0, KILL_SHOT = 1, KILL_CAR = 2, KILL_PUSH = 3;
+
+    private void kill(Person p, int how) {
+        if (p.dead) return;
+        p.dead = true;
+        p.ko = false;
+        p.fallRaw = Math.max(p.fallRaw, p.fall);
+        p.sitting = false;
+        p.bleed = how == KILL_TAKEDOWN ? 0 : 30;
+        p.bubble = null;
+        if (p.target) {
+            finishContract(how);
+        } else if (how != KILL_CAR) {
+            civKills++;
+        }
+    }
+
+    // ================================================================== bodies
+
+    /** An out-cold or dead body near you. */
+    Person bodyNear() {
+        if (dragging != null) return null;
+        Person best = null;
+        float bestD = 1.5f;
+        for (Person p : people) {
+            if (!p.active || !(p.ko || p.dead)) continue;
+            float d = dist(p, player);
+            if (d < bestD) {
+                best = p;
+                bestD = d;
+            }
+        }
+        return best;
+    }
+
+    void drag(Person b) {
+        dragging = b;
+    }
+
+    void drop() {
+        dragging = null;
+    }
+
+    /** A hiding place in reach with room left. */
+    Spot hideNear() {
+        for (Spot s : spots) {
+            if (s.type != HIDE || s.used >= s.capacity) continue;
+            if (dist2(s.x, s.z, player.x, player.z) < 1.6f * 1.6f) return s;
+        }
+        return null;
+    }
+
+    void hide(Spot s) {
+        if (dragging == null) return;
+        dragging.active = false;
+        dragging.hidden = true;
+        dragging = null;
+        s.used++;
+        toast = "Hidden in the " + s.label.toLowerCase(java.util.Locale.US) + ".";
+    }
+
+    void takeOutfit(Person b) {
+        int mine = player.outfit;
+        dress(player, b.outfit);
+        b.stripped = true;
+        b.outfit = CIVILIAN;
+        if (mine != CIVILIAN) dress(b, mine);
+        else {
+            b.shirt = 0xFFD8D4CC;
+            b.pants = 0xFF6A6A72;
+            b.vest = b.tie = false;
+        }
+        warned = false;
+        toast = "You're wearing " + OUTFIT_NAMES[player.outfit] + ".";
+    }
+
+    void ownClothes() {
+        player.outfit = CIVILIAN;
+        player.shirt = playerShirt;
+        player.pants = playerPants;
+        player.vest = player.tie = false;
+    }
+
+    // ================================================================== contracts
+
+    CasinoMissions.Contract contract;
+    Person targetP, bodyguard;
+    boolean spotted, bodyFound, targetWitnessed, contractDone;
+    int civKills;
+    /** How the target went down, once the contract's done. */
+    int killedHow = -1;
+
+    void startContract(CasinoMissions.Contract c) {
+        abortContract();
+        contract = c;
+        spotted = bodyFound = targetWitnessed = contractDone = false;
+        civKills = 0;
+        killedHow = -1;
+        Person t = newPerson(ROUTE);
+        t.name = c.name;
+        t.target = true;
+        t.route = c.route;
+        t.x = c.route[0][0];
+        t.z = c.route[0][1];
+        t.speed = 1.05f;
+        t.shirt = c.shirt;
+        t.pants = c.pants;
+        t.hair = c.hair;
+        t.hat = c.hat;
+        t.scale = c.scale;
+        t.talk = c.lines;
+        t.talkT = 4;
+        targetP = t;
+        if (c.guardRoute != null) {
+            Person g = newPerson(ROUTE);
+            dress(g, SECURITY);
+            g.shirt = 0xFF2A2A30;
+            g.name = "Bodyguard";
+            g.scale = 1.15f;
+            g.tough = true;
+            g.route = c.guardRoute;
+            g.x = c.guardRoute[0][0];
+            g.z = c.guardRoute[0][1];
+            bodyguard = g;
+        }
+    }
+
+    void abortContract() {
+        if (targetP != null && !targetP.dead) people.remove(targetP);
+        if (bodyguard != null && !bodyguard.ko && !bodyguard.dead) people.remove(bodyguard);
+        targetP = bodyguard = null;
+        contract = null;
+    }
+
+    private void finishContract(int how) {
+        contractDone = true;
+        killedHow = how;
+        toast = "Target down.";
+    }
+
+    /** True when nothing went wrong: never spotted, nothing found, nobody else hurt. */
+    boolean silentAssassin() {
+        return !spotted && !bodyFound && !targetWitnessed && civKills == 0;
+    }
+
+    // ================================================================== nearby things
+
+    /** What the main button does right now. */
+    static final int A_NONE = 0, A_SPOT = 1, A_DOOR = 2, A_TAKEDOWN = 3, A_DRAG = 4,
+            A_DROP = 5, A_HIDE = 6, A_OUTFIT = 7;
+
+    static final class Action {
+        final int type;
+        final String label;
+        final Object ref;
+
+        Action(int type, String label, Object ref) {
+            this.type = type;
+            this.label = label;
+            this.ref = ref;
+        }
+    }
+
+    /** Up to two things you could do here, the more likely one first. */
+    List<Action> actions() {
+        List<Action> out = new ArrayList<>();
+        if (escort > 0) return out;
+        if (dragging != null) {
+            Spot h = hideNear();
+            if (h != null) out.add(new Action(A_HIDE, "Hide body: " + h.label, h));
+            out.add(new Action(A_DROP, "Drop body", null));
+            return out;
+        }
+        Person t = takedownTarget();
+        if (t != null) out.add(new Action(A_TAKEDOWN, t.target ? "Eliminate " + t.name
+                : "Takedown", t));
+        Person b = bodyNear();
+        if (b != null) {
+            out.add(new Action(A_DRAG, "Drag body", b));
+            if (b.outfit != CIVILIAN && b.outfit != player.outfit) {
+                out.add(new Action(A_OUTFIT, "Take " + OUTFIT_NAMES[b.outfit], b));
+            }
+        }
+        if (out.size() >= 2) return out.subList(0, 2);
+        Door door = null;
+        float bestD = 1.6f * 1.6f;
+        for (Door d : doors) {
+            if (d.unlocked) continue;
+            float dd = dist2(d.x, d.z, player.x, player.z);
+            if (dd < bestD) {
+                bestD = dd;
+                door = d;
+            }
+        }
+        Spot spot = null;
+        float bestS = 1.5f * 1.5f;
+        for (Spot s : spots) {
+            if (!available(s)) continue;
+            float dd = dist2(s.x, s.z, player.x, player.z);
+            if (dd < bestS) {
+                bestS = dd;
+                spot = s;
+            }
+        }
+        if (door != null && (spot == null || bestD < bestS)) {
+            out.add(new Action(A_DOOR, doorLabel(door), door));
+        } else if (spot != null) {
+            out.add(new Action(A_SPOT, spotLabel(spot), spot));
+        }
+        if (out.size() > 2) return out.subList(0, 2);
+        return out;
+    }
+
+    boolean available(Spot s) {
+        switch (s.type) {
+            case GAME:
+                return !alarm;
+            case LOOT:
+                return !flags.contains("loot:" + s.id);
+            case CHIP:
+                return !flags.contains("chip:" + s.id);
+            case KEY:
+                return !flags.contains("key:" + s.id);
+            case HIDE:
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    String doorLabel(Door d) {
+        if (d.key != null) {
+            return flags.contains("key:" + d.key) ? "Swipe key card" : d.label + ": key card";
+        }
+        return "Pick lock: " + d.label + " (" + d.pins + " pins)";
+    }
+
+    String spotLabel(Spot s) {
+        switch (s.type) {
+            case GAME:
+                return "Play " + s.label;
+            case LOOT:
+                return (s.pins > 0 ? "Pick " : "Search ") + s.label
+                        + (s.pins > 0 ? " (" + s.pins + " pins)" : "");
+            case NOTE:
+                return "Read " + s.label;
+            case CHIP:
+                return "Take the lucky chip";
+            case KEY:
+                return "Take " + s.label;
+            case SHOP:
+                return s.label;
+            default:
+                return s.label;
+        }
+    }
+
+    void doWorldAction(Action a) {
+        switch (a.type) {
+            case A_TAKEDOWN:
+                takedown((Person) a.ref);
+                break;
+            case A_DRAG:
+                drag((Person) a.ref);
+                break;
+            case A_DROP:
+                drop();
+                break;
+            case A_HIDE:
+                hide((Spot) a.ref);
+                break;
+            case A_OUTFIT:
+                takeOutfit((Person) a.ref);
+                break;
+            default:
+                break;
+        }
+    }
+
+    // ================================================================== camera
+
+    void camera(float aspect, float[] view, float[] proj, float[] eyeOut) {
+        Person me = player;
+        float tx = me.x, ty = 1.45f, tz = me.z;
+        float cp = (float) Math.cos(camPitch), sp = (float) Math.sin(camPitch);
+        float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
+        int reg = regionAt(tx, tz);
+        float ceil = reg >= 0 ? regions.get(reg)[4] - 0.25f : 30;
+        float dist = camDist;
+        // Pull in when a wall or anything tall is between you and the camera.
+        for (int k = 1; k <= 20; k++) {
+            float t = k / 20f * camDist;
+            float px = tx - fx * cp * t, pz = tz - fz * cp * t, py = ty + sp * t;
+            if (py > ceil || blocked(px, py, pz) || regionAt(px, pz) != reg) {
+                dist = Math.max(0.6f, t - 0.35f);
+                break;
+            }
+        }
+        float ex = tx - fx * cp * dist, ey = Math.min(ceil, ty + sp * dist),
+                ez = tz - fz * cp * dist;
+        if (me.shake > 0) {
+            float k = me.shake * 0.12f;
+            ex += (float) Math.sin(time * 71) * k;
+            ey += (float) Math.cos(time * 53) * k;
+        }
+        Mat.lookAt(view, ex, ey, ez, tx, ty, tz);
+        Mat.perspective(proj, 62, aspect, 0.1f, 80);
+        if (eyeOut != null) {
+            eyeOut[0] = ex;
+            eyeOut[1] = ey;
+            eyeOut[2] = ez;
+        }
+    }
+
+    private boolean blocked(float x, float y, float z) {
+        float m = 0.15f;
+        for (float[] w : walls) {
+            float y0 = w.length > 5 ? w[5] - 0.15f : -1;
+            if (y < w[4] + 0.1f && y > y0 && x > w[0] - m && x < w[2] + m && z > w[1] - m
+                    && z < w[3] + m) {
+                return true;
+            }
+        }
+        for (Door d : doors) {
+            if (!d.shut()) continue;
+            float[] w = d.box();
+            if (y < 2.6f && x > w[0] - m && x < w[2] + m && z > w[1] - m && z < w[3] + m) {
+                return true;
+            }
+        }
+        return x < WX0 || x > WX1 || z < WZ0 || z > WZ1;
+    }
+
+    void orbit(float dYaw, float dPitch) {
+        camYaw += dYaw;
+        camPitch = Math.max(0.05f, Math.min(1.1f, camPitch + dPitch));
+    }
+
+    // ================================================================== blood
+
+    final List<float[]> drops = new ArrayList<>();
+    final List<float[]> splats = new ArrayList<>();
+    static final float SPLAT_LIFE = 45;
+
+    private void updateBlood(float dt) {
+        for (int i = drops.size() - 1; i >= 0; i--) {
+            float[] d = drops.get(i);
+            d[4] -= 9.8f * dt;
+            d[0] += d[3] * dt;
+            d[1] += d[4] * dt;
+            d[2] += d[5] * dt;
+            if (d[1] <= 0.01f) {
+                drops.remove(i);
+                splats.add(new float[]{d[0], d[2], d[6] * (3.5f + rnd.nextFloat() * 3.5f),
+                        rnd.nextFloat() * PI, 0});
+            }
+        }
+        for (int i = splats.size() - 1; i >= 0; i--) {
+            float[] sp = splats.get(i);
+            sp[4] += dt;
+            if (sp[4] > SPLAT_LIFE) splats.remove(i);
+        }
+        while (splats.size() > 160) splats.remove(0);
+    }
+
     private void spray(float x, float y, float z, float dx, float dz, int n) {
         for (int i = 0; i < n; i++) {
             float sp = 1.5f + rnd.nextFloat() * 2.5f;
@@ -1222,65 +2258,11 @@ final class CasinoWorld {
         p.bubbleT = 3.2f;
     }
 
-    // ================================================================== nearby game
+    // ================================================================== drawing things that move
 
-    /** The game spot you're standing at, or null. */
-    Spot nearbySpot() {
-        Spot best = null;
-        float bestD = 1.5f * 1.5f;
-        for (Spot s : spots) {
-            float d = dist2(s.x, s.z, player.x, player.z);
-            if (d < bestD) {
-                best = s;
-                bestD = d;
-            }
-        }
-        return escort > 0 || guard.active ? null : best;
-    }
-
-    // ================================================================== camera
-
-    /** Fills view and projection for the current camera. */
-    void camera(float aspect, float[] view, float[] proj, float[] eyeOut) {
-        Person me = player;
-        float tx = me.x, ty = 1.45f, tz = me.z;
-        float cp = (float) Math.cos(camPitch), sp = (float) Math.sin(camPitch);
-        float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
-        float dist = camDist;
-        // Pull in so the camera stays inside the room.
-        for (int i = 0; i < 12; i++) {
-            float ex = tx - fx * cp * dist, ez = tz - fz * cp * dist, ey = ty + sp * dist;
-            if (ex > X0 + 0.25f && ex < X1 - 0.25f && ez > Z0 + 0.25f && ez < Z1 - 0.25f
-                    && ey < CEIL - 0.2f) {
-                break;
-            }
-            dist *= 0.85f;
-        }
-        float ex = tx - fx * cp * dist, ey = ty + sp * dist, ez = tz - fz * cp * dist;
-        if (me.shake > 0) {
-            float k = me.shake * 0.12f;
-            ex += (float) Math.sin(time * 71) * k;
-            ey += (float) Math.cos(time * 53) * k;
-        }
-        Mat.lookAt(view, ex, ey, ez, tx, ty, tz);
-        Mat.perspective(proj, 62, aspect, 0.1f, 60);
-        if (eyeOut != null) {
-            eyeOut[0] = ex;
-            eyeOut[1] = ey;
-            eyeOut[2] = ez;
-        }
-    }
-
-    void orbit(float dYaw, float dPitch) {
-        camYaw += dYaw;
-        camPitch = Math.max(0.05f, Math.min(1.1f, camPitch + dPitch));
-    }
-
-    // ================================================================== drawing people
-
-    /** Receives one box of a person: a model matrix for a unit cube, and its color. */
+    /** Receives one box: a model matrix for a unit cube, its color and how much it glows. */
     interface PartSink {
-        void part(float[] model, int color);
+        void part(float[] model, int color, float glow);
 
         void shadow(float x, float z, float radius);
     }
@@ -1297,10 +2279,9 @@ final class CasinoWorld {
             Mat.identity(tmp);
             Mat.translate(tmp, d[0], d[1], d[2]);
             Mat.scale(tmp, d[6], d[6] * 1.4f, d[6]);
-            sink.part(tmp, 0xFFD01820);
+            sink.part(tmp, 0xFFD01820, 0);
         }
         for (float[] sp : splats) {
-            // Spreads a little as it lands, then shrinks away near the end.
             float grow = Math.min(1, 0.5f + sp[4] * 4);
             float fade = sp[4] > SPLAT_LIFE - 4 ? (SPLAT_LIFE - sp[4]) / 4 : 1;
             float r = sp[2] * grow * fade;
@@ -1308,13 +2289,97 @@ final class CasinoWorld {
             Mat.translate(tmp, sp[0], 0.006f, sp[1]);
             Mat.rotY(tmp, sp[3]);
             Mat.scale(tmp, r, 0.004f, r * 0.7f);
-            sink.part(tmp, 0xFFC4161E);
+            sink.part(tmp, 0xFFC4161E, 0);
         }
+        drawDoors(sink);
+        drawPickups(sink);
+        drawCars(sink);
+        // A small red marker over the contract target.
+        if (targetP != null && targetP.active && !targetP.dead) {
+            Mat.identity(tmp);
+            Mat.translate(tmp, targetP.x, headY(targetP) + 0.25f
+                    + (float) Math.sin(time * 3) * 0.05f, targetP.z);
+            Mat.rotY(tmp, time * 2);
+            Mat.rotZ(tmp, PI / 4);
+            Mat.scale(tmp, 0.14f, 0.14f, 0.04f);
+            sink.part(tmp, 0xFFFF2A2A, 1);
+        }
+    }
+
+    private void drawDoors(PartSink s) {
+        for (Door d : doors) {
+            float ang = d.open * 1.6f;
+            Mat.identity(tmp);
+            if (d.alongX) {
+                Mat.translate(tmp, d.x - d.w / 2, 0, d.z);
+                Mat.rotY(tmp, ang);
+                Mat.translate(tmp, d.w / 2, 1.25f, 0);
+                Mat.scale(tmp, d.w - 0.04f, 2.5f, 0.07f);
+            } else {
+                Mat.translate(tmp, d.x, 0, d.z - d.w / 2);
+                Mat.rotY(tmp, -ang);
+                Mat.translate(tmp, 0, 1.25f, d.w / 2);
+                Mat.scale(tmp, 0.07f, 2.5f, d.w - 0.04f);
+            }
+            s.part(tmp, d.color, 0);
+            // Handle or card reader.
+            Mat.identity(tmp);
+            boolean card = d.key != null;
+            int c = card ? (d.unlocked ? 0xFF3CFF6A : 0xFFFF3030) : BRASS;
+            if (d.alongX) Mat.translate(tmp, d.x + d.w / 2 + 0.18f, 1.15f, d.z + 0.14f);
+            else Mat.translate(tmp, d.x + 0.14f, 1.15f, d.z + d.w / 2 + 0.18f);
+            Mat.scale(tmp, card ? 0.12f : 0.06f, card ? 0.18f : 0.06f, card ? 0.06f : 0.06f);
+            s.part(tmp, c, card ? 1 : 0.2f);
+        }
+    }
+
+    private void drawPickups(PartSink s) {
+        for (Spot sp : spots) {
+            if (sp.type != CHIP && sp.type != KEY) continue;
+            if (!available(sp)) continue;
+            Mat.identity(tmp);
+            Mat.translate(tmp, sp.x, sp.y + (float) Math.sin(time * 2 + sp.x) * 0.05f, sp.z);
+            Mat.rotY(tmp, time * 1.8f + sp.z);
+            if (sp.type == CHIP) {
+                Mat.scale(tmp, 0.2f, 0.2f, 0.035f);
+                s.part(tmp, 0xFFFFC94A, 0.8f);
+            } else {
+                Mat.scale(tmp, 0.22f, 0.14f, 0.02f);
+                s.part(tmp, 0xFFE8E8F0, 0.6f);
+            }
+        }
+    }
+
+    private void drawCars(PartSink s) {
+        for (float[] c : cars) {
+            float x = c[0], z = c[1], dir = c[2];
+            int col = (int) c[4];
+            box(s, x, 0.55f, z, 4.2f, 0.7f, 1.8f, col, 0);
+            box(s, x - dir * 0.3f, 1.15f, z, 2.2f, 0.55f, 1.6f, shade(col, 0.6f), 0);
+            box(s, x - dir * 0.3f, 1.15f, z, 2.0f, 0.45f, 1.62f, 0xFF20262E, 0.05f);
+            for (int i = -1; i <= 1; i += 2) {
+                for (int j = -1; j <= 1; j += 2) {
+                    box(s, x + i * 1.35f, 0.32f, z + j * 0.85f, 0.64f, 0.64f, 0.22f,
+                            0xFF111111, 0);
+                }
+                box(s, x + dir * 2.11f, 0.65f, z + i * 0.6f, 0.04f, 0.16f, 0.32f, 0xFFFFF4D6, 1);
+                box(s, x - dir * 2.11f, 0.7f, z + i * 0.65f, 0.04f, 0.12f, 0.3f, 0xFFFF2020, 1);
+            }
+            s.shadow(x, z, 2.0f);
+        }
+    }
+
+    private void box(PartSink s, float x, float y, float z, float w, float h, float d, int c,
+                     float glow) {
+        Mat.identity(tmp);
+        Mat.translate(tmp, x, y, z);
+        Mat.scale(tmp, w, h, d);
+        s.part(tmp, c, glow);
     }
 
     private void drawPerson(Person p, PartSink s) {
         float sc = p.scale;
-        boolean sit = p.sitting && p.down <= 0;
+        boolean sit = p.sitting && p.down <= 0 && !p.ko && !p.dead;
         s.shadow(p.x, p.z, 0.42f * sc * (1 + p.fall * 0.6f));
         Mat.identity(base);
         float bob = sit ? 0 : (float) Math.abs(Math.sin(p.phase)) * 0.04f * p.walk;
@@ -1322,7 +2387,6 @@ final class CasinoWorld {
         Mat.rotY(base, -p.yaw);
         Mat.scale(base, sc, sc, sc);
         if (p.fall > 0) {
-            // Tip over backward about the heels, and end up lying on the floor.
             Mat.translate(base, 0, 0.14f * p.fall, 0.12f);
             Mat.rotX(base, p.fall * 1.5f);
             Mat.translate(base, 0, 0, -0.12f);
@@ -1330,11 +2394,10 @@ final class CasinoWorld {
 
         float swing = (float) Math.sin(p.phase) * 0.5f * p.walk;
         float hip = 0.86f;
-        // Legs: thigh then shin.
         for (int side = -1; side <= 1; side += 2) {
             float a = sit ? 1.5f : swing * side;
-            float knee = sit ? -1.45f : Math.max(0, -(float) Math.sin(p.phase + side * 0.0f)
-                    * side) * 0.7f * p.walk;
+            float knee = sit ? -1.45f : Math.max(0, -(float) Math.sin(p.phase) * side) * 0.7f
+                    * p.walk;
             if (p.fall > 0) {
                 a = 0.15f * side;
                 knee = 0.1f;
@@ -1346,10 +2409,8 @@ final class CasinoWorld {
             Mat.translate(joint, 0, -0.43f, 0);
             Mat.rotX(joint, -knee);
             limb(s, joint, 0, -0.2f, 0, 0.155f, 0.42f, 0.18f, p.pants);
-            // Shoe.
             limb(s, joint, 0, -0.42f, -0.05f, 0.16f, 0.08f, 0.28f, 0xFF141210);
         }
-        // Torso.
         copy(joint, base);
         float twist = 0;
         if (p.punch > 0) {
@@ -1363,13 +2424,14 @@ final class CasinoWorld {
             limb(s, joint, 0, 0.29f, -0.005f, 0.5f, 0.5f, 0.28f, 0xFF141418);
             limb(s, joint, 0, 0.5f, -0.005f, 0.16f, 0.22f, 0.285f, p.shirt);
         }
-        if (p.kind == GUARD) {
-            // A white shirt and tie under the dark jacket.
+        if (p.tie) {
             limb(s, joint, 0, 0.43f, -0.13f, 0.12f, 0.36f, 0.02f, 0xFFE8E4DC);
             limb(s, joint, 0, 0.42f, -0.141f, 0.04f, 0.32f, 0.01f, 0xFF7A1A1A);
         }
-        // Arms.
-        float[] shoulder = this.shoulder;
+        if (p.outfit == COOK) {
+            limb(s, joint, 0, 0.2f, -0.14f, 0.4f, 0.5f, 0.01f, 0xFFFFFFFF);
+        }
+        boolean gun = p == player && hasPistol && p.punch > 0 && p.punch < PUNCH_TIME * 0.65f;
         for (int side = -1; side <= 1; side += 2) {
             copy(shoulder, joint);
             Mat.translate(shoulder, 0.315f * side, 0.59f, 0);
@@ -1379,6 +2441,10 @@ final class CasinoWorld {
                 a = 0.75f;
                 elbow = 0.6f;
             }
+            if (p == player && dragging != null) {
+                a = -0.4f;
+                elbow = 0.2f;
+            }
             if (p.fall > 0) {
                 a = 2.6f * p.fall;
                 elbow = 0.2f;
@@ -1386,12 +2452,12 @@ final class CasinoWorld {
             if (p.punch > 0) {
                 float t = 1 - p.punch / PUNCH_TIME;
                 if (side == 1) {
-                    // Wind up, snap out, pull back.
                     float out = t < 0.25f ? -t / 0.25f * 0.3f
                             : (t < 0.45f ? -0.3f + (t - 0.25f) / 0.2f * 1.9f
                             : 1.6f * (1 - (t - 0.45f) / 0.55f));
+                    if (gun) out = 1.55f;
                     a = out;
-                    elbow = Math.max(0, 1.6f - out * 1.6f) * 0.6f;
+                    elbow = gun ? 0 : Math.max(0, 1.6f - out * 1.6f) * 0.6f;
                 } else {
                     a = 0.9f;
                     elbow = 1.7f;
@@ -1403,10 +2469,11 @@ final class CasinoWorld {
             Mat.translate(shoulder, 0, -0.32f, 0);
             Mat.rotX(shoulder, elbow);
             limb(s, shoulder, 0, -0.14f, 0, 0.12f, 0.3f, 0.13f,
-                    p.kind == GUARD ? p.shirt : p.skin);
+                    p.tie || p.outfit == COOK ? p.shirt : p.skin);
             limb(s, shoulder, 0, -0.32f, 0, 0.12f, 0.1f, 0.12f, p.skin);
+            if (gun && side == 1) limb(s, shoulder, 0, -0.42f, -0.04f, 0.05f, 0.24f, 0.1f,
+                    0xFF1A1A1E);
         }
-        // Neck, head and hair.
         limb(s, joint, 0, 0.66f, 0, 0.12f, 0.08f, 0.12f, p.skin);
         limb(s, joint, 0, 0.84f, 0, 0.28f, 0.3f, 0.28f, p.skin);
         limb(s, joint, 0, 1.0f, 0.02f, 0.3f, 0.06f, 0.3f, p.hair);
@@ -1415,7 +2482,7 @@ final class CasinoWorld {
             limb(s, joint, 0, 1.03f, 0.0f, 0.42f, 0.03f, 0.42f, 0xFF3A2A1A);
             limb(s, joint, 0, 1.1f, 0.0f, 0.28f, 0.13f, 0.28f, 0xFF3A2A1A);
         }
-        // A simple brow line so heads read as facing a way, nothing more.
+        if (p.outfit == COOK) limb(s, joint, 0, 1.1f, 0, 0.26f, 0.16f, 0.26f, 0xFFFFFFFF);
         limb(s, joint, 0, 0.88f, -0.142f, 0.2f, 0.035f, 0.01f, shade(p.skin, 0.55f));
         if (p.bleed > 0) {
             limb(s, joint, 0, 0.77f, -0.143f, 0.07f, 0.09f, 0.01f, 0xFF8E0E12);
@@ -1428,10 +2495,9 @@ final class CasinoWorld {
         copy(tmp, at);
         Mat.translate(tmp, x, y, z);
         Mat.scale(tmp, w, h, d);
-        s.part(tmp, color);
+        s.part(tmp, color, 0);
     }
 
-    /** Where a person's head is, for speech bubbles and name tags. */
     static float headY(Person p) {
         if (p.fall > 0.3f) return 0.4f;
         return (p.sitting ? 1.62f : 1.84f) * p.scale + 0.25f;
@@ -1443,7 +2509,7 @@ final class CasinoWorld {
         System.arraycopy(in, 0, out, 0, 16);
     }
 
-    private static float turn(float from, float to, float k) {
+    static float turn(float from, float to, float k) {
         float d = to - from;
         while (d > Math.PI) d -= 2 * Math.PI;
         while (d < -Math.PI) d += 2 * Math.PI;
@@ -1454,11 +2520,11 @@ final class CasinoWorld {
         return t * t * (3 - 2 * t);
     }
 
-    private static float dist(Person a, Person b) {
+    static float dist(Person a, Person b) {
         return (float) Math.hypot(a.x - b.x, a.z - b.z);
     }
 
-    private static float dist2(float ax, float az, float bx, float bz) {
+    static float dist2(float ax, float az, float bx, float bz) {
         return (ax - bx) * (ax - bx) + (az - bz) * (az - bz);
     }
 }

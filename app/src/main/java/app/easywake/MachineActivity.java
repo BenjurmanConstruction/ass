@@ -37,6 +37,8 @@ import java.util.Random;
 public class MachineActivity extends Activity {
     private static final int[] BETS = {10, 20, 50, 100, 200};
     private static final int[] BETS_HIGH = {10, 20, 50, 100, 200, 500};
+    /** The secret High Limit Room in the 3D casino: same machines, much bigger bets. */
+    private static final int[] BETS_VIP = {500, 1000, 2500, 5000};
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Random rnd = new Random();
@@ -74,7 +76,9 @@ public class MachineActivity extends Activity {
         int pad = Ui.dp(this, 12);
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root);
-        root.addView(Ui.topBar(this, SlotMath.NAMES[m]), Ui.full(this, 0));
+        root.addView(Ui.topBar(this,
+                (getIntent().getBooleanExtra("vip", false) ? "High Limit: " : "")
+                        + SlotMath.NAMES[m]), Ui.full(this, 0));
 
         view = new MachineView(this, m);
         android.graphics.drawable.GradientDrawable fg = Ui.round(this, CABINET[m], 22);
@@ -195,6 +199,7 @@ public class MachineActivity extends Activity {
     }
 
     private int[] bets() {
+        if (getIntent().getBooleanExtra("vip", false)) return BETS_VIP;
         return Tree.owned(this, "highroller") ? BETS_HIGH : BETS;
     }
 

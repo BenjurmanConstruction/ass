@@ -11,6 +11,8 @@ import java.util.Locale;
  */
 final class CasinoArt {
     static final int ATLAS = 1024;
+    /** The sheet is twice as tall as it is wide. */
+    static final int ATLAS_H = 2048;
     static final int CARPET = 256;
 
     /** Draws shapes and text in pixels on a sheet. */
@@ -47,7 +49,7 @@ final class CasinoArt {
         }
 
         float v0() {
-            return (y + 0.5f) / ATLAS;
+            return (y + 0.5f) / ATLAS_H;
         }
 
         float u1() {
@@ -55,7 +57,7 @@ final class CasinoArt {
         }
 
         float v1() {
-            return (y + h - 0.5f) / ATLAS;
+            return (y + h - 0.5f) / ATLAS_H;
         }
     }
 
@@ -87,13 +89,20 @@ final class CasinoArt {
     // ------------------------------------------------------------------ signs
 
     static final String[] SIGNS = {"PENNY PALACE", "SLOT PARLOR", "TEXAS HOLD'EM", "BLACKJACK",
-            "ROULETTE", "VIDEO POKER", "CASHIER", "CLASSIC SLOTS"};
+            "ROULETTE", "VIDEO POKER", "CASHIER", "CLASSIC SLOTS", "THE GILDED ACE",
+            "LUCKY PAWN", "MIDNIGHT DINER", "STARLITE MOTEL", "THE LAST CALL", "HIGH LIMIT",
+            "STAFF ONLY", "VACANCY", "VAULT", "SECURITY", "MANAGER", "OPEN 24 HRS"};
     static final int PENNY = 0, PARLOR = 1, HOLDEM = 2, BLACKJACK = 3, ROULETTE = 4, POKER = 5,
-            CASHIER = 6, CLASSIC = 7;
+            CASHIER = 6, CLASSIC = 7, GILDED = 8, PAWN = 9, DINER = 10, MOTEL = 11, BAR = 12,
+            HIGH = 13, STAFF = 14, VACANCY = 15, VAULT = 16, SECURITY = 17, MANAGER = 18,
+            OPEN = 19;
     private static final int[] SIGN_COLOR = {0xFF4CE0A0, 0xFFFFB300, 0xFFE6B869, 0xFFE6B869,
-            0xFFE6B869, 0xFF40C4FF, 0xFFE6B869, 0xFFFF5252};
+            0xFFE6B869, 0xFF40C4FF, 0xFFE6B869, 0xFFFF5252, 0xFFFFC94A, 0xFF69F0AE, 0xFFFF6FA8,
+            0xFF6EC8FF, 0xFFFF4A3A, 0xFFD6A8FF, 0xFFFFFFFF, 0xFFFF3B30, 0xFFC0C4CC, 0xFF9AA4B4,
+            0xFFE6B869, 0xFFFF6FA8};
 
     static Region sign(int i) {
+        if (i >= 8) return new Region((i % 2) * 512 + 4, 1024 + ((i - 8) / 2) * 100, 504, 92);
         return new Region((i % 2) * 512 + 4, 384 + (i / 2) * 100, 504, 92);
     }
 
@@ -108,7 +117,7 @@ final class CasinoArt {
 
     /** Paints the whole atlas sheet (jackpot values as given, in credits). */
     static void paintAtlas(Painter p, double[] jackpots) {
-        p.rect(0, 0, ATLAS, ATLAS, 0xFF000000);
+        p.rect(0, 0, ATLAS, ATLAS_H, 0xFF000000);
         for (int m = 0; m < MACHINES; m++) {
             paintScreen(p, m);
             paintTopper(p, m);

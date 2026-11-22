@@ -74,8 +74,9 @@ public class ToolsActivity extends Activity {
         TextView wname = Ui.text(this, "Walk the casino (3D)", 17, Ui.TEXT);
         wname.setTypeface(Ui.medium());
         walk.addView(wname);
-        walk.addView(Ui.text(this, "Walk the floor, sit down at any machine or table, and "
-                + "play. Turn your phone sideways.", 14, Ui.SUB));
+        walk.addView(Ui.text(this, "Walk the casino and the strip outside. Play any machine "
+                + "or table, pick locks, find secrets, take contracts. Turn your phone "
+                + "sideways.", 14, Ui.SUB));
         walk.addView(Ui.text(this, "Free  •  games inside still need their unlocks", 13,
                 Ui.ACCENT), Ui.full(this, 6));
         walk.setOnClickListener(new View.OnClickListener() {

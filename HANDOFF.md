@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v29**.
+- Latest release: **v30**.
 
 ## Standing rules
 
@@ -140,6 +140,31 @@ player name and uninstall.
   45 s (max 140), bloody nose + shirt stain for 12 s, drips while standing. Still cubes, no gore.
 - Preview without a phone: /home/claude/work/casino/Preview.java is a software renderer
   using the same lighting as the shader; it writes PNGs of several views.
+
+### The 3D world, v30: the strip, secrets, lockpicking, contracts
+- Files: CasinoWorld (engine: thick walls with doorways, regions with ceilings, zones,
+  baked light map, doors NPCs open, cars, suspicion, takedowns, bodies, disguises, pistol,
+  actions), CasinoPlaces (every place + chips/notes/loot/hide spots + patrol routes),
+  CasinoMissions (4 contracts: counter/Dexter Pike 800, fixer/Nadia Kroll 1000,
+  gm/Richard Vance 1200, loan/Vinnie Marrow 1500; payout() and rating()), LockPick (pure
+  pin-tumbler logic), CasinoActivity (GL + overlay + LockView + phone dialogs).
+- Map (x west-east, z north-south): casino -18..18 x -14..14; back rooms z -24..-14
+  (corridor, High Limit room [key card "hlkey" in GM desk], vault 6 pins, security office,
+  GM office 4 pins + safe 5 pins); staff door 3 pins at (15.8,-14); back door 5 pins at
+  (18,-15.5) to the alley x 18..26; parking lot x -48..-18; strip: sidewalk z 14..18,
+  street z 18..26 (crosswalks x -14 and 22), sidewalk 26..30; across: Lucky Pawn (shop:
+  5 picks/25 coupons, pistol 750), Midnight Diner (freezer), Starlite Motel room 7 (4 pins),
+  empty lot; The Last Call bar x 26..48 z 4..14 (4 pins).
+- Saved in Prefs: "casinoFlags" (comma list: door:, loot:, chip:, note:, key:, item:pistol,
+  allchips), "lockpicks" (starts 5), "hitDone_<id>" (repeat jobs pay less).
+- 12 lucky chips (all 12 = 2,500 coupons once), 9 lore notes, stashes 120..1500 coupons.
+- High Limit room machines open MachineActivity with extra "vip" (bets 500..5000).
+- Contracts: takedown from behind (targets die, others KO), drag + hide bodies, take
+  uniforms (staff/cook = staff zones, security = private zones; vault = nobody), eye meter,
+  alarm -> guards chase -> thrown out to the sidewalk. Silent +50%, accident (car/push)
+  +25%, -20% per bystander killed.
+- Logic tests: /home/claude/work/casino/T2.java (routes loop, silent takedown, hiding,
+  alarm, body found, locks, car accident). Previews: Preview.java + Views.java.
 
 ## Ideas not built yet
 

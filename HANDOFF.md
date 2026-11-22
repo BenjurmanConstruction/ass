@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v27**.
+- Latest release: **v28**.
 
 ## Standing rules
 
@@ -122,6 +122,22 @@ progress.
 "Scholar" to "Degenerate gambler" (`Stats`, `ProfileActivity`). Game sounds made in
 code (`Sfx`), with on / wins only / off. Settings has an internet switch, game sounds,
 player name and uninstall.
+
+### 3D casino floor (v28)
+- My tools → "Walk the casino (3D)". Free; each game inside still needs its own unlock.
+  Landscape, OpenGL ES 2.0, no engine. Files: CasinoArt (all textures, drawn by code through
+  a Painter), CasinoWorld (pure Java: room, colliders, game spots, people, punching,
+  security, camera), CasinoActivity (GL renderer, joystick, look-drag, Punch/Play buttons,
+  speech bubbles, live jackpot board refreshed every 2 s from Prefs "jackpotBank").
+- Layout: Penny Palace + live jackpot board (NW wall), penny island with seated regulars,
+  Slot Parlor (N wall), classic slots island (Lucky Sevens / Royal Riches), Hold'em table
+  with Rusty, Big Tony, Grandma Mae, Chad, Jolene (they trash-talk), blackjack, roulette,
+  video poker bar (E wall), cashier cage (SW, opens Wallet). Door/spawn on the south wall.
+- Punching: hit someone and they fly back, fall, get up and mouth off; ~30% are "tough" and
+  swing back. 3 hits in 60 s sends Security, who walks you out (fade, back to the door).
+  Sfx.PUNCH / Sfx.WHOOSH added. Slapstick only, no blood.
+- Preview without a phone: /home/claude/work/casino/Preview.java is a software renderer
+  using the same lighting as the shader; it writes PNGs of several views.
 
 ## Ideas not built yet
 

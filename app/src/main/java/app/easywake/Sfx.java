@@ -22,7 +22,10 @@ final class Sfx {
     static final int PEG = 7;
     /** The spin clip for the five-reel slot. */
     static final int SPIN5 = 8;
-    private static final int COUNT = 9;
+    /** A punch landing, and a punch that misses. */
+    static final int PUNCH = 9;
+    static final int WHOOSH = 10;
+    private static final int COUNT = 11;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
@@ -150,6 +153,25 @@ final class Sfx {
                 b = new float[(int) (0.12 * SR)];
                 bell(b, 0, 988, 0.1, 0.5);
                 break;
+            case PUNCH: {
+                b = new float[(int) (0.22 * SR)];
+                Random r = new Random(9);
+                thump(b, r, 0, 1.0);
+                burst(b, r, 0, 0.05, 0.9, 0.2);
+                break;
+            }
+            case WHOOSH: {
+                b = new float[(int) (0.2 * SR)];
+                Random r = new Random(10);
+                double lp = 0;
+                for (int i = 0; i < b.length; i++) {
+                    double t = i / (double) b.length;
+                    double env = Math.sin(Math.PI * t);
+                    lp += 0.12 * ((r.nextDouble() * 2 - 1) - lp);
+                    b[i] = (float) (lp * env * env);
+                }
+                break;
+            }
             default:
                 b = lose();
                 break;
@@ -157,7 +179,8 @@ final class Sfx {
         float peak = 0.001f;
         for (float v : b) peak = Math.max(peak, Math.abs(v));
         // Kept well under full volume: these sit behind the game, not on top of it.
-        float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f, 0.3f};
+        float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f, 0.3f,
+                0.5f, 0.2f};
         float scale = loudness[id] / peak;
         short[] out = new short[b.length];
         for (int i = 0; i < b.length; i++) out[i] = (short) (b[i] * scale * 32767);

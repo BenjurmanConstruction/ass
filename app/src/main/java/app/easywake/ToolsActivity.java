@@ -64,6 +64,28 @@ public class ToolsActivity extends Activity {
         });
         root.addView(parlor, Ui.full(this, 10));
 
+        // The 3D casino floor: walk to any machine or table and play it from there.
+        LinearLayout walk = new LinearLayout(this);
+        walk.setOrientation(LinearLayout.VERTICAL);
+        android.graphics.drawable.GradientDrawable wbg = Ui.card(this, 18);
+        wbg.setStroke(Ui.dp(this, 2), 0xFFE6B869);
+        walk.setBackground(Ui.ripple(this, wbg, 18));
+        walk.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
+        TextView wname = Ui.text(this, "Walk the casino (3D)", 17, Ui.TEXT);
+        wname.setTypeface(Ui.medium());
+        walk.addView(wname);
+        walk.addView(Ui.text(this, "Walk the floor, sit down at any machine or table, and "
+                + "play. Turn your phone sideways.", 14, Ui.SUB));
+        walk.addView(Ui.text(this, "Free  •  games inside still need their unlocks", 13,
+                Ui.ACCENT), Ui.full(this, 6));
+        walk.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(ToolsActivity.this, CasinoActivity.class));
+            }
+        });
+        root.addView(walk, Ui.full(this, 10));
+
         int lastBranch = -1;
         for (final Tree.Node n : Tree.NODES) {
             if (n.kind != Tree.FEATURE) continue;

@@ -189,6 +189,11 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".CasinoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape" />
+        <activity
             android:name=".PennyActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

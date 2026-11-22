@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v28**.
+- Latest release: **v29**.
 
 ## Standing rules
 
@@ -135,7 +135,9 @@ player name and uninstall.
   video poker bar (E wall), cashier cage (SW, opens Wallet). Door/spawn on the south wall.
 - Punching: hit someone and they fly back, fall, get up and mouth off; ~30% are "tough" and
   swing back. 3 hits in 60 s sends Security, who walks you out (fade, back to the door).
-  Sfx.PUNCH / Sfx.WHOOSH added. Slapstick only, no blood.
+  Sfx.PUNCH / Sfx.WHOOSH added.
+- Blood (v29, user asked): blocky red spray on every hit, splats on the carpet that fade after
+  45 s (max 140), bloody nose + shirt stain for 12 s, drips while standing. Still cubes, no gore.
 - Preview without a phone: /home/claude/work/casino/Preview.java is a software renderer
   using the same lighting as the shader; it writes PNGs of several views.
 

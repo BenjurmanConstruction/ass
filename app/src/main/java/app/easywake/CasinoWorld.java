@@ -672,6 +672,8 @@ final class CasinoWorld {
         // Hit and falling: down counts down from DOWN_TIME; fall is 0 standing, 1 flat.
         float down, fall, kx, kz, angry, punch, shake, pushX, pushZ;
         boolean tough, swung;
+        /** Seconds of bloody nose left. */
+        float bleed;
         String bubble;
         float bubbleT;
         boolean active = true;
@@ -682,6 +684,11 @@ final class CasinoWorld {
     static final float SPEED = 3.3f;
 
     final List<Person> people = new ArrayList<>();
+    /** Flying drops of blood: x, y, z, vx, vy, vz, size. */
+    final List<float[]> drops = new ArrayList<>();
+    /** Blood on the carpet: x, z, size, turn, age. */
+    final List<float[]> splats = new ArrayList<>();
+    static final float SPLAT_LIFE = 45;
     final Person player = new Person();
     Person guard;
     private final Random rnd;
@@ -907,11 +914,43 @@ final class CasinoWorld {
             if (before > hitAt && me.punch <= hitAt) landPunch();
         }
 
+        // ---- blood
+        for (int i = drops.size() - 1; i >= 0; i--) {
+            float[] d = drops.get(i);
+            d[4] -= 9.8f * dt;
+            d[0] += d[3] * dt;
+            d[1] += d[4] * dt;
+            d[2] += d[5] * dt;
+            if (d[1] <= 0.01f) {
+                drops.remove(i);
+                if (d[0] > X0 && d[0] < X1 && d[2] > Z0 && d[2] < Z1) {
+                    splats.add(new float[]{d[0], d[2], d[6] * (3.5f + rnd.nextFloat() * 3.5f),
+                            rnd.nextFloat() * PI, 0});
+                }
+            }
+        }
+        for (int i = splats.size() - 1; i >= 0; i--) {
+            float[] sp = splats.get(i);
+            sp[4] += dt;
+            if (sp[4] > SPLAT_LIFE) splats.remove(i);
+        }
+        while (splats.size() > 140) splats.remove(0);
+        if (me.bleed > 0) me.bleed -= dt;
+
         // ---- everyone else
         for (Person p : people) {
             if (!p.active) continue;
             if (p.bubbleT > 0) p.bubbleT -= dt;
             if (p.angry > 0) p.angry -= dt;
+            if (p.bleed > 0) {
+                p.bleed -= dt;
+                // The odd drip while they stand there.
+                if (p.down <= 0 && rnd.nextFloat() < dt * 1.5f) {
+                    float fx = (float) Math.sin(p.yaw), fz = (float) -Math.cos(p.yaw);
+                    drops.add(new float[]{p.x + fx * 0.18f, 1.62f * p.scale, p.z + fz * 0.18f,
+                            0, 0, 0, 0.03f});
+                }
+            }
             if (p.down > 0) {
                 p.down -= dt;
                 float t = DOWN_TIME - p.down;
@@ -1147,6 +1186,8 @@ final class CasinoWorld {
         p.idle = 0;
         p.swung = false;
         p.bubble = null;
+        p.bleed = 12;
+        spray(p.x + fx * 0.1f, 1.62f * p.scale, p.z + fz * 0.1f, fx, fz, 16);
         recentHits.add(time);
     }
 
@@ -1159,7 +1200,21 @@ final class CasinoWorld {
         me.pushX = dx / d * 6;
         me.pushZ = dz / d * 6;
         me.shake = 0.4f;
+        me.bleed = 8;
+        spray(me.x, 1.62f, me.z, dx / d, dz / d, 10);
         say(p, SWING_BACK);
+    }
+
+    /** A burst of blood from a hit, flying mostly the way the punch went. */
+    private void spray(float x, float y, float z, float dx, float dz, int n) {
+        for (int i = 0; i < n; i++) {
+            float sp = 1.5f + rnd.nextFloat() * 2.5f;
+            drops.add(new float[]{x, y, z,
+                    dx * sp + (rnd.nextFloat() - 0.5f) * 1.6f,
+                    0.5f + rnd.nextFloat() * 2.2f,
+                    dz * sp + (rnd.nextFloat() - 0.5f) * 1.6f,
+                    0.025f + rnd.nextFloat() * 0.035f});
+        }
     }
 
     private void say(Person p, String[] lines) {
@@ -1237,6 +1292,23 @@ final class CasinoWorld {
         drawPerson(player, sink);
         for (Person p : people) {
             if (p.active) drawPerson(p, sink);
+        }
+        for (float[] d : drops) {
+            Mat.identity(tmp);
+            Mat.translate(tmp, d[0], d[1], d[2]);
+            Mat.scale(tmp, d[6], d[6] * 1.4f, d[6]);
+            sink.part(tmp, 0xFFD01820);
+        }
+        for (float[] sp : splats) {
+            // Spreads a little as it lands, then shrinks away near the end.
+            float grow = Math.min(1, 0.5f + sp[4] * 4);
+            float fade = sp[4] > SPLAT_LIFE - 4 ? (SPLAT_LIFE - sp[4]) / 4 : 1;
+            float r = sp[2] * grow * fade;
+            Mat.identity(tmp);
+            Mat.translate(tmp, sp[0], 0.006f, sp[1]);
+            Mat.rotY(tmp, sp[3]);
+            Mat.scale(tmp, r, 0.004f, r * 0.7f);
+            sink.part(tmp, 0xFFC4161E);
         }
     }
 
@@ -1345,6 +1417,10 @@ final class CasinoWorld {
         }
         // A simple brow line so heads read as facing a way, nothing more.
         limb(s, joint, 0, 0.88f, -0.142f, 0.2f, 0.035f, 0.01f, shade(p.skin, 0.55f));
+        if (p.bleed > 0) {
+            limb(s, joint, 0, 0.77f, -0.143f, 0.07f, 0.09f, 0.01f, 0xFF8E0E12);
+            limb(s, joint, 0.02f, 0.4f, -0.137f, 0.1f, 0.12f, 0.01f, 0xFF6E0A0E);
+        }
     }
 
     private void limb(PartSink s, float[] at, float x, float y, float z, float w, float h,

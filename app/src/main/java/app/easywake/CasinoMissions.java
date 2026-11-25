@@ -25,6 +25,8 @@ final class CasinoMissions {
         String[] lines;
         /** A bodyguard's loop, or null for none. */
         float[][] guardRoute;
+        /** Ways to do the job. */
+        String tips;
 
         Contract(String id, String name, String title, int pay, String brief, float[][] route) {
             this.id = id;
@@ -39,7 +41,8 @@ final class CasinoMissions {
     static final Contract[] ALL;
 
     static {
-        Contract loan = new Contract("loan", "Vinnie Marrow", "The Loan Shark", 1500,
+        Contract loan;
+        loan = new Contract("loan", "Vinnie Marrow", "The Loan Shark", 1500,
                 "Runs a loan racket out of the High Limit Room behind the staff door. Steps "
                         + "out to the corridor to take calls, and the door opens for him. "
                         + "The GM keeps a key card for that room in his desk. Watch the "
@@ -54,6 +57,10 @@ final class CasinoMissions {
         loan.scale = 1.08f;
         loan.lines = new String[]{"You're late on the vig, pal.", "Nobody walks on Vinnie.",
                 "Somebody get me an espresso.", "Tell him I'm being patient. For now."};
+        loan.tips = "• The High Limit door takes the GM's key card (his desk, office lock is "
+                + "4 pins), or just walk through in a security uniform.\n• Vinnie steps out "
+                + "to the corridor to take calls. The supply closet there holds two bodies.\n"
+                + "• Drop the bodyguard first, from behind.";
         loan.guardRoute = new float[][]{{-11, -19.2f, 6, NORTH, 0}, {-16, -19.2f, 6, NORTH, 0}};
 
         Contract gm = new Contract("gm", "Richard Vance", "The Crooked GM", 1200,
@@ -72,6 +79,10 @@ final class CasinoMissions {
         gm.shirt = 0xFF3A3A44;
         gm.pants = 0xFF22222A;
         gm.hair = 0xFF9A9A9A;
+        gm.tips = "• Take a dealer's uniform (knock one out from behind): staff walk "
+                + "through the Staff Only door without picking it.\n• He walks out to the "
+                + "cashier cage on the casino floor and back. Lots of eyes out there; get him "
+                + "in the corridor or his office.\n• Security uniforms open his office.";
         gm.lines = new String[]{"Count it again.", "The house always wins. I'm the house.",
                 "Who touched my key card?", "Smile. Cameras."};
 
@@ -88,6 +99,10 @@ final class CasinoMissions {
         counter.shirt = 0xFF5A6A4A;
         counter.pants = 0xFF3A3328;
         counter.hat = true;
+        counter.tips = "• He crosses the street at the west crosswalk. Punch him into the road "
+                + "when a car's coming and it's an accident: +25%.\n• Or wait at the diner; "
+                + "the walk-in freezer behind the counter hides bodies.\n• Blackjack is "
+                + "crowded. Don't do it there.";
         counter.lines = new String[]{"True count plus four.", "I'm not counting, I'm just good.",
                 "Coffee. Black. Like my odds.", "Six decks? Cute."};
 
@@ -103,6 +118,10 @@ final class CasinoMissions {
         fixer.pants = 0xFF1A1A1E;
         fixer.hair = 0xFF6A1A1A;
         fixer.scale = 0.95f;
+        fixer.tips = "• She smokes alone by the graffiti in the back alley for about twenty "
+                + "seconds. There's a dumpster right there.\n• The casino's back door is a "
+                + "5-pin lock; a staff uniform opens it. Or walk around past the bar.\n• "
+                + "Room 7 at the Starlite (4 pins) has a bathtub for bodies.";
         fixer.lines = new String[]{"Smoke break. Don't talk to me.", "Room seven's not for rent.",
                 "You didn't see me.", "Keep walking."};
 

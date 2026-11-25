@@ -105,6 +105,30 @@ final class CasinoPlaces {
         return id;
     }
 
+    // ---------------------------------------------------------------- place names
+
+    /** Named areas, most specific first: x0, z0, x1, z1. */
+    static final Object[][] PLACES = {
+            {"High Limit Room", -18f, -24f, -6f, -17f}, {"Vault", -6f, -24f, 2f, -17f},
+            {"Security office", 2f, -24f, 10f, -17f}, {"Manager's office", 10f, -24f, 18f, -17f},
+            {"Staff corridor", -18f, -17f, 18f, -14f}, {"Room 7", 21f, 30f, 27f, 38f},
+            {"Lucky Pawn", -40f, 30f, -26f, 42f}, {"Gold Rush Jewelers", -48f, 30f, -40f, 42f},
+            {"Threads", -6f, 30f, 0f, 42f}, {"Midnight Diner", -22f, 30f, -6f, 42f},
+            {"Starlite Motel", 0f, 28f, 30f, 42f}, {"Empty lot", 34f, 30f, 48f, 42f},
+            {"The Last Call", 26f, 4f, 48f, 14f}, {"Back alley", 18f, -28f, 26f, 14f},
+            {"Parking lot", -48f, -14f, -18f, 14f}, {"Casino floor", -18f, -14f, 18f, 14f},
+            {"The Strip", -48f, 14f, 48f, 30f}};
+
+    static String placeName(float x, float z) {
+        for (Object[] p : PLACES) {
+            if (x >= (Float) p[1] && x <= (Float) p[3] && z >= (Float) p[2]
+                    && z <= (Float) p[4]) {
+                return (String) p[0];
+            }
+        }
+        return "Out of town";
+    }
+
     // ---------------------------------------------------------------- colors
 
     static final int BRICK = 0xFF4A2A22, DRAB = 0xFF4A443C, CONCRETE = 0xFF55524C,
@@ -148,11 +172,16 @@ final class CasinoPlaces {
                 1.2f, 0, 0xFF2A2A30);
         hl.key = "hlkey";
         w.doors.add(hl);
+        hl.access = 2;
         w.doors.add(new CasinoWorld.Door("vault", "Vault", -2, -17, true, 1.2f, 6, 0xFF6A6E75));
-        w.doors.add(new CasinoWorld.Door("office", "Manager's office", 14, -17, true, 1.2f, 4,
-                WOOD));
-        w.doors.add(new CasinoWorld.Door("backdoor", "Back door", 18, -15.5f, false, 1.2f, 5,
-                0xFF3A3E44));
+        CasinoWorld.Door office = new CasinoWorld.Door("office", "Manager's office", 14, -17,
+                true, 1.2f, 4, WOOD);
+        office.access = 2;
+        w.doors.add(office);
+        CasinoWorld.Door back = new CasinoWorld.Door("backdoor", "Back door", 18, -15.5f, false,
+                1.2f, 5, 0xFF3A3E44);
+        back.access = 1;
+        w.doors.add(back);
         // Door signs, facing the corridor.
         float sz = -17 + T / 2 + 0.01f;
         m.panel(-9, sz, SOUTH, 1.8f, 2.68f, 3.0f, 0xFFFFFFFF, 1,
@@ -351,10 +380,16 @@ final class CasinoPlaces {
                 m.floor(x - 0.05f, z - 2.6f, x + 0.05f, z + 2.6f, 0.004f, 0xFFB8B8B0, 0, 1);
             }
         }
-        float[][] cars = {{-43.5f, -10.5f, 0xFF7A1C1C}, {-37.5f, -10.5f, 0xFFB8B8C0},
-                {-30, -10.5f, 0xFF1C3A6A}, {-25.5f, -10.5f, 0xFF2E5A3A},
-                {-40.5f, 3.5f, 0xFF1A1A1E}, {-34.5f, 3.5f, 0xFF6A5A3A}, {-22.5f, 3.5f, 0xFF4A1A4A}};
-        for (float[] c : cars) parkedCar(w, c[0], c[1], (int) c[2]);
+        // x, z, color, type. North row faces south, south row faces north.
+        float[][] cars = {{-43.5f, -10.5f, 0xFF9A1E1E, 0}, {-37.5f, -10.5f, 0xFFC8CCD2, 1},
+                {-30, -10.5f, 0xFF2A4E8A, 0}, {-25.5f, -10.5f, 0xFF2E6A44, 3},
+                {-40.5f, 3.5f, 0xFF1C1C20, 1}, {-34.5f, 3.5f, 0xFFE8E8EA, 0},
+                {-22.5f, 3.5f, 0xFF5A2A5A, 0}};
+        for (float[] c : cars) {
+            float yaw = c[1] < 0 ? -CasinoWorld.PI / 2 : CasinoWorld.PI / 2;
+            w.parked.add(new float[]{c[0], c[1], yaw, c[2], c[3]});
+            w.solid(c[0] - 1.0f, c[1] - 2.45f, c[0] + 1.0f, c[1] + 2.45f, 1.6f);
+        }
         loot(w, "trunk", "the car trunk", -30, -7.2f, 3, 120);
         hide(w, "Car trunk", -34.5f, 6.7f, 1);
         for (float[] l : new float[][]{{-40, -4}, {-26, -4}, {-40, 9.5f}, {-26, 9.5f}}) {
@@ -365,23 +400,8 @@ final class CasinoPlaces {
             mm.boxAA(l[0] - 0.3f, 5.78f, l[1] - 0.16f, l[0] + 0.3f, 5.8f, l[1] + 0.16f,
                     0xFFFFC27A, 1);
             w.solid(l[0] - 0.12f, l[1] - 0.12f, l[0] + 0.12f, l[1] + 0.12f, 6);
-            w.lamps.add(new float[]{l[0], l[1], 6, 0.55f, 1.0f, 0.66f, 0.34f});
+            w.lamps.add(new float[]{l[0], l[1], 7, 0.95f, 1.0f, 0.7f, 0.4f});
         }
-    }
-
-    private static void parkedCar(CasinoWorld w, float x, float z, int col) {
-        CasinoWorld.Mesh m = w.mesh;
-        m.boxAA(x - 0.9f, 0.2f, z - 2.1f, x + 0.9f, 0.9f, z + 2.1f, col, 0);
-        m.boxAA(x - 0.8f, 0.9f, z - 0.9f, x + 0.8f, 1.45f, z + 1.2f, CasinoWorld.shade(col, 0.6f),
-                0);
-        m.boxAA(x - 0.81f, 0.95f, z - 0.8f, x + 0.81f, 1.38f, z + 1.1f, 0xFF20262E, 0.04f);
-        for (int i = -1; i <= 1; i += 2) {
-            for (int j = -1; j <= 1; j += 2) {
-                m.boxAA(x + i * 0.92f - 0.11f, 0, z + j * 1.35f - 0.32f, x + i * 0.92f + 0.11f,
-                        0.64f, z + j * 1.35f + 0.32f, 0xFF111111, 0);
-            }
-        }
-        w.solid(x - 1.0f, z - 2.15f, x + 1.0f, z + 2.15f, 1.5f);
     }
 
     private static void alley(CasinoWorld w) {
@@ -446,7 +466,7 @@ final class CasinoPlaces {
 
     private static void pawnShop(CasinoWorld w) {
         CasinoWorld.Mesh m = w.mesh;
-        filler(w, -48, -40, 7, NIGHT_STONE);
+        jeweler(w);
         shell(w, -40, -26, 5, 0xFF3A3A2E, 0xFF2E2E26, -34.6f, -33.4f);
         w.regions.add(new float[]{-40, 30, -26, 42, 4});
         m.floor(-40, 30, -26, 42, 0, 0xFF3A3328, 0, 1);
@@ -542,7 +562,86 @@ final class CasinoPlaces {
         for (float[] l : new float[][]{{-17, 34}, {-10, 34}, {-15, 40}}) {
             m.ceiling(l[0] - 0.4f, l[1] - 0.4f, l[0] + 0.4f, l[1] + 0.4f, 3.98f, 0xFFFFF2D8, 0.9f);
         }
-        filler(w, -6, 0, 8, 0xFF2F2A30);
+        tailor(w);
+    }
+
+    /** Gold Rush Jewelers: black marble, glowing cases of gold. */
+    private static void jeweler(CasinoWorld w) {
+        CasinoWorld.Mesh m = w.mesh;
+        float x0 = -47.88f, x1 = -40.3f;
+        shell(w, x0, x1, 5, 0xFF1A1A1E, 0xFF141418, -44.6f, -43.4f);
+        w.regions.add(new float[]{x0, 30, x1, 42, 4});
+        w.zones.add(new float[]{x0, 37.6f, x1, 42, 1});
+        m.floor(x0, 30, x1, 42, 0, 0xFF16161C, 0, 1);
+        m.ceiling(x0, 30, x1, 42, 4, 0xFF0E0E12, 0);
+        float fz = 30 - T / 2 - 0.02f;
+        m.panel(-44, fz, NORTH, 5.6f, 3.2f, 4.2f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.GOLDRUSH));
+        m.panel(-46.4f, fz + 0.01f, NORTH, 2.2f, 1.0f, 2.5f, 0xFF3A3018, 0.5f, null);
+        m.panel(-41.6f, fz + 0.01f, NORTH, 2.2f, 1.0f, 2.5f, 0xFF3A3018, 0.5f, null);
+        // Glass cases along both walls, and the back counter.
+        for (float z = 32.5f; z < 37; z += 2.2f) {
+            for (float x : new float[]{-47.0f, -41.2f}) {
+                m.boxAA(x - 0.55f, 0, z - 0.8f, x + 0.55f, 0.85f, z + 0.8f, 0xFF1C1C22, 0);
+                m.boxAA(x - 0.5f, 0.85f, z - 0.75f, x + 0.5f, 0.9f, z + 0.75f, 0xFF4A7080, 0.5f);
+                for (int k = 0; k < 4; k++) {
+                    m.boxAA(x - 0.3f + (k % 2) * 0.4f, 0.9f, z - 0.5f + (k / 2) * 0.6f,
+                            x - 0.18f + (k % 2) * 0.4f, 0.97f, z - 0.36f + (k / 2) * 0.6f,
+                            k == 3 ? 0xFFDCEEFF : 0xFFE0B040, 0.9f);
+                }
+                w.solid(x - 0.55f, z - 0.8f, x + 0.55f, z + 0.8f, 1.2f);
+            }
+        }
+        m.boxAA(-46.5f, 0, 37.6f, -41.7f, 1.05f, 38.3f, 0xFF1C1C22, 0);
+        m.boxAA(-46.5f, 1.05f, 37.6f, -41.7f, 1.1f, 38.3f, 0xFFB8862E, 0.3f);
+        w.solid(-46.5f, 37.6f, -41.7f, 38.3f, 1.1f);
+        m.boxAA(-47.5f, 1.4f, 41.4f, -40.7f, 2.6f, 41.76f, 0xFF2A2418, 0);
+        m.boxAA(-47.3f, 1.5f, 41.38f, -40.9f, 2.5f, 41.4f, 0xFFE0B040, 0.55f);
+        w.extraStaff.add(new float[]{-44, 39.0f, NORTH, CasinoWorld.STAFF_OUTFIT, 0});
+        w.extraStaffNames.add("Jeweler");
+        w.spots.add(new CasinoWorld.Spot(CasinoWorld.SHOP, CasinoShop.JEWELER,
+                "Shop at Gold Rush", -44, 36.9f));
+        for (float z : new float[]{33, 37}) {
+            w.lamps.add(new float[]{-44, z, 3.5f, 0.45f, 1, 0.9f, 0.7f});
+            m.ceiling(-44.4f, z - 0.4f, -43.6f, z + 0.4f, 3.98f, 0xFFFFF2D8, 0.9f);
+        }
+    }
+
+    /** Threads: a clothing store with racks and mannequins. */
+    private static void tailor(CasinoWorld w) {
+        CasinoWorld.Mesh m = w.mesh;
+        float x0 = -5.7f, x1 = -0.3f;
+        shell(w, x0, x1, 5, 0xFF2A3A3E, 0xFF22282C, -3.6f, -2.4f);
+        w.regions.add(new float[]{x0, 30, x1, 42, 4});
+        m.floor(x0, 30, x1, 42, 0, 0xFF5A4030, 0, 1);
+        m.ceiling(x0, 30, x1, 42, 4, 0xFF1A1816, 0);
+        float fz = 30 - T / 2 - 0.02f;
+        m.panel(-3, fz, NORTH, 4.6f, 3.2f, 4.2f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.THREADS));
+        m.panel(-4.8f, fz + 0.01f, NORTH, 1.4f, 0.4f, 2.5f, 0xFF3A2A30, 0.45f, null);
+        m.panel(-1.2f, fz + 0.01f, NORTH, 1.4f, 0.4f, 2.5f, 0xFF3A2A30, 0.45f, null);
+        int[] cloth = {0xFF9A1420, 0xFF1C1C20, 0xFFE8E6E0, 0xFF5A2A8A, 0xFF1E2A44, 0xFFE0702A,
+                0xFF6A6C72, 0xFFC8A030};
+        for (float x : new float[]{-5.0f, -1.0f}) {
+            m.boxAA(x - 0.03f, 1.6f, 31.5f, x + 0.03f, 1.66f, 37.5f, 0xFF8A8A90, 0.1f);
+            for (int k = 0; k < 14; k++) {
+                float z = 31.7f + k * 0.42f;
+                m.boxAA(x - 0.28f, 0.75f, z, x + 0.28f, 1.58f, z + 0.1f,
+                        cloth[(k + (x < -3 ? 0 : 3)) % cloth.length], 0);
+            }
+            w.solid(x - 0.35f, 31.5f, x + 0.35f, 37.5f, 1.7f);
+        }
+        // Mirror and counter at the back.
+        m.panel(-3, 41.86f, SOUTH, 1.6f, 0.2f, 2.3f, 0xFFB8C8D0, 0.4f, null);
+        m.boxAA(-4.6f, 0, 39.4f, -2.2f, 1.0f, 40.1f, 0xFF3A2A20, 0);
+        w.solid(-4.6f, 39.4f, -2.2f, 40.1f, 1.0f);
+        w.extraStaff.add(new float[]{-3.4f, 40.8f, NORTH, CasinoWorld.CIVILIAN, 0});
+        w.extraStaffNames.add("Tailor");
+        w.spots.add(new CasinoWorld.Spot(CasinoWorld.SHOP, CasinoShop.TAILOR,
+                "Shop at Threads", -3.4f, 38.7f));
+        w.lamps.add(new float[]{-3, 34, 3.5f, 0.42f, 1, 0.9f, 0.75f});
+        w.lamps.add(new float[]{-3, 39, 3, 0.35f, 1, 0.9f, 0.75f});
+        m.ceiling(-3.4f, 33.6f, -2.6f, 34.4f, 3.98f, 0xFFFFF2D8, 0.9f);
     }
 
     private static void motel(CasinoWorld w) {

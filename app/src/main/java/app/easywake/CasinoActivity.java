@@ -50,7 +50,8 @@ public class CasinoActivity extends Activity {
     private volatile float stickX, stickY;
     private final Random rnd = new Random();
 
-    static final String FLAGS = "casinoFlags", PICKS = "lockpicks";
+    static final String FLAGS = "casinoFlags", PICKS = "lockpicks", STYLE = "casinoStyle";
+    private MapView mapView;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -66,6 +67,8 @@ public class CasinoActivity extends Activity {
         }
         world.applyFlags();
         world.hasPistol = world.flags.contains("item:pistol");
+        world.worn = CasinoShop.parseWorn(Prefs.getString(this, STYLE));
+        world.ownClothes();
         if (Prefs.getInt(this, PICKS, -1) < 0) Prefs.putInt(this, PICKS, 5);
 
         root = new FrameLayout(this);
@@ -111,6 +114,10 @@ public class CasinoActivity extends Activity {
     public void onBackPressed() {
         if (lockView != null) {
             closeLock();
+            return;
+        }
+        if (mapView != null) {
+            closeMap();
             return;
         }
         super.onBackPressed();
@@ -239,7 +246,8 @@ public class CasinoActivity extends Activity {
                 overlay.show("You took " + s.label + ".");
                 break;
             case CasinoWorld.SHOP:
-                shop();
+                if (CasinoShop.PAWN.equals(s.id)) shop();
+                else store(s.id);
                 break;
             default:
                 break;
@@ -307,39 +315,231 @@ public class CasinoActivity extends Activity {
                 .setPositiveButton("OK", null).show();
     }
 
+    private boolean owns(String id) {
+        return world.flags.contains("own:" + id);
+    }
+
+    private boolean pay(int price) {
+        if (Wallet.coupons(this) < price) {
+            overlay.show(String.format(Locale.US, "Not enough coupons. You need %,d.", price));
+            return false;
+        }
+        Wallet.addCoupons(this, -price);
+        Sfx.play(this, Sfx.CHIPS);
+        return true;
+    }
+
+    /** Lucky Pawn: lockpicks, the pistol, and gear. */
     private void shop() {
         final boolean gun = world.flags.contains("item:pistol");
-        List<String> items = new ArrayList<>();
-        items.add("5 lockpicks — 25 coupons  (you have " + picks() + ")");
-        if (!gun) items.add("A quiet pistol — 750 coupons");
-        items.add("Just looking");
-        new AlertDialog.Builder(this).setTitle("Lucky Pawn")
+        final List<String> items = new ArrayList<>();
+        final List<Runnable> acts = new ArrayList<>();
+        items.add("5 lockpicks — 25  (you have " + picks() + ")");
+        acts.add(new Runnable() {
+            @Override
+            public void run() {
+                if (!pay(25)) return;
+                Prefs.putInt(CasinoActivity.this, PICKS, picks() + 5);
+                overlay.show("Five lockpicks. Don't tell me what for.");
+            }
+        });
+        if (!gun) {
+            items.add("A quiet pistol — 750");
+            acts.add(new Runnable() {
+                @Override
+                public void run() {
+                    if (!pay(750)) return;
+                    synchronized (world) {
+                        world.flags.add("item:pistol");
+                        world.hasPistol = true;
+                    }
+                    saveFlags();
+                    overlay.show("A quiet pistol. Aim with the camera, then Shoot.");
+                }
+            });
+        }
+        addStoreItems(CasinoShop.PAWN, items, acts);
+        new AlertDialog.Builder(this).setTitle(String.format(Locale.US,
+                        "Lucky Pawn  •  %,d coupons", Wallet.coupons(this)))
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
-                        if (which == 0) {
-                            if (Wallet.coupons(CasinoActivity.this) < 25) {
-                                overlay.show("Not enough coupons.");
-                                return;
-                            }
-                            Wallet.addCoupons(CasinoActivity.this, -25);
-                            Prefs.putInt(CasinoActivity.this, PICKS, picks() + 5);
-                            Sfx.play(CasinoActivity.this, Sfx.CHIPS);
-                            overlay.show("Five lockpicks. Don't tell me what for.");
-                        } else if (which == 1 && !gun) {
-                            if (Wallet.coupons(CasinoActivity.this) < 750) {
-                                overlay.show("Not enough coupons.");
-                                return;
-                            }
-                            Wallet.addCoupons(CasinoActivity.this, -750);
-                            synchronized (world) {
-                                world.flags.add("item:pistol");
-                                world.hasPistol = true;
-                            }
-                            saveFlags();
-                            Sfx.play(CasinoActivity.this, Sfx.CHIPS);
-                            overlay.show("A quiet pistol. Aim with the camera, then Shoot.");
+                        acts.get(which).run();
+                    }
+                }).setNegativeButton("Leave", null).show();
+    }
+
+    /** Threads or Gold Rush. */
+    private void store(String id) {
+        List<String> items = new ArrayList<>();
+        final List<Runnable> acts = new ArrayList<>();
+        addStoreItems(id, items, acts);
+        String title = CasinoShop.TAILOR.equals(id) ? "Threads" : "Gold Rush Jewelers";
+        new AlertDialog.Builder(this).setTitle(String.format(Locale.US, "%s  •  %,d coupons",
+                        title, Wallet.coupons(this)))
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        acts.get(which).run();
+                    }
+                }).setNegativeButton("Leave", null).show();
+    }
+
+    private void addStoreItems(String store, List<String> items, List<Runnable> acts) {
+        for (final CasinoShop.Item it : CasinoShop.ALL) {
+            if (!it.store.equals(store)) continue;
+            boolean own = owns(it.id);
+            boolean wearing = it.id.equals(world.worn[it.slot]);
+            String state = !own ? String.format(Locale.US, "%,d", it.price)
+                    : (it.slot == CasinoShop.GEAR ? "owned" : (wearing ? "wearing" : "owned: wear"));
+            items.add(it.name + " — " + state);
+            acts.add(new Runnable() {
+                @Override
+                public void run() {
+                    buyOrWear(it);
+                }
+            });
+        }
+    }
+
+    private void buyOrWear(final CasinoShop.Item it) {
+        if (owns(it.id)) {
+            if (it.slot != CasinoShop.GEAR) wear(it, !it.id.equals(world.worn[it.slot]));
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle(it.name)
+                .setMessage(String.format(Locale.US, "Buy for %,d coupons? You have %,d.",
+                        it.price, Wallet.coupons(this)))
+                .setPositiveButton("Buy", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        if (!pay(it.price)) return;
+                        synchronized (world) {
+                            world.flags.add("own:" + it.id);
                         }
+                        saveFlags();
+                        if (it.slot != CasinoShop.GEAR) wear(it, true);
+                        else overlay.show("Bought: " + it.name + ".");
+                    }
+                }).setNegativeButton("No", null).show();
+    }
+
+    private void wear(CasinoShop.Item it, boolean on) {
+        synchronized (world) {
+            world.worn[it.slot] = on ? it.id : null;
+            // A jacket and a suit share the slot; nothing else conflicts.
+            world.restyle();
+        }
+        Prefs.putString(this, STYLE, CasinoShop.saveWorn(world.worn));
+        overlay.show(on ? "Wearing: " + it.name + "." : "Took off: " + it.name + ".");
+    }
+
+    /** Everything you're carrying and own. */
+    private void bag() {
+        final List<String> items = new ArrayList<>();
+        final List<Runnable> acts = new ArrayList<>();
+        items.add(String.format(Locale.US, "Coupons: %,d", Wallet.coupons(this)));
+        acts.add(null);
+        items.add("Lockpicks: " + picks() + (owns("propicks") ? "  (pro set: never snap)" : ""));
+        acts.add(null);
+        if (world.hasPistol) {
+            items.add("Quiet pistol");
+            acts.add(null);
+        }
+        if (world.flags.contains("key:hlkey")) {
+            items.add("High Limit key card");
+            acts.add(null);
+        }
+        items.add("Wearing: " + CasinoWorld.OUTFIT_NAMES[world.player.outfit]);
+        acts.add(world.player.outfit == CasinoWorld.CIVILIAN ? null : new Runnable() {
+            @Override
+            public void run() {
+                synchronized (world) {
+                    world.ownClothes();
+                }
+                overlay.show("Back in your own clothes.");
+            }
+        });
+        items.add(String.format(Locale.US, "Lucky chips: %d of %d", chipsFound(),
+                CasinoPlaces.CHIPS.length));
+        acts.add(new Runnable() {
+            @Override
+            public void run() {
+                chipList();
+            }
+        });
+        items.add("Wardrobe and bling…");
+        acts.add(new Runnable() {
+            @Override
+            public void run() {
+                wardrobe();
+            }
+        });
+        new AlertDialog.Builder(this).setTitle("Bag")
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        Runnable r = acts.get(which);
+                        if (r != null) r.run();
+                        else bag();
+                    }
+                }).setNegativeButton("Close", null).show();
+    }
+
+    private void wardrobe() {
+        final List<CasinoShop.Item> mine = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (CasinoShop.Item it : CasinoShop.ALL) {
+            if (!owns(it.id) || it.slot == CasinoShop.GEAR) continue;
+            mine.add(it);
+            boolean on = it.id.equals(world.worn[it.slot]);
+            names.add((on ? "✓ " : "    ") + it.name + "  (" + CasinoShop.SLOT_NAMES[it.slot]
+                    + ")");
+        }
+        if (mine.isEmpty()) {
+            info("Wardrobe", "Nothing yet. Threads (clothes) and Gold Rush (bling) are across "
+                    + "the street from the casino.");
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Wardrobe: tap to wear or take off")
+                .setItems(names.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        CasinoShop.Item it = mine.get(which);
+                        wear(it, !it.id.equals(world.worn[it.slot]));
+                        wardrobe();
+                    }
+                }).setNegativeButton("Done", null).show();
+    }
+
+    /** The contracts screen: the active job, or the list to pick from. */
+    private void jobs() {
+        final CasinoMissions.Contract c = world.contract;
+        if (c == null) {
+            contracts();
+            return;
+        }
+        String where = "";
+        int meters = 0;
+        synchronized (world) {
+            if (world.targetP != null) {
+                where = CasinoPlaces.placeName(world.targetP.x, world.targetP.z);
+                meters = Math.round(CasinoWorld.dist(world.targetP, world.player));
+            }
+        }
+        new AlertDialog.Builder(this).setTitle(c.title + ": " + c.name)
+                .setMessage(String.format(Locale.US, "Last seen: %s, %d m away.\n\n%s\n\n%s"
+                                + "\n\nFee: %,d coupons. Clean job: %,d.", where, meters,
+                        c.brief, c.tips, CasinoMissions.payout(c, timesDone(c), false, false, 0),
+                        CasinoMissions.payout(c, timesDone(c), true, false, 0)))
+                .setPositiveButton("OK", null)
+                .setNegativeButton("Abort job", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        synchronized (world) {
+                            world.abortContract();
+                        }
+                        overlay.show("Contract dropped.");
                     }
                 }).show();
     }
@@ -437,9 +637,11 @@ public class CasinoActivity extends Activity {
         String[] items = new String[all.length];
         for (int i = 0; i < all.length; i++) {
             int fee = CasinoMissions.payout(all[i], timesDone(all[i]), false, false, 0);
-            items[i] = String.format(Locale.US, "%s — %s\n%,d coupons%s", all[i].title,
-                    all[i].name, fee, timesDone(all[i]) > 0 ? "  (done " + timesDone(all[i])
-                            + "x)" : "");
+            String best = Prefs.getString(this, "hitBest_" + all[i].id);
+            items[i] = String.format(Locale.US, "%s%s — %s\n%,d coupons%s",
+                    timesDone(all[i]) > 0 ? "✓ " : "", all[i].title, all[i].name, fee,
+                    timesDone(all[i]) > 0 ? "  •  done " + timesDone(all[i]) + "x, best: "
+                            + (best == null ? "?" : best) : "");
         }
         new AlertDialog.Builder(this).setTitle("Contracts")
                 .setItems(items, new DialogInterface.OnClickListener() {
@@ -453,7 +655,7 @@ public class CasinoActivity extends Activity {
     private void brief(final CasinoMissions.Contract c) {
         int fee = CasinoMissions.payout(c, timesDone(c), false, false, 0);
         new AlertDialog.Builder(this).setTitle(c.title + ": " + c.name)
-                .setMessage(c.brief + String.format(Locale.US,
+                .setMessage(c.brief + "\n\n" + c.tips + String.format(Locale.US,
                         "\n\nFee: %,d coupons. Clean job: %,d.", fee,
                         CasinoMissions.payout(c, timesDone(c), true, false, 0)))
                 .setPositiveButton("Take the job", new DialogInterface.OnClickListener() {
@@ -521,6 +723,14 @@ public class CasinoActivity extends Activity {
         Wallet.addCoupons(this, pay);
         Sfx.play(this, Sfx.JACKPOT);
         String rating = CasinoMissions.rating(silent, spotted, bystanders);
+        String[] order = {"Bloodbath", "Messy", "Loud", "Professional", "Silent Assassin"};
+        String best = Prefs.getString(this, "hitBest_" + c.id);
+        int bi = -1, ri = 0;
+        for (int k = 0; k < order.length; k++) {
+            if (order[k].equals(best)) bi = k;
+            if (order[k].equals(rating)) ri = k;
+        }
+        if (ri > bi) Prefs.putString(this, "hitBest_" + c.id, rating);
         StringBuilder sb = new StringBuilder();
         sb.append(c.name).append(" is done.\n\nRating: ").append(rating).append('\n');
         if (accident) sb.append("Made it look like an accident: +25%\n");
@@ -530,6 +740,165 @@ public class CasinoActivity extends Activity {
                 .append(20 * bystanders).append("%\n");
         sb.append(String.format(Locale.US, "\nPaid: %,d coupons", pay));
         info("Contract complete", sb.toString());
+    }
+
+    // ================================================================== the map
+
+    /** Map pixels per metre. */
+    static final int MAP_PX = 4;
+    private Bitmap mapBmp;
+
+    /** Draws the town from above once: ground, rooms, walls. */
+    private Bitmap mapBitmap() {
+        if (mapBmp != null) return mapBmp;
+        int w = (int) ((CasinoWorld.WX1 - CasinoWorld.WX0) * MAP_PX);
+        int h = (int) ((CasinoWorld.WZ1 - CasinoWorld.WZ0) * MAP_PX);
+        Bitmap b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(b);
+        Paint p = new Paint();
+        c.drawColor(0xFF0B0D12);
+        float[][] ground = {{-48, 14, 48, 18, 0xFF46433F}, {-48, 26, 48, 30, 0xFF46433F},
+                {-48, 18, 48, 26, 0xFF26262C}, {-48, -14, -18, 14, 0xFF1E2028},
+                {18, -28, 26, 14, 0xFF2A2624}, {34, 30, 48, 42, 0xFF24221E}};
+        for (float[] g : ground) {
+            p.setColor((int) g[4]);
+            c.drawRect(mx(g[0]), mz(g[1]), mx(g[2]), mz(g[3]), p);
+        }
+        p.setColor(0xFFB89A30);
+        for (float x = -47; x < 48; x += 3.2f) c.drawRect(mx(x), mz(21.9f), mx(x + 1.6f), mz(22.1f), p);
+        for (int i = 0; i < world.regions.size(); i++) {
+            float[] r = world.regions.get(i);
+            p.setColor(i == 0 ? 0xFF4A1E26 : 0xFF3A2C24);
+            c.drawRect(mx(r[0]), mz(r[1]), mx(r[2]), mz(r[3]), p);
+        }
+        for (float[] wl : world.walls) {
+            if (wl.length > 5) continue;
+            p.setColor(wl[4] >= 1.7f ? 0xFFC8B48A : 0xFF6A5E50);
+            c.drawRect(mx(wl[0]), mz(wl[1]), Math.max(mx(wl[2]), mx(wl[0]) + 1),
+                    Math.max(mz(wl[3]), mz(wl[1]) + 1), p);
+        }
+        mapBmp = b;
+        return b;
+    }
+
+    private static float mx(float x) {
+        return (x - CasinoWorld.WX0) * MAP_PX;
+    }
+
+    private static float mz(float z) {
+        return (z - CasinoWorld.WZ0) * MAP_PX;
+    }
+
+    private void openMap() {
+        if (mapView != null) return;
+        mapView = new MapView(this);
+        root.addView(mapView);
+    }
+
+    private void closeMap() {
+        if (mapView == null) return;
+        root.removeView(mapView);
+        mapView = null;
+    }
+
+    /** The whole town with place names, you, your target, security and locked doors. */
+    private final class MapView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final float d;
+
+        MapView(Context c) {
+            super(c);
+            d = getResources().getDisplayMetrics().density;
+            setClickable(true);
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            c.drawColor(0xF2050608);
+            Bitmap map = mapBitmap();
+            float top = 44 * d;
+            float sc = Math.min((w - 24 * d) / map.getWidth(), (h - top - 12 * d) / map.getHeight());
+            float ox = (w - map.getWidth() * sc) / 2, oy = top;
+            c.save();
+            c.translate(ox, oy);
+            c.scale(sc, sc);
+            c.drawBitmap(map, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
+            c.restore();
+            float k = sc * MAP_PX;
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextSize(16 * d);
+            p.setColor(0xFFE6B869);
+            c.drawText("Map  •  tap anywhere to close", w / 2f, 28 * d, p);
+            p.setTextSize(10 * d);
+            for (Object[] pl : CasinoPlaces.PLACES) {
+                float x = ((Float) pl[1] + (Float) pl[3]) / 2, z = ((Float) pl[2] + (Float) pl[4]) / 2;
+                if (pl[0].equals("The Strip")) z = 22;
+                p.setColor(0xCCFFFFFF);
+                c.drawText((String) pl[0], ox + (x - CasinoWorld.WX0) * k,
+                        oy + (z - CasinoWorld.WZ0) * k, p);
+            }
+            synchronized (world) {
+                for (CasinoWorld.Door dr : world.doors) {
+                    if (dr.unlocked || world.canOpen(dr)) continue;
+                    p.setColor(0xFFFF9A30);
+                    float x = ox + (dr.x - CasinoWorld.WX0) * k, y = oy + (dr.z - CasinoWorld.WZ0) * k;
+                    c.drawRect(x - 3 * d, y - 3 * d, x + 3 * d, y + 3 * d, p);
+                    if (dr.key == null) c.drawText(dr.pins + "", x, y - 5 * d, p);
+                }
+                for (CasinoWorld.Spot sp : world.spots) {
+                    if (sp.type != CasinoWorld.SHOP) continue;
+                    p.setColor(0xFFFFD24A);
+                    c.drawCircle(ox + (sp.x - CasinoWorld.WX0) * k, oy + (sp.z - CasinoWorld.WZ0) * k,
+                            4 * d, p);
+                }
+                for (CasinoWorld.Person g : world.guards) {
+                    if (!g.active || g.ko || g.dead) continue;
+                    p.setColor(world.alarm ? 0xFFFF3030 : 0xFF5AA8FF);
+                    c.drawCircle(ox + (g.x - CasinoWorld.WX0) * k, oy + (g.z - CasinoWorld.WZ0) * k,
+                            4 * d, p);
+                }
+                CasinoWorld.Person t = world.targetP;
+                if (t != null && t.active && !t.dead) {
+                    p.setColor(0xFFFF2A2A);
+                    float x = ox + (t.x - CasinoWorld.WX0) * k, y = oy + (t.z - CasinoWorld.WZ0) * k;
+                    c.drawCircle(x, y, 6 * d, p);
+                    p.setTextSize(12 * d);
+                    c.drawText(t.name, x, y - 9 * d, p);
+                    p.setTextSize(10 * d);
+                }
+                CasinoWorld.Person me = world.player;
+                float x = ox + (me.x - CasinoWorld.WX0) * k, y = oy + (me.z - CasinoWorld.WZ0) * k;
+                Path a = new Path();
+                float ax = (float) Math.sin(me.yaw), az = (float) -Math.cos(me.yaw);
+                a.moveTo(x + ax * 9 * d, y + az * 9 * d);
+                a.lineTo(x - az * 6 * d - ax * 6 * d, y + ax * 6 * d - az * 6 * d);
+                a.lineTo(x + az * 6 * d - ax * 6 * d, y - ax * 6 * d - az * 6 * d);
+                a.close();
+                p.setColor(0xFFFFFFFF);
+                c.drawPath(a, p);
+            }
+            // Legend.
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setTextSize(11 * d);
+            float lx = 14 * d, ly = h - 14 * d;
+            Object[][] legend = {{0xFFFFFFFF, "You"}, {0xFFFF2A2A, "Target"},
+                    {0xFF5AA8FF, "Security"}, {0xFFFFD24A, "Store"}, {0xFFFF9A30, "Locked (pins)"}};
+            for (Object[] l : legend) {
+                p.setColor((Integer) l[0]);
+                c.drawCircle(lx + 4 * d, ly - 4 * d, 4 * d, p);
+                c.drawText((String) l[1], lx + 12 * d, ly, p);
+                lx += p.measureText((String) l[1]) + 30 * d;
+            }
+            postInvalidateDelayed(250);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            if (e.getActionMasked() == MotionEvent.ACTION_UP) closeMap();
+            return true;
+        }
     }
 
     // ================================================================== lock picking
@@ -582,7 +951,7 @@ public class CasinoActivity extends Activity {
         @Override
         protected void onDraw(Canvas c) {
             int w = getWidth(), h = getHeight();
-            p.setColor(0xF0080808);
+            p.setColor(0xE0080808);
             c.drawRect(0, 0, w, h, p);
             p.setTextAlign(Paint.Align.CENTER);
             p.setTypeface(Typeface.DEFAULT_BOLD);
@@ -594,6 +963,49 @@ public class CasinoActivity extends Activity {
             p.setColor(0xFFCCCCCC);
             c.drawText(msg, w / 2f, 58 * d, p);
             c.drawText(picks() + " lockpicks", w / 2f, h - 16 * d, p);
+            float sus;
+            boolean watched, alarm;
+            String who = null;
+            synchronized (world) {
+                sus = world.suspicion;
+                watched = world.watched;
+                alarm = world.alarm;
+                if (world.watcher != null) {
+                    who = world.watcher.kind == CasinoWorld.GUARD ? "a guard"
+                            : (world.watcher.name != null ? world.watcher.name : "someone");
+                }
+            }
+            if (alarm && !finished) {
+                finished = true;
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        closeLock();
+                        overlay.show("You got caught picking the lock!");
+                    }
+                });
+            }
+            // How noticed you are, right in the lock screen.
+            float ex = w - 70 * d, ey = 34 * d;
+            p.setColor(sus > 0.5f ? 0xFFFF9A30 : 0xFFFFFFFF);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(2 * d);
+            c.drawOval(new RectF(ex - 26 * d, ey - 10 * d, ex + 26 * d, ey + 10 * d), p);
+            p.setStyle(Paint.Style.FILL);
+            c.save();
+            c.clipRect(ex - 26 * d, ey + 10 * d - 20 * d * Math.min(1, sus), ex + 26 * d,
+                    ey + 10 * d);
+            c.drawOval(new RectF(ex - 26 * d, ey - 10 * d, ex + 26 * d, ey + 10 * d), p);
+            c.restore();
+            if (watched) {
+                p.setColor(0xFFFF5A4A);
+                p.setTypeface(Typeface.DEFAULT_BOLD);
+                p.setTextSize(14 * d);
+                c.drawText("Careful: " + who + " can see you. Stop and wait.", w / 2f,
+                        78 * d, p);
+                p.setTypeface(Typeface.DEFAULT);
+            }
+            postInvalidateDelayed(120);
 
             float lockW = Math.min(w * 0.7f, lock.pins * 74 * d);
             left = (w - lockW) / 2;
@@ -697,7 +1109,7 @@ public class CasinoActivity extends Activity {
                         Sfx.play(CasinoActivity.this, Sfx.CLICK);
                     } else if (ev == LockPick.JAM) {
                         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-                        if (rnd.nextFloat() < 0.35f) {
+                        if (!owns("propicks") && rnd.nextFloat() < 0.35f) {
                             Prefs.putInt(CasinoActivity.this, PICKS, picks() - 1);
                             Sfx.play(CasinoActivity.this, Sfx.LOSE);
                             msg = "Jammed, and your pick snapped. Let off the pressure.";
@@ -1189,8 +1601,12 @@ public class CasinoActivity extends Activity {
         private int stickId = -1, lookId = -1;
         private float stickCx, stickCy, stickPx, stickPy, lookX, lookY;
         private final RectF punchBtn = new RectF(), shootBtn = new RectF(),
-                backBtn = new RectF(), phoneBtn = new RectF();
+                backBtn = new RectF(), phoneBtn = new RectF(), jobsBtn = new RectF(),
+                bagBtn = new RectF(), miniBtn = new RectF();
         private final List<RectF> actionBtns = new ArrayList<>();
+        private int coupons = -1, shownGain;
+        private long couponsAt, gainUntil;
+        private String targetLine;
         private List<CasinoWorld.Action> actions = new ArrayList<>();
         private String message;
         private long messageUntil;
@@ -1225,6 +1641,15 @@ public class CasinoActivity extends Activity {
                 trespass = world.trespassing();
                 pistol = world.hasPistol;
                 if (world.contract != null) target = world.contract.name;
+                targetLine = null;
+                if (world.targetP != null && world.targetP.active && !world.targetP.dead) {
+                    targetLine = String.format(Locale.US, "Target: %s  •  %s  •  %d m",
+                            world.contract.name, CasinoPlaces.placeName(world.targetP.x,
+                                    world.targetP.z),
+                            Math.round(CasinoWorld.dist(world.targetP, world.player)));
+                    tracker(c, w, h);
+                }
+                drawMinimap(c);
                 paint.setTypeface(Typeface.DEFAULT_BOLD);
                 paint.setTextSize(13 * d);
                 paint.setTextAlign(Paint.Align.CENTER);
@@ -1252,17 +1677,51 @@ public class CasinoActivity extends Activity {
             paint.setColor(0xFFFFFFFF);
             paint.setTextSize(20 * d);
             c.drawText("‹", backBtn.centerX(), backBtn.centerY() + 7 * d, paint);
-            phoneBtn.set(w - 108 * d, 12 * d, w - 12 * d, 52 * d);
-            paint.setColor(0x88000000);
-            c.drawRoundRect(phoneBtn, 20 * d, 20 * d, paint);
-            paint.setColor(0xFFE6B869);
-            paint.setTextSize(14 * d);
-            c.drawText("Phone", phoneBtn.centerX(), phoneBtn.centerY() + 5 * d, paint);
+            phoneBtn.set(w - 84 * d, 12 * d, w - 12 * d, 52 * d);
+            bagBtn.set(w - 156 * d, 12 * d, w - 92 * d, 52 * d);
+            jobsBtn.set(w - 228 * d, 12 * d, w - 164 * d, 52 * d);
+            topButton(c, phoneBtn, "Phone", 0xFFE6B869);
+            topButton(c, bagBtn, "Bag", 0xFFE6B869);
+            topButton(c, jobsBtn, "Jobs", target != null ? 0xFFFF6A6A : 0xFFE6B869);
 
-            if (target != null) {
+            // Your coupons, always on screen.
+            long now = SystemClock.uptimeMillis();
+            if (now - couponsAt > 400) {
+                int cNow = Wallet.coupons(getContext());
+                if (coupons >= 0 && cNow > coupons) {
+                    shownGain = cNow - coupons;
+                    gainUntil = now + 2500;
+                }
+                coupons = cNow;
+                couponsAt = now;
+            }
+            paint.setTextSize(15 * d);
+            String money = String.format(Locale.US, "%,d", Math.max(0, coupons));
+            float mw = paint.measureText(money) + 44 * d;
+            RectF pill = new RectF(64 * d, 14 * d, 64 * d + mw, 50 * d);
+            paint.setColor(0xAA000000);
+            c.drawRoundRect(pill, 18 * d, 18 * d, paint);
+            paint.setColor(0xFFE6B869);
+            c.drawCircle(pill.left + 18 * d, pill.centerY(), 9 * d, paint);
+            paint.setColor(0xFF1A120C);
+            paint.setTextSize(12 * d);
+            c.drawText("C", pill.left + 18 * d, pill.centerY() + 4 * d, paint);
+            paint.setTextSize(15 * d);
+            paint.setColor(0xFFFFE8A8);
+            paint.setTextAlign(Paint.Align.LEFT);
+            c.drawText(money, pill.left + 32 * d, pill.centerY() + 5 * d, paint);
+            if (now < gainUntil) {
+                paint.setColor(((int) (Math.min(1, (gainUntil - now) / 800f) * 255) << 24)
+                        | 0x6CFF8A);
+                c.drawText(String.format(Locale.US, "+%,d", shownGain), pill.right + 8 * d,
+                        pill.centerY() + 5 * d, paint);
+            }
+            paint.setTextAlign(Paint.Align.CENTER);
+
+            if (targetLine != null) {
                 paint.setTextSize(13 * d);
                 paint.setColor(0xFFFF6A6A);
-                c.drawText("Target: " + target, w / 2f, 22 * d, paint);
+                c.drawText(targetLine, w / 2f, 22 * d, paint);
             }
             if (suspicion > 0.01f || alarm || trespass) {
                 float cx = w / 2f, cy = (target != null ? 52 : 34) * d;
@@ -1357,6 +1816,140 @@ public class CasinoActivity extends Activity {
             }
         }
 
+        private void topButton(Canvas c, RectF r, String label, int color) {
+            paint.setColor(0x88000000);
+            c.drawRoundRect(r, 20 * d, 20 * d, paint);
+            paint.setColor(color);
+            paint.setTextSize(14 * d);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            c.drawText(label, r.centerX(), r.centerY() + 5 * d, paint);
+        }
+
+        /** Turns a world offset into minimap pixels, with your view direction up. */
+        private void toMini(float dx, float dz, float yaw, float k, float[] out) {
+            float cs = (float) Math.cos(yaw), sn = (float) Math.sin(yaw);
+            out[0] = (dx * cs + dz * sn) * k;
+            out[1] = (-dx * sn + dz * cs) * k;
+        }
+
+        /** A round map in the corner that turns with the camera. Call with the world locked. */
+        private void drawMinimap(Canvas c) {
+            Bitmap map = mapBitmap();
+            float r = 60 * d, cx = 12 * d + r, cy = 64 * d + r;
+            miniBtn.set(cx - r, cy - r, cx + r, cy + r);
+            float k = r / 24f;
+            CasinoWorld.Person me = world.player;
+            float yaw = world.camYaw;
+            paint.setColor(0xCC07080C);
+            c.drawCircle(cx, cy, r + 3 * d, paint);
+            c.save();
+            Path clip = new Path();
+            clip.addCircle(cx, cy, r, Path.Direction.CW);
+            c.clipPath(clip);
+            c.translate(cx, cy);
+            c.rotate((float) -Math.toDegrees(yaw));
+            c.scale(k / MAP_PX, k / MAP_PX);
+            c.translate(-(me.x - CasinoWorld.WX0) * MAP_PX, -(me.z - CasinoWorld.WZ0) * MAP_PX);
+            Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG);
+            c.drawBitmap(map, 0, 0, bp);
+            c.restore();
+            float[] o = new float[2];
+            // Locked doors.
+            for (CasinoWorld.Door dr : world.doors) {
+                if (dr.unlocked || world.canOpen(dr)) continue;
+                toMini(dr.x - me.x, dr.z - me.z, yaw, k, o);
+                if (o[0] * o[0] + o[1] * o[1] > (r - 4 * d) * (r - 4 * d)) continue;
+                paint.setColor(0xFFFF9A30);
+                c.drawRect(cx + o[0] - 2.5f * d, cy + o[1] - 2.5f * d, cx + o[0] + 2.5f * d,
+                        cy + o[1] + 2.5f * d, paint);
+            }
+            // Stores.
+            for (CasinoWorld.Spot sp : world.spots) {
+                if (sp.type != CasinoWorld.SHOP) continue;
+                toMini(sp.x - me.x, sp.z - me.z, yaw, k, o);
+                if (o[0] * o[0] + o[1] * o[1] > (r - 4 * d) * (r - 4 * d)) continue;
+                paint.setColor(0xFFFFD24A);
+                c.drawCircle(cx + o[0], cy + o[1], 3 * d, paint);
+            }
+            // Security.
+            for (CasinoWorld.Person g : world.guards) {
+                if (!g.active || g.ko || g.dead) continue;
+                toMini(g.x - me.x, g.z - me.z, yaw, k, o);
+                if (o[0] * o[0] + o[1] * o[1] > (r - 4 * d) * (r - 4 * d)) continue;
+                paint.setColor(world.alarm ? 0xFFFF3030 : 0xFF5AA8FF);
+                c.drawCircle(cx + o[0], cy + o[1], 3.2f * d, paint);
+            }
+            // The target: pinned to the edge when it's off the map.
+            CasinoWorld.Person t = world.targetP;
+            if (t != null && t.active && !t.dead) {
+                toMini(t.x - me.x, t.z - me.z, yaw, k, o);
+                float l = (float) Math.hypot(o[0], o[1]);
+                float max = r - 6 * d;
+                if (l > max) {
+                    o[0] *= max / l;
+                    o[1] *= max / l;
+                }
+                float pulse = 4 * d + (float) Math.abs(Math.sin(world.time * 4)) * 2 * d;
+                paint.setColor(0xFFFF2A2A);
+                c.drawCircle(cx + o[0], cy + o[1], pulse, paint);
+            }
+            // You.
+            float rel = me.yaw - yaw;
+            Path arrow = new Path();
+            float ax = (float) Math.sin(rel), az = (float) -Math.cos(rel);
+            arrow.moveTo(cx + ax * 7 * d, cy + az * 7 * d);
+            arrow.lineTo(cx - az * 5 * d - ax * 5 * d, cy + ax * 5 * d - az * 5 * d);
+            arrow.lineTo(cx + az * 5 * d - ax * 5 * d, cy - ax * 5 * d - az * 5 * d);
+            arrow.close();
+            paint.setColor(0xFFFFFFFF);
+            c.drawPath(arrow, paint);
+            paint.setTextSize(10 * d);
+            paint.setColor(0xAAFFFFFF);
+            c.drawText(CasinoPlaces.placeName(me.x, me.z), cx, cy + r + 15 * d, paint);
+        }
+
+        /** A red marker on the target, or an arrow at the screen edge pointing to them. */
+        private void tracker(Canvas c, int w, int h) {
+            CasinoWorld.Person t = world.targetP;
+            float[] o = new float[3];
+            int meters = Math.round(CasinoWorld.dist(t, world.player));
+            boolean on = CasinoWorld.Mat.project(vpCopy, t.x, CasinoWorld.headY(t) + 0.35f, t.z,
+                    w, h, o) && o[0] > 30 * d && o[0] < w - 30 * d && o[1] > 70 * d
+                    && o[1] < h - 30 * d;
+            paint.setTextSize(12 * d);
+            if (on) {
+                Path dia = new Path();
+                float sz = 8 * d;
+                dia.moveTo(o[0], o[1] - sz);
+                dia.lineTo(o[0] + sz * 0.7f, o[1]);
+                dia.lineTo(o[0], o[1] + sz);
+                dia.lineTo(o[0] - sz * 0.7f, o[1]);
+                dia.close();
+                paint.setColor(0xFFFF2A2A);
+                c.drawPath(dia, paint);
+                paint.setColor(0xFFFFFFFF);
+                c.drawText(meters + " m", o[0], o[1] - sz - 4 * d, paint);
+                return;
+            }
+            float[] m = new float[2];
+            toMini(t.x - world.player.x, t.z - world.player.z, world.camYaw, 1, m);
+            float ang = (float) Math.atan2(m[0], -m[1]);
+            float rx = w * 0.42f, ry = h * 0.36f;
+            float px = w / 2f + (float) Math.sin(ang) * rx;
+            float py = h * 0.52f - (float) Math.cos(ang) * ry;
+            float sx = (float) Math.sin(ang), sy = (float) -Math.cos(ang);
+            Path a = new Path();
+            float L = 14 * d;
+            a.moveTo(px + sx * L, py + sy * L);
+            a.lineTo(px - sy * L * 0.6f, py + sx * L * 0.6f);
+            a.lineTo(px + sy * L * 0.6f, py - sx * L * 0.6f);
+            a.close();
+            paint.setColor(0xEEFF2A2A);
+            c.drawPath(a, paint);
+            paint.setColor(0xFFFFFFFF);
+            c.drawText(meters + " m", px - sx * 12 * d, py - sy * 12 * d + 4 * d, paint);
+        }
+
         private void bubble(Canvas c, String s, float x, float y, float alpha) {
             float tw = paint.measureText(s);
             RectF r = new RectF(x - tw / 2 - 10 * d, y - 34 * d, x + tw / 2 + 10 * d, y - 8 * d);
@@ -1379,10 +1972,14 @@ public class CasinoActivity extends Activity {
                         finish();
                         return true;
                     }
-                    if (phoneBtn.contains(x, y)) {
+                    if (phoneBtn.contains(x, y) || bagBtn.contains(x, y)
+                            || jobsBtn.contains(x, y) || miniBtn.contains(x, y)) {
                         stickX = stickY = 0;
                         stickId = -1;
-                        phone();
+                        if (phoneBtn.contains(x, y)) phone();
+                        else if (bagBtn.contains(x, y)) bag();
+                        else if (jobsBtn.contains(x, y)) jobs();
+                        else openMap();
                         return true;
                     }
                     if (punchBtn.contains(x, y)) {

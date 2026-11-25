@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v30**.
+- Latest release: **v31**.
 
 ## Standing rules
 
@@ -165,6 +165,24 @@ player name and uninstall.
   +25%, -20% per bystander killed.
 - Logic tests: /home/claude/work/casino/T2.java (routes loop, silent takedown, hiding,
   alarm, body found, locks, car accident). Previews: Preview.java + Views.java.
+
+### v31: cars, map, jobs screen, stores, bling, fairer lockpicking
+- Cars: CasinoWorld.drawCar (SEDAN/SUV/TAXI/PICKUP, rolling hex wheels, headlight pool);
+  moving cars array {x, lane, dir, speed, color, spin, type}; parked cars in world.parked.
+  Everything past DRAW_FAR (42 m) isn't drawn.
+- HUD: coupons pill (+gain flash), Jobs / Bag / Phone buttons, rotating minimap (tap = full
+  map with place names, MapView), red target marker or edge arrow + distance, target line
+  with place name (CasinoPlaces.placeName / PLACES).
+- Doors have `access` (1 staff, 2 security): matching uniform opens them, no pick.
+  Picking suspicion: guards 0.9 (<6 m) / 0.4, staff 0.45 (<8 m), civilians 0.3 (<4.5 m);
+  decay 0.25/s. Lock screen shows the eye + who's watching, closes on alarm. Tested
+  (T5.java): careful player never caught at staff/back/room 7/bar doors; corridor needs a
+  staff uniform.
+- CasinoShop: items for Threads (tailor, x -6..0 z 30..42), Gold Rush Jewelers (x -48..-40),
+  and pawn gear (pro picks never snap, soft-sole shoes = 0.7x suspicion). Owned = flag
+  "own:<id>", worn = Prefs "casinoStyle" (comma list per slot). Bling drawn in drawPerson
+  (jacket/suit, chain levels, watch, glasses, hats incl. crown, shoes).
+- Contracts have `tips`; best rating saved in Prefs "hitBest_<id>".
 
 ## Ideas not built yet
 

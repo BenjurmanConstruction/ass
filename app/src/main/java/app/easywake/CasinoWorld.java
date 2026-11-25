@@ -383,6 +383,8 @@ final class CasinoWorld {
         /** Seconds an employee is holding it open. */
         float held;
         boolean unlocked;
+        /** Uniform that opens it without picking: 1 staff, 2 security, 0 none. */
+        int access;
 
         Door(String id, String label, float x, float z, boolean alongX, float w, int pins,
              int color) {
@@ -462,6 +464,7 @@ final class CasinoWorld {
         m.boxAA(-1.75f, 2.6f, Z1 - 0.3f, 1.75f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
         // The staff door, tucked in the north-east corner.
         Door staff = new Door("staff", "Staff Only", 15.8f, Z0, true, 1.2f, 3, 0xFF4A4E55);
+        staff.access = 1;
         doors.add(staff);
         m.panel(15.8f, Z0 + T / 2 + 0.01f, SOUTH, 1.6f, 2.7f, 3.1f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.STAFF));
@@ -863,6 +866,9 @@ final class CasinoWorld {
         float x, z, yaw, scale = 1;
         int skin, shirt, pants, hair;
         boolean vest, hat, tie;
+        /** Your own style: 0 means none. */
+        int jacket, shoes, hatType, hatColor, glasses, chain, chainColor, watch;
+        boolean suit, shoeGlow;
         int outfit;
         float homeX, homeZ, homeYaw;
         boolean sitting;
@@ -1126,16 +1132,22 @@ final class CasinoWorld {
 
     // ================================================================== cars
 
-    /** Cars on the strip: x, lane z, direction, speed, color. */
+    /** Cars on the strip: x, lane z, direction, speed, color, wheel turn, type. */
     final List<float[]> cars = new ArrayList<>();
+    /** Parked cars: x, z, facing, color, type. */
+    final List<float[]> parked = new ArrayList<>();
     static final float LANE_W = 20, LANE_E = 24, CAR_TOP = 10;
+    static final int SEDAN = 0, SUV = 1, TAXI = 2, PICKUP = 3;
+    static final int TAXI_YELLOW = 0xFFE8B420;
 
     private void spawnCars() {
-        int[] colors = {0xFF7A1C1C, 0xFF1C3A6A, 0xFFB8B8C0, 0xFF1A1A1E, 0xFF2E5A3A, 0xFFC9A24A};
-        for (int i = 0; i < 5; i++) {
+        int[] colors = {0xFF9A1E1E, TAXI_YELLOW, 0xFFC8CCD2, 0xFF2A4E8A, 0xFF1C1C20,
+                0xFF2E6A44};
+        int[] types = {SEDAN, TAXI, SUV, SEDAN, PICKUP, SUV};
+        for (int i = 0; i < 6; i++) {
             boolean west = i % 2 == 0;
-            cars.add(new float[]{-50 + i * 23, west ? LANE_W : LANE_E, west ? -1 : 1,
-                    CAR_TOP, colors[i % colors.length]});
+            cars.add(new float[]{-50 + i * 19, west ? LANE_W : LANE_E, west ? -1 : 1,
+                    CAR_TOP, colors[i], 0, types[i]});
         }
     }
 
@@ -1153,6 +1165,7 @@ final class CasinoWorld {
             float want = brake ? 0 : CAR_TOP;
             c[3] += Math.max(-22 * dt, Math.min(5 * dt, want - c[3]));
             c[0] += c[2] * c[3] * dt;
+            c[5] -= c[3] * dt / 0.34f;
             if (c[0] > WX1 + 8) c[0] = WX0 - 8;
             if (c[0] < WX0 - 8) c[0] = WX1 + 8;
             if (c[3] < 3) continue;
@@ -1562,9 +1575,18 @@ final class CasinoWorld {
                     if (dist2(p.x, p.z, d.x, d.z) < 1.6f * 1.6f) d.held = 2.2f;
                 }
             }
+            if (!d.unlocked && canOpen(d)
+                    && dist2(player.x, player.z, d.x, d.z) < 1.7f * 1.7f) {
+                d.held = 1.5f;
+            }
             float want = d.unlocked || d.held > 0 ? 1 : 0;
             d.open += Math.max(-dt * 2.5f, Math.min(dt * 2.5f, want - d.open));
         }
+    }
+
+    /** Your uniform lets you through this door. */
+    boolean canOpen(Door d) {
+        return d.access > 0 && allowed(player.outfit) >= d.access;
     }
 
     void unlockDoor(Door d) {
@@ -1624,6 +1646,9 @@ final class CasinoWorld {
         return true;
     }
 
+    /** Who's looking at you right now (for the lock screen warning). */
+    Person watcher;
+
     /** How restricted a place is: 0 public, 1 staff, 2 private, 3 nobody. */
     int zoneAt(float x, float z) {
         int lvl = 0;
@@ -1657,14 +1682,21 @@ final class CasinoWorld {
             float r = 0;
             if (trespass) r += w.kind == GUARD ? 0.9f : 0.4f;
             if (dragging != null) r += 1.6f;
-            if (picking) r += 1.1f;
+            if (picking) {
+                float dd = dist(w, me);
+                if (w.kind == GUARD) r += dd < 6 ? 0.9f : 0.4f;
+                else if (w.kind == STAFF || w.kind == ROUTE) r += dd < 8 ? 0.45f : 0;
+                else r += dd < 4.5f ? 0.3f : 0;
+            }
             if (me.outfit == SECURITY && w.kind == GUARD && dist(w, me) < 3.5f) r += 0.35f;
             if (r > rate) {
                 rate = r;
                 who = w;
             }
         }
+        if (softShoes()) rate *= 0.7f;
         watched = rate > 0;
+        watcher = who;
         // Bodies lying in plain sight.
         for (Person b : people) {
             if (!b.active || !(b.ko || b.dead) || b.found || b == dragging) continue;
@@ -1686,7 +1718,7 @@ final class CasinoWorld {
                 say(who, dragging != null || picking ? ODD : TRESPASS);
             }
         } else {
-            suspicion = Math.max(0, suspicion - 0.12f * dt);
+            suspicion = Math.max(0, suspicion - 0.25f * dt);
             if (suspicion < 0.1f) warned = false;
         }
         if (suspicion >= 1 && !alarm) raiseAlarm("You've been spotted.");
@@ -1941,6 +1973,8 @@ final class CasinoWorld {
     void takeOutfit(Person b) {
         int mine = player.outfit;
         dress(player, b.outfit);
+        player.jacket = 0;
+        player.suit = false;
         b.stripped = true;
         b.outfit = CIVILIAN;
         if (mine != CIVILIAN) dress(b, mine);
@@ -1953,11 +1987,34 @@ final class CasinoWorld {
         toast = "You're wearing " + OUTFIT_NAMES[player.outfit] + ".";
     }
 
+    /** What you're wearing from the stores, one item id per slot. */
+    String[] worn = new String[CasinoShop.GEAR];
+
     void ownClothes() {
         player.outfit = CIVILIAN;
-        player.shirt = playerShirt;
-        player.pants = playerPants;
         player.vest = player.tie = false;
+        CasinoShop.apply(player, worn, playerShirt, playerPants);
+    }
+
+    /** Puts on new store clothes; in a uniform, only the bling shows until you change. */
+    void restyle() {
+        if (player.outfit == CIVILIAN) {
+            ownClothes();
+            return;
+        }
+        int shirt = player.shirt, pants = player.pants;
+        boolean tie = player.tie, vest = player.vest;
+        CasinoShop.apply(player, worn, playerShirt, playerPants);
+        player.shirt = shirt;
+        player.pants = pants;
+        player.tie = tie;
+        player.vest = vest;
+        player.jacket = 0;
+        player.suit = false;
+    }
+
+    boolean softShoes() {
+        return "sneakers_soft".equals(worn[CasinoShop.SHOES]);
     }
 
     // ================================================================== contracts
@@ -2064,7 +2121,7 @@ final class CasinoWorld {
         Door door = null;
         float bestD = 1.6f * 1.6f;
         for (Door d : doors) {
-            if (d.unlocked) continue;
+            if (d.unlocked || canOpen(d)) continue;
             float dd = dist2(d.x, d.z, player.x, player.z);
             if (dd < bestD) {
                 bestD = dd;
@@ -2270,10 +2327,17 @@ final class CasinoWorld {
     private final float[] base = new float[16], joint = new float[16], tmp = new float[16],
             shoulder = new float[16];
 
+    /** Things farther than this from you aren't drawn, to keep older phones smooth. */
+    static final float DRAW_FAR = 42;
+
+    private boolean far(float x, float z) {
+        return dist2(x, z, player.x, player.z) > DRAW_FAR * DRAW_FAR;
+    }
+
     void drawPeople(PartSink sink) {
         drawPerson(player, sink);
         for (Person p : people) {
-            if (p.active) drawPerson(p, sink);
+            if (p.active && !far(p.x, p.z)) drawPerson(p, sink);
         }
         for (float[] d : drops) {
             Mat.identity(tmp);
@@ -2352,21 +2416,156 @@ final class CasinoWorld {
 
     private void drawCars(PartSink s) {
         for (float[] c : cars) {
-            float x = c[0], z = c[1], dir = c[2];
-            int col = (int) c[4];
-            box(s, x, 0.55f, z, 4.2f, 0.7f, 1.8f, col, 0);
-            box(s, x - dir * 0.3f, 1.15f, z, 2.2f, 0.55f, 1.6f, shade(col, 0.6f), 0);
-            box(s, x - dir * 0.3f, 1.15f, z, 2.0f, 0.45f, 1.62f, 0xFF20262E, 0.05f);
-            for (int i = -1; i <= 1; i += 2) {
-                for (int j = -1; j <= 1; j += 2) {
-                    box(s, x + i * 1.35f, 0.32f, z + j * 0.85f, 0.64f, 0.64f, 0.22f,
-                            0xFF111111, 0);
-                }
-                box(s, x + dir * 2.11f, 0.65f, z + i * 0.6f, 0.04f, 0.16f, 0.32f, 0xFFFFF4D6, 1);
-                box(s, x - dir * 2.11f, 0.7f, z + i * 0.65f, 0.04f, 0.12f, 0.3f, 0xFFFF2020, 1);
-            }
-            s.shadow(x, z, 2.0f);
+            if (far(c[0], c[1])) continue;
+            drawCar(s, c[0], c[1], c[2] > 0 ? 0 : PI, (int) c[4], (int) c[6], c[5], true);
         }
+        for (float[] c : parked) {
+            if (far(c[0], c[1])) continue;
+            drawCar(s, c[0], c[1], c[2], (int) c[3], (int) c[4], 0, false);
+        }
+    }
+
+    private final float[] car = new float[16];
+    static final int GLASS = 0xFF161C28, TRIM = 0xFF1E1E22, TIRE = 0xFF121214,
+            RIM = 0xFFB8BCC4;
+
+    /**
+     * One car. Its own front is +x; yaw turns it (0 drives east, PI west, -PI/2 faces south).
+     */
+    void drawCar(PartSink s, float x, float z, float yaw, int col, int type, float spin,
+                 boolean lights) {
+        Mat.identity(car);
+        Mat.translate(car, x, 0, z);
+        Mat.rotY(car, yaw);
+        s.shadow(x, z, 2.3f);
+        boolean suv = type == SUV, pickup = type == PICKUP;
+        float len = suv ? 4.6f : (pickup ? 4.9f : 4.4f);
+        float hl = len / 2, hw = suv || pickup ? 0.95f : 0.9f;
+        float y0 = suv || pickup ? 0.42f : 0.34f;
+        float y1 = suv ? 1.04f : (pickup ? 0.98f : 0.84f);
+        float r = suv || pickup ? 0.4f : 0.34f;
+        float wx = suv ? 1.5f : (pickup ? 1.6f : 1.42f);
+        int dark = shade(col, 0.82f);
+
+        // Body, bumpers, grille, lights.
+        cp(s, 0, (y0 + y1) / 2, 0, len - 0.2f, y1 - y0, hw * 2, col, 0);
+        cp(s, hl - 0.06f, y0 + 0.12f, 0, 0.14f, 0.26f, hw * 2 - 0.08f, TRIM, 0);
+        cp(s, -hl + 0.06f, y0 + 0.12f, 0, 0.14f, 0.26f, hw * 2 - 0.08f, TRIM, 0);
+        cp(s, hl - 0.1f, y1 - 0.22f, 0, 0.04f, 0.14f, hw * 0.8f, 0xFF0E0E10, 0);
+        for (int side = -1; side <= 1; side += 2) {
+            cp(s, hl - 0.11f, y1 - 0.16f, side * (hw - 0.26f), 0.05f, 0.12f, 0.34f,
+                    lights ? 0xFFFFF4D6 : 0xFF9A9A92, lights ? 1 : 0.1f);
+            cp(s, -hl + 0.11f, y1 - 0.14f, side * (hw - 0.24f), 0.05f, 0.12f, 0.3f,
+                    0xFFE01818, lights ? 1 : 0.15f);
+            // Dark wheel arches cut into the sides.
+            cp(s, wx, y0 + 0.2f, side * (hw + 0.004f), r * 2.6f, 0.4f, 0.01f, 0xFF0C0C0E, 0);
+            cp(s, -wx, y0 + 0.2f, side * (hw + 0.004f), r * 2.6f, 0.4f, 0.01f, 0xFF0C0C0E, 0);
+            // A crease line down the side.
+            cp(s, 0, y1 - 0.1f, side * (hw + 0.003f), len - 0.5f, 0.03f, 0.01f, dark, 0);
+        }
+        cp(s, -hl + 0.02f, y0 + 0.16f, 0, 0.02f, 0.12f, 0.34f, 0xFFE8E8E0, 0.3f);
+        if (type == TAXI) {
+            for (int side = -1; side <= 1; side += 2) {
+                cp(s, 0.1f, y1 - 0.24f, side * (hw + 0.005f), 2.6f, 0.08f, 0.01f,
+                        0xFF111111, 0);
+            }
+        }
+
+        // Cabin: glass, sloped windshield and back glass, roof, pillars, mirrors.
+        float cf, cb, top;
+        if (suv) {
+            cf = 0.75f;
+            cb = -2.05f;
+            top = 1.62f;
+        } else if (pickup) {
+            cf = 0.95f;
+            cb = -0.35f;
+            top = 1.62f;
+        } else {
+            cf = 0.95f;
+            cb = -1.6f;
+            top = 1.38f;
+        }
+        float slope = suv || pickup ? 0.35f : 0.5f;
+        float gw = hw * 2 - 0.26f;
+        cp(s, (cf - slope + cb + (suv || pickup ? 0 : slope)) / 2, (y1 + top) / 2, 0,
+                (cf - slope) - (cb + (suv || pickup ? 0 : slope)), top - y1, gw, GLASS, 0.06f);
+        slab(s, cf, y1, cf - slope, top, gw, 0.06f, GLASS, 0.06f);
+        if (!suv && !pickup) slab(s, cb + slope, top, cb, y1, gw, 0.06f, GLASS, 0.06f);
+        float roofF = cf - slope, roofB = suv || pickup ? cb : cb + slope;
+        cp(s, (roofF + roofB) / 2, top + 0.04f, 0, roofF - roofB + 0.06f, 0.08f, gw + 0.06f,
+                col, 0);
+        cp(s, (roofF + roofB) / 2 - 0.1f, (y1 + top) / 2, 0, 0.1f, top - y1, gw + 0.04f,
+                dark, 0);
+        if (suv) {
+            cp(s, (roofF + roofB) / 2, top + 0.1f, hw - 0.25f, roofF - roofB - 0.3f, 0.04f,
+                    0.05f, TRIM, 0);
+            cp(s, (roofF + roofB) / 2, top + 0.1f, -hw + 0.25f, roofF - roofB - 0.3f, 0.04f,
+                    0.05f, TRIM, 0);
+        }
+        for (int side = -1; side <= 1; side += 2) {
+            cp(s, cf - 0.15f, y1 + 0.1f, side * (hw + 0.06f), 0.1f, 0.08f, 0.12f, col, 0);
+        }
+        if (type == TAXI) {
+            cp(s, (roofF + roofB) / 2, top + 0.17f, 0, 0.3f, 0.18f, 0.72f, 0xFFFFE28A, 0.9f);
+        }
+        if (pickup) {
+            // The open bed with low walls and a tailgate.
+            float bf = cb - 0.08f, bb = -hl + 0.1f;
+            cp(s, (bf + bb) / 2, y1 + 0.02f, 0, bf - bb, 0.04f, hw * 2 - 0.1f, 0xFF15151A, 0);
+            for (int side = -1; side <= 1; side += 2) {
+                cp(s, (bf + bb) / 2, y1 + 0.2f, side * (hw - 0.05f), bf - bb, 0.36f, 0.1f,
+                        col, 0);
+            }
+            cp(s, bb + 0.05f, y1 + 0.2f, 0, 0.1f, 0.36f, hw * 2 - 0.1f, col, 0);
+            cp(s, bf, y1 + 0.2f, 0, 0.1f, 0.36f, hw * 2 - 0.1f, col, 0);
+        }
+
+        // Wheels: hexagon tires with a two-spoke rim that turns as the car rolls.
+        for (int i = -1; i <= 1; i += 2) {
+            for (int side = -1; side <= 1; side += 2) {
+                wheel(s, i * wx, side * (hw - 0.06f), r, spin, side);
+            }
+        }
+        // Headlights throwing light on the road ahead.
+        if (lights) cp(s, hl + 2.6f, 0.012f, 0, 4.2f, 0.004f, hw * 2.2f, 0xFF3A3222, 1);
+    }
+
+    private void wheel(PartSink s, float x, float z, float r, float spin, int side) {
+        float a = r * 0.95f;
+        for (int k = 0; k < 3; k++) {
+            copy(tmp, car);
+            Mat.translate(tmp, x, r, z);
+            Mat.rotZ(tmp, spin + k * PI / 3);
+            Mat.scale(tmp, 2 * a, 2 * a * 0.5774f, 0.26f);
+            s.part(tmp, TIRE, 0);
+        }
+        for (int k = 0; k < 2; k++) {
+            copy(tmp, car);
+            Mat.translate(tmp, x, r, z + side * 0.135f);
+            Mat.rotZ(tmp, spin + k * PI / 2);
+            Mat.scale(tmp, a * 1.2f, a * 0.22f, 0.02f);
+            s.part(tmp, RIM, 0.05f);
+        }
+    }
+
+    /** A box on the car, in the car's own coordinates. */
+    private void cp(PartSink s, float x, float y, float z, float w, float h, float d, int c,
+                    float glow) {
+        copy(tmp, car);
+        Mat.translate(tmp, x, y, z);
+        Mat.scale(tmp, w, h, d);
+        s.part(tmp, c, glow);
+    }
+
+    /** A thin tilted panel on the car from (x0, y0) to (x1, y1), d wide. */
+    private void slab(PartSink s, float x0, float y0, float x1, float y1, float d, float thick,
+                      int c, float glow) {
+        copy(tmp, car);
+        Mat.translate(tmp, (x0 + x1) / 2, (y0 + y1) / 2, 0);
+        Mat.rotZ(tmp, (float) Math.atan2(y1 - y0, x1 - x0));
+        Mat.scale(tmp, (float) Math.hypot(x1 - x0, y1 - y0), thick, d);
+        s.part(tmp, c, glow);
     }
 
     private void box(PartSink s, float x, float y, float z, float w, float h, float d, int c,
@@ -2409,7 +2608,14 @@ final class CasinoWorld {
             Mat.translate(joint, 0, -0.43f, 0);
             Mat.rotX(joint, -knee);
             limb(s, joint, 0, -0.2f, 0, 0.155f, 0.42f, 0.18f, p.pants);
-            limb(s, joint, 0, -0.42f, -0.05f, 0.16f, 0.08f, 0.28f, 0xFF141210);
+            if (p.shoes != 0) {
+                copy(tmp, joint);
+                Mat.translate(tmp, 0, -0.42f, -0.05f);
+                Mat.scale(tmp, 0.16f, 0.08f, 0.28f);
+                s.part(tmp, p.shoes, p.shoeGlow ? 0.35f : 0);
+            } else {
+                limb(s, joint, 0, -0.42f, -0.05f, 0.16f, 0.08f, 0.28f, 0xFF141210);
+            }
         }
         copy(joint, base);
         float twist = 0;
@@ -2419,14 +2625,38 @@ final class CasinoWorld {
         }
         Mat.translate(joint, 0, hip, 0);
         Mat.rotY(joint, twist);
-        limb(s, joint, 0, 0.31f, 0, 0.48f, 0.62f, 0.27f, p.shirt);
+        if (p.jacket != 0) {
+            // A jacket hanging open over the shirt.
+            limb(s, joint, 0, 0.3f, 0, 0.5f, 0.64f, 0.29f, p.jacket);
+            limb(s, joint, 0, 0.38f, -0.146f, 0.16f, 0.46f, 0.01f, p.suit ? 0xFFE8E4DC : p.shirt);
+        } else {
+            limb(s, joint, 0, 0.31f, 0, 0.48f, 0.62f, 0.27f, p.shirt);
+        }
         if (p.vest) {
             limb(s, joint, 0, 0.29f, -0.005f, 0.5f, 0.5f, 0.28f, 0xFF141418);
             limb(s, joint, 0, 0.5f, -0.005f, 0.16f, 0.22f, 0.285f, p.shirt);
         }
         if (p.tie) {
-            limb(s, joint, 0, 0.43f, -0.13f, 0.12f, 0.36f, 0.02f, 0xFFE8E4DC);
-            limb(s, joint, 0, 0.42f, -0.141f, 0.04f, 0.32f, 0.01f, 0xFF7A1A1A);
+            if (p.jacket == 0) limb(s, joint, 0, 0.43f, -0.13f, 0.12f, 0.36f, 0.02f, 0xFFE8E4DC);
+            limb(s, joint, 0, 0.42f, -0.153f, 0.04f, 0.32f, 0.01f, 0xFF7A1A1A);
+        }
+        if (p.chain > 0) {
+            // A chain around the neck with a pendant; bigger and brighter the pricier it is.
+            float th = p.chain == 1 ? 0.025f : 0.04f;
+            float g = p.chain == 3 ? 0.75f : 0.35f;
+            for (int side = -1; side <= 1; side += 2) {
+                copy(tmp, joint);
+                Mat.translate(tmp, side * 0.07f, 0.54f, -0.152f);
+                Mat.rotZ(tmp, side * 0.55f);
+                Mat.scale(tmp, th, 0.2f, 0.012f);
+                s.part(tmp, p.chainColor, g);
+            }
+            copy(tmp, joint);
+            Mat.translate(tmp, 0, 0.43f, -0.156f);
+            Mat.rotZ(tmp, PI / 4);
+            float pd = p.chain == 1 ? 0.05f : 0.08f;
+            Mat.scale(tmp, pd, pd, 0.014f);
+            s.part(tmp, p.chainColor, g + 0.1f);
         }
         if (p.outfit == COOK) {
             limb(s, joint, 0, 0.2f, -0.14f, 0.4f, 0.5f, 0.01f, 0xFFFFFFFF);
@@ -2465,12 +2695,19 @@ final class CasinoWorld {
             }
             Mat.rotX(shoulder, a);
             Mat.rotZ(shoulder, 0.06f * side);
-            limb(s, shoulder, 0, -0.16f, 0, 0.13f, 0.34f, 0.14f, p.shirt);
+            int sleeve = p.jacket != 0 ? p.jacket : p.shirt;
+            limb(s, shoulder, 0, -0.16f, 0, 0.13f, 0.34f, 0.14f, sleeve);
             Mat.translate(shoulder, 0, -0.32f, 0);
             Mat.rotX(shoulder, elbow);
             limb(s, shoulder, 0, -0.14f, 0, 0.12f, 0.3f, 0.13f,
-                    p.tie || p.outfit == COOK ? p.shirt : p.skin);
+                    p.jacket != 0 ? p.jacket : (p.tie || p.outfit == COOK ? p.shirt : p.skin));
             limb(s, shoulder, 0, -0.32f, 0, 0.12f, 0.1f, 0.12f, p.skin);
+            if (p.watch != 0 && side == -1) {
+                copy(tmp, shoulder);
+                Mat.translate(tmp, 0, -0.27f, 0);
+                Mat.scale(tmp, 0.135f, 0.05f, 0.145f);
+                s.part(tmp, p.watch, 0.45f);
+            }
             if (gun && side == 1) limb(s, shoulder, 0, -0.42f, -0.04f, 0.05f, 0.24f, 0.1f,
                     0xFF1A1A1E);
         }
@@ -2478,9 +2715,37 @@ final class CasinoWorld {
         limb(s, joint, 0, 0.84f, 0, 0.28f, 0.3f, 0.28f, p.skin);
         limb(s, joint, 0, 1.0f, 0.02f, 0.3f, 0.06f, 0.3f, p.hair);
         limb(s, joint, 0, 0.9f, 0.13f, 0.3f, 0.16f, 0.04f, p.hair);
-        if (p.hat) {
-            limb(s, joint, 0, 1.03f, 0.0f, 0.42f, 0.03f, 0.42f, 0xFF3A2A1A);
-            limb(s, joint, 0, 1.1f, 0.0f, 0.28f, 0.13f, 0.28f, 0xFF3A2A1A);
+        int ht = p.hat ? CasinoShop.FEDORA : p.hatType;
+        int hc = p.hatColor != 0 ? p.hatColor : 0xFF3A2A1A;
+        if (ht == CasinoShop.FEDORA) {
+            limb(s, joint, 0, 1.03f, 0.0f, 0.42f, 0.03f, 0.42f, hc);
+            limb(s, joint, 0, 1.1f, 0.0f, 0.28f, 0.13f, 0.28f, hc);
+            limb(s, joint, 0, 1.06f, 0.0f, 0.285f, 0.03f, 0.285f, 0xFF111111);
+        } else if (ht == CasinoShop.CAP) {
+            limb(s, joint, 0, 1.06f, 0.01f, 0.31f, 0.1f, 0.31f, hc);
+            limb(s, joint, 0, 1.02f, -0.22f, 0.26f, 0.025f, 0.18f, hc);
+        } else if (ht == CasinoShop.BEANIE) {
+            limb(s, joint, 0, 1.06f, 0.01f, 0.31f, 0.14f, 0.31f, hc);
+        } else if (ht == CasinoShop.COWBOY) {
+            limb(s, joint, 0, 1.03f, 0.0f, 0.6f, 0.03f, 0.52f, hc);
+            limb(s, joint, 0, 1.12f, 0.0f, 0.28f, 0.16f, 0.3f, hc);
+        } else if (ht == CasinoShop.CROWN) {
+            limb(s, joint, 0, 1.06f, 0.0f, 0.32f, 0.08f, 0.32f, hc);
+            for (int k = 0; k < 4; k++) {
+                copy(tmp, joint);
+                Mat.translate(tmp, 0, 1.13f, 0);
+                Mat.rotY(tmp, k * PI / 2);
+                Mat.translate(tmp, 0, 0, 0.14f);
+                Mat.scale(tmp, 0.08f, 0.1f, 0.03f);
+                s.part(tmp, hc, 0.5f);
+            }
+            limb(s, joint, 0, 1.07f, -0.163f, 0.05f, 0.05f, 0.01f, 0xFFE0283A);
+        }
+        if (p.glasses != 0) {
+            limb(s, joint, 0, 0.855f, -0.148f, 0.27f, 0.07f, 0.02f, 0xFF0A0A0E);
+            if (p.glasses != 0xFF0A0A0C) {
+                limb(s, joint, 0, 0.892f, -0.15f, 0.28f, 0.015f, 0.02f, p.glasses);
+            }
         }
         if (p.outfit == COOK) limb(s, joint, 0, 1.1f, 0, 0.26f, 0.16f, 0.26f, 0xFFFFFFFF);
         limb(s, joint, 0, 0.88f, -0.142f, 0.2f, 0.035f, 0.01f, shade(p.skin, 0.55f));

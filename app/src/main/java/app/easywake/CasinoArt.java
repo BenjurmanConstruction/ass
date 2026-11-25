@@ -91,15 +91,16 @@ final class CasinoArt {
     static final String[] SIGNS = {"PENNY PALACE", "SLOT PARLOR", "TEXAS HOLD'EM", "BLACKJACK",
             "ROULETTE", "VIDEO POKER", "CASHIER", "CLASSIC SLOTS", "THE GILDED ACE",
             "LUCKY PAWN", "MIDNIGHT DINER", "STARLITE MOTEL", "THE LAST CALL", "HIGH LIMIT",
-            "STAFF ONLY", "VACANCY", "VAULT", "SECURITY", "MANAGER", "OPEN 24 HRS"};
+            "STAFF ONLY", "VACANCY", "VAULT", "SECURITY", "MANAGER", "OPEN 24 HRS", "GOLD RUSH",
+            "THREADS", "BULLSEYE RANGE", "GUNS & PAWN"};
     static final int PENNY = 0, PARLOR = 1, HOLDEM = 2, BLACKJACK = 3, ROULETTE = 4, POKER = 5,
             CASHIER = 6, CLASSIC = 7, GILDED = 8, PAWN = 9, DINER = 10, MOTEL = 11, BAR = 12,
             HIGH = 13, STAFF = 14, VACANCY = 15, VAULT = 16, SECURITY = 17, MANAGER = 18,
-            OPEN = 19;
+            OPEN = 19, GOLDRUSH = 20, THREADS = 21, RANGE = 22, GUNS = 23;
     private static final int[] SIGN_COLOR = {0xFF4CE0A0, 0xFFFFB300, 0xFFE6B869, 0xFFE6B869,
             0xFFE6B869, 0xFF40C4FF, 0xFFE6B869, 0xFFFF5252, 0xFFFFC94A, 0xFF69F0AE, 0xFFFF6FA8,
             0xFF6EC8FF, 0xFFFF4A3A, 0xFFD6A8FF, 0xFFFFFFFF, 0xFFFF3B30, 0xFFC0C4CC, 0xFF9AA4B4,
-            0xFFE6B869, 0xFFFF6FA8};
+            0xFFE6B869, 0xFFFF6FA8, 0xFFFFD24A, 0xFF4AE0D0, 0xFFFF6A2A, 0xFFFF4A3A};
 
     static Region sign(int i) {
         if (i >= 8) return new Region((i % 2) * 512 + 4, 1024 + ((i - 8) / 2) * 100, 504, 92);

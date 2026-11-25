@@ -47,7 +47,7 @@ final class CasinoPlaces {
             "A quiet corner of the casino floor.", "Where they shoot dice in the alley.",
             "In the manager's office.", "Inside the vault.", "In the High Limit Room.",
             "In the security office.", "Locked in a display case.", "Under a diner booth.",
-            "In motel room 7.", "Inside The Last Call.", "In the empty lot."};
+            "In motel room 7.", "Inside The Last Call.", "At the shooting range."};
 
     static final String[] NOTES = {"memo", "seclog", "vault", "hl", "ledger", "napkin", "diary",
             "graffiti", "tab"};
@@ -114,7 +114,7 @@ final class CasinoPlaces {
             {"Staff corridor", -18f, -17f, 18f, -14f}, {"Room 7", 21f, 30f, 27f, 38f},
             {"Lucky Pawn", -40f, 30f, -26f, 42f}, {"Gold Rush Jewelers", -48f, 30f, -40f, 42f},
             {"Threads", -6f, 30f, 0f, 42f}, {"Midnight Diner", -22f, 30f, -6f, 42f},
-            {"Starlite Motel", 0f, 28f, 30f, 42f}, {"Empty lot", 34f, 30f, 48f, 42f},
+            {"Starlite Motel", 0f, 28f, 30f, 42f}, {"Bullseye Range", 34f, 30f, 48f, 42f},
             {"The Last Call", 26f, 4f, 48f, 14f}, {"Back alley", 18f, -28f, 26f, 14f},
             {"Parking lot", -48f, -14f, -18f, 14f}, {"Casino floor", -18f, -14f, 18f, 14f},
             {"The Strip", -48f, 14f, 48f, 30f}};
@@ -760,20 +760,57 @@ final class CasinoPlaces {
         m.ceiling(36.6f, 9.1f, 37.4f, 9.9f, 4.18f, 0xFFFFC890, 0.8f);
     }
 
+    /** The Bullseye Range: a fenced outdoor range with a gun counter and pop-up targets. */
     private static void emptyLot(CasinoWorld w) {
         CasinoWorld.Mesh m = w.mesh;
         m.floor(34, 30 - T / 2, 48, 42, 0, 0xFF2A2620, 0, 1);
+        m.floor(36.8f, 32.6f, 48, 42, 0.003f, 0xFF3A3020, 0, 1);
         w.wallX(30, 34, 48, 2.2f, FENCE, 40, 41.2f);
         m.boxAA(34, 0, 30, 34.1f, 2.2f, 42, FENCE, 0);
-        m.boxAA(35.0f, 0, 39.8f, 37.2f, 1.4f, 41.6f, 0xFF4A2E22, 0);
-        w.solid(35.0f, 39.8f, 37.2f, 41.6f, 1.5f);
-        hide(w, "Rusted dumpster", 36.1f, 39.0f, 2);
-        for (float[] c : new float[][]{{45.5f, 40.6f}, {44.4f, 41.2f}, {46.6f, 38.9f}}) {
-            m.boxAA(c[0] - 0.5f, 0, c[1] - 0.5f, c[0] + 0.5f, 0.9f, c[1] + 0.5f, WOOD, 0);
-            w.solid(c[0] - 0.5f, c[1] - 0.5f, c[0] + 0.5f, c[1] + 0.5f, 1.0f);
+        w.wallX(42, 34, 48, 3.2f, 0xFF3A3A30);
+        // Earth berm behind the targets.
+        m.boxAA(34.2f, 0, 41.6f, 47.9f, 1.8f, 41.9f, 0xFF4A3A28, 0);
+        // Sign over the gate.
+        m.boxAA(39.2f, 2.2f, 29.9f, 42.0f, 2.95f, 30.0f, 0xFF050507, 0);
+        m.panel(40.6f, 29.88f, NORTH, 2.7f, 2.25f, 2.9f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.RANGE));
+        // The shooting bench: you stand on the north side and shoot south.
+        m.boxAA(36.8f, 0, 32.2f, 47.9f, 1.0f, 32.6f, 0xFF5A3A22, 0);
+        m.boxAA(36.7f, 1.0f, 32.15f, 47.95f, 1.05f, 32.65f, 0xFF3A2418, 0);
+        w.solid(34, 32.2f, 48, 32.6f, 1.05f);
+        for (float x = 39.6f; x < 47; x += 2.4f) {
+            m.boxAA(x - 0.04f, 1.05f, 32.3f, x + 0.04f, 1.9f, 32.5f, 0xFF2A2420, 0);
         }
-        chip(w, "lucky13", 47.3f, 41.4f, 0.2f);
-        w.lamps.add(new float[]{40.5f, 31.5f, 4, 0.25f, 1.0f, 0.66f, 0.34f});
+        // The gun counter in the west corner, and its dumpster.
+        m.boxAA(34.12f, 0, 30.12f, 36.6f, 1.05f, 30.8f, 0xFF2A2A30, 0);
+        m.boxAA(34.1f, 1.05f, 30.1f, 36.6f, 1.1f, 30.82f, 0xFF15151A, 0);
+        w.solid(34.1f, 30.1f, 36.6f, 30.8f, 1.1f);
+        m.boxAA(34.12f, 1.6f, 32.0f, 36.6f, 2.6f, 32.18f, 0xFF15151A, 0);
+        for (int i = 0; i < 5; i++) {
+            m.boxAA(34.4f + i * 0.45f, 1.85f, 31.97f, 34.7f + i * 0.45f, 1.92f + (i % 2) * 0.05f,
+                    32.0f, 0xFF1A1A1E, 0);
+        }
+        w.extraStaff.add(new float[]{35.3f, 31.3f, NORTH, CasinoWorld.SECURITY, 0});
+        w.extraStaffNames.add("Range master");
+        w.spots.add(new CasinoWorld.Spot(CasinoWorld.SHOP, "range", "Gun counter", 35.6f,
+                30.0f + 1.5f));
+        CasinoWorld.Spot start = new CasinoWorld.Spot(CasinoWorld.RANGE_START, "range",
+                "Start a practice round", 42.0f, 31.3f);
+        w.spots.add(start);
+        m.boxAA(46.6f, 0, 30.12f, 47.88f, 0.9f, 31.2f, WOOD, 0);
+        w.solid(46.6f, 30.12f, 47.88f, 31.2f, 1.0f);
+        chip(w, "lucky13", 47.2f, 30.6f, 1.0f);
+        m.boxAA(34.12f, 0, 40.0f, 36.3f, 1.4f, 41.6f, 0xFF4A2E22, 0);
+        w.solid(34.12f, 40.0f, 36.3f, 41.6f, 1.5f);
+        // Floodlights.
+        for (float[] l : new float[][]{{38.5f, 36.5f}, {45, 36.5f}, {41.5f, 31.2f}}) {
+            w.lamps.add(new float[]{l[0], l[1], 4.5f, 0.75f, 1, 0.95f, 0.85f});
+        }
+        for (float x : new float[]{36.9f, 47.7f}) {
+            m.cylinder(x, 32.4f, 0.07f, 0.07f, 1.05f, 4.6f, 0xFF2A2C30, 0xFF2A2C30, 0, 8);
+            m.boxAA(x - 0.3f, 4.4f, 32.3f, x + 0.3f, 4.7f, 32.6f, 0xFF2A2C30, 0);
+            m.boxAA(x - 0.26f, 4.4f, 32.62f, x + 0.26f, 4.66f, 32.64f, 0xFFFFF4E0, 1);
+        }
     }
 
     // ---------------------------------------------------------------- spot helpers

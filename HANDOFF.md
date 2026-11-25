@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v31**.
+- Latest release: **v32**.
 
 ## Standing rules
 
@@ -183,6 +183,29 @@ player name and uninstall.
   "own:<id>", worn = Prefs "casinoStyle" (comma list per slot). Bling drawn in drawPerson
   (jacket/suit, chain levels, watch, glasses, hats incl. crown, shoes).
 - Contracts have `tips`; best rating saved in Prefs "hitBest_<id>".
+
+### v32: weapons, aiming, guards shoot back, practice range
+- CasinoWeapons: knife 400, pistol 750 (+silencer 1000), .44 revolver 1200, SMG 4000 (auto),
+  pump shotgun 3500 (8 pellets), bolt rifle 6000 (scope fov 16). Owned = "own:<id>"
+  (old "item:pistol" maps to own:pistol); in hand = Prefs "casinoWeapon".
+- Concealable guns are invisible until you aim; long guns show on your back and add
+  suspicion (guards 0.5/s, civilians close 0.15/s) unless in a security uniform. Aiming
+  outside the range: guards 1.2/s, others 0.6/s, some panic.
+- Aiming: aimCamera() over the right shoulder (slides in front of walls), aimPitch,
+  aimLook(); fire() casts real rays: rayWorld (walls/doors/ground), rayPerson (head sphere +
+  body cylinder; lying bodies a low box), rangeHit. Health 100 (guards 150); headshot
+  multiplier per gun. Tracers, sparks, muzzle flash, hit markers, recoil, bloom.
+- heard(loud): gunshots within loud*28 m make civilians flee, guards alarm; silencer = 0.12.
+  Once you hit someone with a gun, alarmed guards keep distance and shoot back
+  (guardFires); player health regenerates after 5 s; at 0 you're "downed" -> wake up outside,
+  contract aborted. One guard downs a still player in ~23 s.
+- Bullseye Range (old empty lot, x 34..48 z 30..42): gun counter (spot id "range"), 40 s
+  rounds of pop-up targets (12 in 3 rows), body 10 / head 25 / +5 per row; prize score/4
+  coupons; best in Prefs "rangeBest". Shots in the range area alarm nobody.
+- HUD: FIRE (hold for SMG) / PUNCH / AIM-LOWER / RELOAD / weapon switch with ammo,
+  crosshair with bloom, scope overlay, HEADSHOT marker, health bar + red edges, round timer.
+- Tests: /home/claude/work/casino/T6.java (body/head shots, aimbot range round, guard
+  takedown, silenced vs loud).
 
 ## Ideas not built yet
 

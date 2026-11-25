@@ -339,7 +339,7 @@ final class CasinoWorld {
 
     /** What a spot is. */
     static final int GAME = 0, DOOR = 1, LOOT = 2, NOTE = 3, CHIP = 4, KEY = 5, SHOP = 6,
-            HIDE = 7;
+            HIDE = 7, RANGE_START = 8;
 
     /** Something you can walk up to and use. */
     static final class Spot {
@@ -893,6 +893,9 @@ final class CasinoWorld {
         float hitAt = -100;
         String[] talk;
         float talkT;
+        float health = 100;
+        /** Seconds since this guard last fired. */
+        float gunCool;
     }
 
     static final float DOWN_TIME = 3.4f;
@@ -977,6 +980,7 @@ final class CasinoWorld {
         p.scale = 0.93f + rnd.nextFloat() * 0.14f;
         p.tough = rnd.nextFloat() < 0.3f;
         p.phase = rnd.nextFloat() * 6;
+        p.health = 100;
         people.add(p);
         return p;
     }
@@ -1078,6 +1082,7 @@ final class CasinoWorld {
         g.scale = 1.1f;
         g.speed = 1.2f;
         g.tough = true;
+        g.health = 150;
         g.route = route;
         g.x = route[0][0];
         g.z = route[0][1];
@@ -1228,7 +1233,14 @@ final class CasinoWorld {
                     g.z = g.route[0][1];
                     g.routeI = 0;
                 }
-                toast = "Security threw you out. Lie low for a bit.";
+                toast = downed ? "You got shot down. You woke up outside. The job's off."
+                        : "Security threw you out. Lie low for a bit.";
+                if (downed) {
+                    abortContract();
+                    downed = false;
+                }
+                health = 100;
+                aiming = false;
             }
             sx = sy = 0;
         }
@@ -1237,7 +1249,7 @@ final class CasinoWorld {
         Person me = player;
         float mag = (float) Math.min(1, Math.hypot(sx, sy));
         if (picking) mag = 0;
-        float speed = dragging != null ? DRAG_SPEED : SPEED;
+        float speed = dragging != null ? DRAG_SPEED : (aiming ? 1.9f : SPEED);
         if (mag > 0.08f) {
             float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
             float rx = (float) Math.cos(camYaw), rz = (float) Math.sin(camYaw);
@@ -1245,7 +1257,7 @@ final class CasinoWorld {
             float l = (float) Math.hypot(dx, dz);
             dx /= l;
             dz /= l;
-            float want = (float) Math.atan2(dx, -dz);
+            float want = aiming ? camYaw : (float) Math.atan2(dx, -dz);
             me.yaw = turn(me.yaw, want, dt * 12);
             me.x += dx * speed * mag * dt;
             me.z += dz * speed * mag * dt;
@@ -1398,6 +1410,8 @@ final class CasinoWorld {
             }
         }
 
+        updateCombat(dt);
+        updateRange(dt);
         updateSuspicion(dt);
         if (alarm && escort <= 0) {
             alarmT -= dt;
@@ -1466,6 +1480,23 @@ final class CasinoWorld {
         if (d < 0.95f) {
             escort = 1.4f;
             say(g, new String[]{GUARD_LINES[3]});
+            return;
+        }
+        // Once you've drawn blood with a gun, they shoot back instead of grabbing you.
+        if (armedThreat && d < 16 && clear(g.x, g.z, me.x, me.z)) {
+            g.walk = Math.max(0, g.walk - dt * 5);
+            g.yaw = turn(g.yaw, (float) Math.atan2(me.x - g.x, -(me.z - g.z)), dt * 8);
+            g.gunCool -= dt;
+            if (g.gunCool <= 0) {
+                g.gunCool = 0.9f + rnd.nextFloat() * 0.6f;
+                guardFires(g, d);
+            }
+            if (d > 7) {
+                float sp = g.speed;
+                g.speed = 1.6f;
+                step(g, me.x, me.z, dt);
+                g.speed = sp;
+            }
             return;
         }
         float sp = g.speed;
@@ -1689,6 +1720,18 @@ final class CasinoWorld {
                 else r += dd < 4.5f ? 0.3f : 0;
             }
             if (me.outfit == SECURITY && w.kind == GUARD && dist(w, me) < 3.5f) r += 0.35f;
+            if (weapon != null && !inRange(me.x, me.z) && !weapon.melee) {
+                float dd = dist(w, me);
+                if (aiming) {
+                    r += w.kind == GUARD ? 1.2f : (dd < 10 ? 0.6f : 0);
+                    if (w.kind != GUARD && dd < 10 && w.flee <= 0 && rnd.nextFloat() < 0.02f) {
+                        w.flee = 4;
+                        say(w, PANIC);
+                    }
+                } else if (!weapon.concealable && me.outfit != SECURITY) {
+                    r += w.kind == GUARD ? 0.5f : (dd < 6 ? 0.15f : 0);
+                }
+            }
             if (r > rate) {
                 rate = r;
                 who = w;
@@ -1867,46 +1910,500 @@ final class CasinoWorld {
         }
     }
 
-    /** The person the gun would hit, if any. */
-    Person aimTarget() {
-        if (!hasPistol || dragging != null) return null;
-        Person best = null;
-        float bestScore = 0;
-        float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
-        for (Person p : people) {
-            if (!p.active || p.ko || p.dead) continue;
-            float dx = p.x - player.x, dz = p.z - player.z;
-            float d = (float) Math.hypot(dx, dz);
-            if (d > 16 || d < 0.3f) continue;
-            float cos = (dx * fx + dz * fz) / d;
-            if (cos < 0.965f) continue;
-            if (!clear(player.x, player.z, p.x, p.z)) continue;
-            float score = cos * 10 - d * 0.1f;
-            if (score > bestScore) {
-                bestScore = score;
-                best = p;
+    // ================================================================== guns
+
+    /** What's in your hands: null for fists. */
+    CasinoWeapons.Gun weapon;
+    boolean aiming, silencer, triggerHeld, downed;
+    /** Looking up (-) or down (+) while aiming. */
+    float aimPitch = 0.05f;
+    final java.util.Map<String, Integer> ammo = new java.util.HashMap<>();
+    float reloadT, fireCool, bloom, recoil;
+    /** Your health, and seconds since you were last hit. */
+    float health = 100, hurtT = 99;
+    /** Guards shoot back once you've fired on people. */
+    boolean armedThreat;
+    /** Last hit marker: time, 1 hit, 2 kill, 3 headshot kill. */
+    float markT = -9;
+    int markKind;
+    /** Bullet streaks: x0, y0, z0, x1, y1, z1, life. Sparks: x, y, z, vx, vy, vz, life. */
+    final List<float[]> tracers = new ArrayList<>();
+    final List<float[]> sparks = new ArrayList<>();
+    private final float[] eye = new float[3], fwd = new float[3];
+
+    void equip(CasinoWeapons.Gun g) {
+        weapon = g;
+        reloadT = 0;
+        if (g == null) aiming = false;
+        else if (!ammo.containsKey(g.id)) ammo.put(g.id, g.mag);
+    }
+
+    int ammoLeft() {
+        return weapon == null ? 0 : ammo.containsKey(weapon.id) ? ammo.get(weapon.id) : 0;
+    }
+
+    void reload() {
+        if (weapon == null || weapon.melee || reloadT > 0 || ammoLeft() == weapon.mag) return;
+        reloadT = weapon.reload;
+    }
+
+    boolean inRange(float x, float z) {
+        return x > 34 && x < 48 && z > 30 && z < 42;
+    }
+
+    /** Where the aim ray starts and points, from the last camera. */
+    private void aimRay() {
+        float cp = (float) Math.cos(aimPitch), sp = (float) Math.sin(aimPitch);
+        fwd[0] = (float) Math.sin(camYaw) * cp;
+        fwd[1] = -sp;
+        fwd[2] = (float) -Math.cos(camYaw) * cp;
+    }
+
+    private void updateCombat(float dt) {
+        if (fireCool > 0) fireCool -= dt;
+        bloom = Math.max(0, bloom - dt * 2.5f);
+        if (recoil > 0) {
+            float r = Math.min(recoil, dt * 6 * Math.max(0.05f, recoil));
+            recoil -= r;
+        }
+        if (reloadT > 0) {
+            reloadT -= dt;
+            if (reloadT <= 0 && weapon != null) {
+                ammo.put(weapon.id, weapon.mag);
+                sounds |= 64;
             }
+        }
+        if (weapon != null && weapon.auto && triggerHeld && aiming) fire();
+        // Health comes back if nobody's hit you for a few seconds.
+        hurtT += dt;
+        if (hurtT > 5 && health < 100) health = Math.min(100, health + 9 * dt);
+        if (!alarm) armedThreat = false;
+        for (int i = tracers.size() - 1; i >= 0; i--) {
+            float[] t = tracers.get(i);
+            t[6] -= dt;
+            if (t[6] <= 0) tracers.remove(i);
+        }
+        for (int i = sparks.size() - 1; i >= 0; i--) {
+            float[] p = sparks.get(i);
+            p[4] -= 9.8f * dt;
+            p[0] += p[3] * dt;
+            p[1] += p[4] * dt;
+            p[2] += p[5] * dt;
+            p[6] -= dt;
+            if (p[6] <= 0 || p[1] < 0) sparks.remove(i);
+        }
+    }
+
+    /** Pulls the trigger (or swings the knife). */
+    void fire() {
+        if (weapon == null || escort > 0 || dragging != null || picking) return;
+        if (fireCool > 0 || reloadT > 0) return;
+        if (weapon.melee) {
+            stab();
+            return;
+        }
+        if (ammoLeft() <= 0) {
+            reload();
+            return;
+        }
+        if (!aiming) aiming = true;
+        fireCool = weapon.delay;
+        lastShotDraw = time;
+        ammo.put(weapon.id, ammoLeft() - 1);
+        player.yaw = camYaw;
+        aimRay();
+        aimEye();
+        float ox = eye[0], oy = eye[1], oz = eye[2];
+        float rx = (float) Math.cos(camYaw), rz = (float) Math.sin(camYaw);
+        float mx = player.x + rx * 0.33f + fwd[0] * (0.55f + weapon.length),
+                my = 1.38f - aimPitch * 0.3f, mz = player.z + rz * 0.33f + fwd[2] * (0.55f + weapon.length);
+        boolean moving = player.walk > 0.3f;
+        float spr = weapon.spread * (moving ? 1.7f : 1) + bloom * 0.02f;
+        boolean anyKill = false, anyHit = false, head = false;
+        Person victim = null;
+        for (int k = 0; k < weapon.pellets; k++) {
+            float dx = fwd[0] + (rnd.nextFloat() - 0.5f) * 2 * spr;
+            float dy = fwd[1] + (rnd.nextFloat() - 0.5f) * 2 * spr;
+            float dz = fwd[2] + (rnd.nextFloat() - 0.5f) * 2 * spr;
+            float l = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            dx /= l;
+            dy /= l;
+            dz /= l;
+            float tw = rayWorld(ox, oy, oz, dx, dy, dz, weapon.range);
+            Person hitP = null;
+            boolean hitHead = false;
+            float tp = tw;
+            for (Person p : people) {
+                if (!p.active || p.hidden) continue;
+                float t = rayPerson(p, ox, oy, oz, dx, dy, dz, headOut);
+                if (t > 0 && t < tp) {
+                    tp = t;
+                    hitP = p;
+                    hitHead = headOut[0];
+                }
+            }
+            int tgt = rangeHit(ox, oy, oz, dx, dy, dz, Math.min(tp, tw));
+            float hx = ox + dx * tp, hy = oy + dy * tp, hz = oz + dz * tp;
+            if (tgt >= 0) {
+                float[] rt = rangeTargets.get(tgt);
+                tp = rt[6];
+                hx = ox + dx * tp;
+                hy = oy + dy * tp;
+                hz = oz + dz * tp;
+                hitP = null;
+            }
+            if (k < 3) tracers.add(new float[]{mx, my, mz, hx, hy, hz, 0.07f});
+            if (hitP != null) {
+                anyHit = true;
+                float dmg = weapon.damage * (hitHead ? weapon.headMult : 1);
+                if (weapon.pellets > 1) dmg *= Math.max(0.3f, 1 - tp / weapon.range);
+                boolean died = damage(hitP, dmg, dx, dz, hitHead);
+                if (died) {
+                    anyKill = true;
+                    head |= hitHead;
+                }
+                victim = hitP;
+            } else if (tgt < 0 && tw < weapon.range) {
+                for (int i = 0; i < 4; i++) {
+                    sparks.add(new float[]{hx - dx * 0.05f, hy, hz - dz * 0.05f,
+                            -dx * 1.5f + (rnd.nextFloat() - 0.5f) * 2, rnd.nextFloat() * 2,
+                            -dz * 1.5f + (rnd.nextFloat() - 0.5f) * 2, 0.35f});
+                }
+            }
+        }
+        if (anyHit) {
+            markT = time;
+            markKind = anyKill ? (head ? 3 : 2) : 1;
+        }
+        recoil += weapon.pellets > 1 ? 0.06f : (weapon.auto ? 0.012f : 0.035f);
+        aimPitch -= weapon.pellets > 1 ? 0.05f : (weapon.auto ? 0.01f : 0.03f);
+        aimPitch = Math.max(-0.7f, aimPitch);
+        bloom = Math.min(2, bloom + (weapon.auto ? 0.25f : 0.6f));
+        player.shake = Math.max(player.shake, weapon.pellets > 1 ? 0.12f : 0.05f);
+        float loud = silenced() ? 0.12f : weapon.loud;
+        sounds |= silenced() ? 8 : 4;
+        if (!inRange(player.x, player.z)) {
+            heard(loud, victim);
+            if (anyHit) armedThreat = true;
+        }
+    }
+
+    boolean silenced() {
+        return silencer && weapon == CasinoWeapons.PISTOL;
+    }
+
+    private final boolean[] headOut = new boolean[1];
+    private float lastShotDraw = -9;
+
+    /** The knife: a quiet kill on whoever's right in front of you. */
+    private void stab() {
+        fireCool = weapon.delay;
+        player.punch = PUNCH_TIME;
+        Person p = target(1.5f, 0.8f);
+        if (p == null) {
+            sounds |= 2;
+            return;
+        }
+        sounds |= 1;
+        float fx = (float) Math.sin(player.yaw), fz = (float) -Math.cos(player.yaw);
+        boolean seen = witnessed(0.8f, true, p);
+        if (p.target && seen) targetWitnessed = true;
+        damage(p, weapon.damage, fx, fz, false);
+        markT = time;
+        markKind = 2;
+    }
+
+    /** Hurts someone. Returns true if that killed them. */
+    private boolean damage(Person p, float dmg, float dx, float dz, boolean head) {
+        if (p.dead) return false;
+        p.hitAt = time;
+        p.health -= dmg;
+        spray(p.x, (head ? 1.7f : 1.25f) * p.scale, p.z, dx, dz, head ? 18 : 10);
+        p.bleed = 20;
+        if (p.health <= 0) {
+            p.kx = dx * 2.5f;
+            p.kz = dz * 2.5f;
+            p.yaw = (float) Math.atan2(-dx, dz);
+            if (p.kind == GUARD && !p.target) raiseAlarm("You shot a guard.");
+            kill(p, KILL_SHOT);
+            return true;
+        }
+        // Still standing: stagger, and either run or come for you.
+        p.kx = dx * 1.2f;
+        p.kz = dz * 1.2f;
+        p.ko = false;
+        if (p.kind == GUARD) raiseAlarm("A guard took a bullet.");
+        else {
+            p.flee = 6;
+            say(p, PANIC);
+        }
+        return false;
+    }
+
+    /** Everyone within earshot reacts to a gunshot. */
+    private void heard(float loud, Person victim) {
+        float r = loud * 28;
+        boolean guardKnows = false;
+        for (Person w : people) {
+            if (!awake(w) || w == victim) continue;
+            float d = dist(w, player);
+            if (d > r) continue;
+            boolean sees = canSee(w, player.x, player.z, 16);
+            if (w.kind == GUARD) {
+                if (sees || d < r * 0.5f) guardKnows = true;
+            } else if (w.kind != ROUTE || !w.target) {
+                if (sees || rnd.nextFloat() < 0.6f) {
+                    w.flee = 5 + rnd.nextFloat() * 3;
+                    if (rnd.nextFloat() < 0.5f) say(w, PANIC);
+                }
+                if (sees) suspicion += 0.5f;
+            }
+            if (w.target && sees) targetWitnessed = true;
+        }
+        if (guardKnows) raiseAlarm("Shots fired.");
+        else if (loud > 0.3f) suspicion = Math.min(0.95f, suspicion + 0.3f);
+        if (suspicion >= 1 && !alarm) raiseAlarm("Someone saw you shoot.");
+        if (contract != null && (guardKnows || suspicion > 0.6f)) spotted = true;
+    }
+
+    private void guardFires(Person g, float d) {
+        sounds |= 16;
+        float chance = 0.62f - d * 0.018f - (player.walk > 0.3f ? 0.15f : 0)
+                - (aiming ? 0 : 0.05f);
+        boolean hit = rnd.nextFloat() < Math.max(0.12f, chance);
+        float fx = (float) Math.sin(g.yaw), fz = (float) -Math.cos(g.yaw);
+        float sx = g.x + fx * 0.6f, sz = g.z + fz * 0.6f;
+        float tx = player.x + (hit ? 0 : (rnd.nextFloat() - 0.5f) * 1.6f);
+        float tz = player.z + (hit ? 0 : (rnd.nextFloat() - 0.5f) * 1.6f);
+        tracers.add(new float[]{sx, 1.4f, sz, tx, hit ? 1.3f : 0.8f + rnd.nextFloat(), tz,
+                0.07f});
+        g.punch = PUNCH_TIME * 0.5f;
+        if (!hit) return;
+        health -= 16 + rnd.nextFloat() * 8;
+        hurtT = 0;
+        player.shake = 0.3f;
+        player.bleed = 6;
+        spray(player.x, 1.3f, player.z, fx, fz, 8);
+        if (health <= 0 && escort <= 0) {
+            health = 0;
+            downed = true;
+            dragging = null;
+            escort = 1.6f;
+            aiming = false;
+        }
+    }
+
+    // ---------------------------------------------------------------- the practice range
+
+    /** Pop-up targets: x, z, up (0 flat..1 standing), state (0 down, 1 up, 2 hit),
+     * timer, row, last hit distance. */
+    final List<float[]> rangeTargets = new ArrayList<>();
+    boolean rangeOn, rangeDone;
+    float rangeTime, rangeSpawn;
+    int rangeScore, rangeHits, rangeHeads, rangeShots;
+    static final float ROUND = 40;
+
+    void setupRange() {
+        rangeTargets.clear();
+        float[] rows = {35.0f, 38.0f, 41.0f};
+        for (int r = 0; r < 3; r++) {
+            for (int i = 0; i < 4; i++) {
+                rangeTargets.add(new float[]{38.6f + i * 2.4f + (r % 2) * 0.6f, rows[r], 0, 0, 0, r,
+                        0});
+            }
+        }
+    }
+
+    void startRound() {
+        rangeOn = true;
+        rangeDone = false;
+        rangeTime = ROUND;
+        rangeSpawn = 1;
+        rangeScore = rangeHits = rangeHeads = 0;
+        for (float[] t : rangeTargets) {
+            t[2] = 0;
+            t[3] = 0;
+        }
+    }
+
+    private void updateRange(float dt) {
+        if (rangeTargets.isEmpty()) setupRange();
+        for (float[] t : rangeTargets) {
+            float want = t[3] == 1 ? 1 : 0;
+            t[2] += Math.max(-dt * 4, Math.min(dt * 5, want - t[2]));
+            if (t[3] == 1) {
+                t[4] -= dt;
+                if (t[4] <= 0) t[3] = 0;
+            } else if (t[3] == 2 && t[2] <= 0.01f) {
+                t[3] = 0;
+            }
+        }
+        if (!rangeOn) return;
+        rangeTime -= dt;
+        rangeSpawn -= dt;
+        if (rangeSpawn <= 0) {
+            rangeSpawn = 0.55f + rnd.nextFloat() * 0.5f;
+            int tries = 0;
+            while (tries++ < 10) {
+                float[] t = rangeTargets.get(rnd.nextInt(rangeTargets.size()));
+                if (t[3] != 0 || t[2] > 0.05f) continue;
+                t[3] = 1;
+                t[4] = 2.4f - t[5] * 0.25f;
+                break;
+            }
+        }
+        if (rangeTime <= 0) {
+            rangeOn = false;
+            rangeDone = true;
+            for (float[] t : rangeTargets) t[3] = 0;
+        }
+    }
+
+    /** Which standing target a ray hits before maxT, or -1. Scores it. */
+    private int rangeHit(float ox, float oy, float oz, float dx, float dy, float dz,
+                         float maxT) {
+        int best = -1;
+        float bestT = maxT;
+        boolean head = false;
+        for (int i = 0; i < rangeTargets.size(); i++) {
+            float[] t = rangeTargets.get(i);
+            if (t[3] != 1 || t[2] < 0.7f) continue;
+            float tb = rayBox(ox, oy, oz, dx, dy, dz, t[0] - 0.28f, 0.55f, t[1] - 0.04f,
+                    t[0] + 0.28f, 1.45f, t[1] + 0.04f);
+            float th = rayBox(ox, oy, oz, dx, dy, dz, t[0] - 0.14f, 1.5f, t[1] - 0.04f,
+                    t[0] + 0.14f, 1.8f, t[1] + 0.04f);
+            if (th >= 0 && th < bestT) {
+                bestT = th;
+                best = i;
+                head = true;
+            }
+            if (tb >= 0 && tb < bestT) {
+                bestT = tb;
+                best = i;
+                head = false;
+            }
+        }
+        if (best < 0) return -1;
+        float[] t = rangeTargets.get(best);
+        t[3] = 2;
+        t[6] = bestT;
+        sounds |= 32;
+        if (rangeOn) {
+            rangeHits++;
+            if (head) rangeHeads++;
+            rangeScore += (head ? 25 : 10) + (int) t[5] * 5;
+        }
+        markT = time;
+        markKind = head ? 3 : 1;
+        return best;
+    }
+
+    private void drawRange(PartSink s) {
+        for (float[] t : rangeTargets) {
+            if (far(t[0], t[1])) continue;
+            box(s, t[0], 0.3f * t[2], t[1] + 0.06f, 0.08f, 0.6f * t[2] + 0.02f, 0.08f, 0xFF2A2420, 0);
+            Mat.identity(tmp);
+            Mat.translate(tmp, t[0], 0.06f + 0.49f * t[2], t[1]);
+            Mat.rotX(tmp, -(1 - t[2]) * 1.5f);
+            float[] base = tmp.clone();
+            rpart(s, base, 0, 0.45f, 0, 0.56f, 0.9f, 0.05f, 0xFFC8A070, 0.1f);
+            rpart(s, base, 0, 1.1f, 0, 0.28f, 0.3f, 0.05f, 0xFFC8A070, 0.1f);
+            rpart(s, base, 0, 0.6f, -0.03f, 0.26f, 0.26f, 0.01f, 0xFFF2F2F2, 0.3f);
+            rpart(s, base, 0, 0.6f, -0.035f, 0.12f, 0.12f, 0.01f, 0xFFE02020, 0.6f);
+        }
+    }
+
+    private void rpart(PartSink s, float[] at, float x, float y, float z, float w, float h,
+                       float d, int c, float glow) {
+        copy(tmp, at);
+        Mat.translate(tmp, x, y, z);
+        Mat.scale(tmp, w, h, d);
+        s.part(tmp, c, glow);
+    }
+
+    // ---------------------------------------------------------------- rays
+
+    /** Distance along a ray to the first wall, door or the ground (or max). */
+    float rayWorld(float ox, float oy, float oz, float dx, float dy, float dz, float max) {
+        float best = max;
+        if (dy < -1e-5f) best = Math.min(best, -oy / dy);
+        for (float[] w : walls) {
+            float y0 = w.length > 5 ? w[5] : 0;
+            float t = rayBox(ox, oy, oz, dx, dy, dz, w[0], y0, w[1], w[2], w[4], w[3]);
+            if (t >= 0 && t < best) best = t;
+        }
+        for (Door d : doors) {
+            if (!d.shut()) continue;
+            float[] b = d.box();
+            float t = rayBox(ox, oy, oz, dx, dy, dz, b[0], 0, b[1], b[2], 2.5f, b[3]);
+            if (t >= 0 && t < best) best = t;
         }
         return best;
     }
 
-    void shoot() {
-        if (!hasPistol || escort > 0 || dragging != null) return;
-        sounds |= 4;
-        player.yaw = camYaw;
-        player.punch = PUNCH_TIME * 0.6f;
-        Person p = aimTarget();
-        boolean seen = witnessed(1.0f, true, p);
-        if (p == null) return;
-        float dx = p.x - player.x, dz = p.z - player.z;
-        float d = Math.max(0.01f, (float) Math.hypot(dx, dz));
-        p.kx = dx / d * 2.5f;
-        p.kz = dz / d * 2.5f;
-        p.yaw = (float) Math.atan2(-dx, dz);
-        spray(p.x, 1.4f * p.scale, p.z, dx / d, dz / d, 22);
-        if (p.target && seen) targetWitnessed = true;
-        if (p.kind == GUARD && !p.target) raiseAlarm("You shot a guard.");
-        kill(p, KILL_SHOT);
+    static float rayBox(float ox, float oy, float oz, float dx, float dy, float dz, float x0,
+                        float y0, float z0, float x1, float y1, float z1) {
+        float tmin = 0, tmax = 1e9f;
+        float[] o = {ox, oy, oz}, dd = {dx, dy, dz}, lo = {x0, y0, z0}, hi = {x1, y1, z1};
+        for (int i = 0; i < 3; i++) {
+            if (Math.abs(dd[i]) < 1e-7f) {
+                if (o[i] < lo[i] || o[i] > hi[i]) return -1;
+            } else {
+                float t1 = (lo[i] - o[i]) / dd[i], t2 = (hi[i] - o[i]) / dd[i];
+                if (t1 > t2) {
+                    float t = t1;
+                    t1 = t2;
+                    t2 = t;
+                }
+                tmin = Math.max(tmin, t1);
+                tmax = Math.min(tmax, t2);
+                if (tmin > tmax) return -1;
+            }
+        }
+        return tmin;
+    }
+
+    /** Distance along a ray to a person's body or head, or -1. head[0] says which. */
+    float rayPerson(Person p, float ox, float oy, float oz, float dx, float dy, float dz,
+                    boolean[] head) {
+        head[0] = false;
+        float sc = p.scale;
+        if (p.fall > 0.5f) {
+            float t = rayBox(ox, oy, oz, dx, dy, dz, p.x - 0.7f, 0, p.z - 0.7f, p.x + 0.7f,
+                    0.35f, p.z + 0.7f);
+            return t;
+        }
+        boolean sit = p.sitting;
+        float hy = (sit ? 1.48f : 1.70f) * sc, hr = 0.17f * sc;
+        // Head: a sphere.
+        float lx = ox - p.x, ly = oy - hy, lz = oz - p.z;
+        float b = lx * dx + ly * dy + lz * dz;
+        float c = lx * lx + ly * ly + lz * lz - hr * hr;
+        float disc = b * b - c;
+        float th = -1;
+        if (disc >= 0) {
+            th = -b - (float) Math.sqrt(disc);
+            if (th < 0) th = -1;
+        }
+        // Body: an upright cylinder.
+        float br = 0.27f * sc, y0 = sit ? 0.35f * sc : 0, y1 = (sit ? 1.3f : 1.52f) * sc;
+        float a2 = dx * dx + dz * dz;
+        float tb = -1;
+        if (a2 > 1e-8f) {
+            float b2 = 2 * (lx * dx + lz * dz);
+            float c2 = lx * lx + lz * lz - br * br;
+            float disc2 = b2 * b2 - 4 * a2 * c2;
+            if (disc2 >= 0) {
+                float t = (-b2 - (float) Math.sqrt(disc2)) / (2 * a2);
+                float y = oy + dy * t;
+                if (t > 0 && y >= y0 && y <= y1) tb = t;
+            }
+        }
+        if (th > 0 && (tb < 0 || th < tb + 0.1f)) {
+            head[0] = true;
+            return th;
+        }
+        return tb;
     }
 
     static final int KILL_TAKEDOWN = 0, KILL_SHOT = 1, KILL_CAR = 2, KILL_PUSH = 3;
@@ -2159,6 +2656,8 @@ final class CasinoWorld {
                 return !flags.contains("key:" + s.id);
             case HIDE:
                 return false;
+            case RANGE_START:
+                return !rangeOn && !alarm;
             default:
                 return true;
         }
@@ -2216,6 +2715,10 @@ final class CasinoWorld {
     // ================================================================== camera
 
     void camera(float aspect, float[] view, float[] proj, float[] eyeOut) {
+        if (aiming && weapon != null && escort <= 0) {
+            aimCamera(aspect, view, proj, eyeOut);
+            return;
+        }
         Person me = player;
         float tx = me.x, ty = 1.45f, tz = me.z;
         float cp = (float) Math.cos(camPitch), sp = (float) Math.sin(camPitch);
@@ -2241,11 +2744,65 @@ final class CasinoWorld {
         }
         Mat.lookAt(view, ex, ey, ez, tx, ty, tz);
         Mat.perspective(proj, 62, aspect, 0.1f, 80);
+        eye[0] = me.x + (float) Math.cos(camYaw) * 0.55f;
+        eye[1] = 1.62f;
+        eye[2] = me.z + (float) Math.sin(camYaw) * 0.55f;
         if (eyeOut != null) {
             eyeOut[0] = ex;
             eyeOut[1] = ey;
             eyeOut[2] = ez;
         }
+    }
+
+    /** Where the aiming camera sits: behind your right shoulder (sets eye). */
+    private void aimEye() {
+        Person me = player;
+        float rx = (float) Math.cos(camYaw), rz = (float) Math.sin(camYaw);
+        float sx = me.x + rx * 0.8f, sy = 1.78f, sz = me.z + rz * 0.8f;
+        float back = weapon != null && weapon.fov < 25 ? 0.2f : 2.0f;
+        int reg = regionAt(me.x, me.z);
+        if (blocked(sx, sy, sz) || regionAt(sx, sz) != reg) {
+            sx = me.x;
+            sz = me.z;
+        }
+        // Slide back from the shoulder until something's in the way.
+        float ok = 0;
+        for (int k = 1; k <= 10; k++) {
+            float t = back * k / 10;
+            float px = sx - fwd[0] * t, py = sy - fwd[1] * t, pz = sz - fwd[2] * t;
+            if (blocked(px, py, pz) || regionAt(px, pz) != reg) break;
+            ok = t;
+        }
+        ok = Math.max(0, ok - 0.15f);
+        float ex = sx - fwd[0] * ok, ey = sy - fwd[1] * ok, ez = sz - fwd[2] * ok;
+        eye[0] = ex;
+        eye[1] = ey;
+        eye[2] = ez;
+    }
+
+    /** Over the right shoulder, looking where the gun points. */
+    private void aimCamera(float aspect, float[] view, float[] proj, float[] eyeOut) {
+        Person me = player;
+        aimRay();
+        aimEye();
+        float ex = eye[0], ey = eye[1], ez = eye[2];
+        if (me.shake > 0) {
+            float k = me.shake * 0.05f;
+            ex += (float) Math.sin(time * 71) * k;
+            ey += (float) Math.cos(time * 53) * k;
+        }
+        eye[0] = ex;
+        eye[1] = ey;
+        eye[2] = ez;
+        Mat.lookAt(view, ex, ey, ez, ex + fwd[0] * 10, ey + fwd[1] * 10, ez + fwd[2] * 10);
+        Mat.perspective(proj, weapon.fov, aspect, 0.1f, 100);
+        if (eyeOut != null) System.arraycopy(eye, 0, eyeOut, 0, 3);
+    }
+
+    void aimLook(float dYaw, float dPitch) {
+        float k = weapon != null ? weapon.fov / 62f : 1;
+        camYaw += dYaw * k;
+        aimPitch = Math.max(-0.7f, Math.min(0.9f, aimPitch + dPitch * k));
     }
 
     private boolean blocked(float x, float y, float z) {
@@ -2357,6 +2914,24 @@ final class CasinoWorld {
         }
         drawDoors(sink);
         drawPickups(sink);
+        for (float[] t : tracers) {
+            float dx = t[3] - t[0], dy = t[4] - t[1], dz = t[5] - t[2];
+            float hz = (float) Math.hypot(dx, dz), len = (float) Math.hypot(hz, dy);
+            if (len < 0.05f) continue;
+            Mat.identity(tmp);
+            Mat.translate(tmp, (t[0] + t[3]) / 2, (t[1] + t[4]) / 2, (t[2] + t[5]) / 2);
+            Mat.rotY(tmp, (float) Math.atan2(-dz, dx));
+            Mat.rotZ(tmp, (float) Math.atan2(dy, hz));
+            Mat.scale(tmp, len, 0.018f, 0.018f);
+            sink.part(tmp, 0xFFFFE8A0, 1);
+        }
+        for (float[] p : sparks) {
+            Mat.identity(tmp);
+            Mat.translate(tmp, p[0], p[1], p[2]);
+            Mat.scale(tmp, 0.04f, 0.04f, 0.04f);
+            sink.part(tmp, 0xFFFFC870, 1);
+        }
+        drawRange(sink);
         drawCars(sink);
         // A small red marker over the contract target.
         if (targetP != null && targetP.active && !targetP.dead) {
@@ -2661,7 +3236,10 @@ final class CasinoWorld {
         if (p.outfit == COOK) {
             limb(s, joint, 0, 0.2f, -0.14f, 0.4f, 0.5f, 0.01f, 0xFFFFFFFF);
         }
-        boolean gun = p == player && hasPistol && p.punch > 0 && p.punch < PUNCH_TIME * 0.65f;
+        CasinoWeapons.Gun held = p == player ? weapon : null;
+        boolean gun = held != null && !held.melee && aiming;
+        boolean guardGun = p.kind == GUARD && alarm && armedThreat && !p.ko && !p.dead;
+        if (guardGun) gun = true;
         for (int side = -1; side <= 1; side += 2) {
             copy(shoulder, joint);
             Mat.translate(shoulder, 0.315f * side, 0.59f, 0);
@@ -2685,16 +3263,26 @@ final class CasinoWorld {
                     float out = t < 0.25f ? -t / 0.25f * 0.3f
                             : (t < 0.45f ? -0.3f + (t - 0.25f) / 0.2f * 1.9f
                             : 1.6f * (1 - (t - 0.45f) / 0.55f));
-                    if (gun) out = 1.55f;
                     a = out;
-                    elbow = gun ? 0 : Math.max(0, 1.6f - out * 1.6f) * 0.6f;
+                    elbow = Math.max(0, 1.6f - out * 1.6f) * 0.6f;
                 } else {
                     a = 0.9f;
                     elbow = 1.7f;
                 }
             }
+            if (gun) {
+                float ap = p == player ? aimPitch : 0;
+                boolean two = held != null && held.twoHand;
+                if (side == 1) {
+                    a = 1.57f - ap;
+                    elbow = 0;
+                } else if (two || p.kind == GUARD) {
+                    a = 1.45f - ap;
+                    elbow = 0.35f;
+                }
+            }
             Mat.rotX(shoulder, a);
-            Mat.rotZ(shoulder, 0.06f * side);
+            Mat.rotZ(shoulder, (gun && side == -1 ? -0.55f : 0.06f) * side);
             int sleeve = p.jacket != 0 ? p.jacket : p.shirt;
             limb(s, shoulder, 0, -0.16f, 0, 0.13f, 0.34f, 0.14f, sleeve);
             Mat.translate(shoulder, 0, -0.32f, 0);
@@ -2702,14 +3290,39 @@ final class CasinoWorld {
             limb(s, shoulder, 0, -0.14f, 0, 0.12f, 0.3f, 0.13f,
                     p.jacket != 0 ? p.jacket : (p.tie || p.outfit == COOK ? p.shirt : p.skin));
             limb(s, shoulder, 0, -0.32f, 0, 0.12f, 0.1f, 0.12f, p.skin);
+            if (held != null && held.melee && side == 1) {
+                limb(s, shoulder, 0, -0.43f, -0.03f, 0.03f, 0.16f, 0.05f, 0xFFC8CCD4);
+            }
             if (p.watch != 0 && side == -1) {
                 copy(tmp, shoulder);
                 Mat.translate(tmp, 0, -0.27f, 0);
                 Mat.scale(tmp, 0.135f, 0.05f, 0.145f);
                 s.part(tmp, p.watch, 0.45f);
             }
-            if (gun && side == 1) limb(s, shoulder, 0, -0.42f, -0.04f, 0.05f, 0.24f, 0.1f,
-                    0xFF1A1A1E);
+            if (gun && side == 1) {
+                float L = held != null ? held.length : 0.22f;
+                limb(s, shoulder, 0, -0.34f - L / 2, -0.05f, 0.06f, L, 0.1f, 0xFF1A1A1E);
+                if (held != null && held.twoHand) {
+                    limb(s, shoulder, 0, -0.3f, -0.08f, 0.07f, 0.24f, 0.16f, 0xFF3A2418);
+                }
+                if (held == CasinoWeapons.PISTOL && silencer) {
+                    limb(s, shoulder, 0, -0.34f - L - 0.08f, -0.05f, 0.05f, 0.16f, 0.05f,
+                            0xFF2A2A2E);
+                }
+                if (held != null && time - lastShotDraw < 0.05f) {
+                    copy(tmp, shoulder);
+                    Mat.translate(tmp, 0, -0.36f - L - 0.06f, -0.05f);
+                    Mat.scale(tmp, 0.12f, 0.12f, 0.12f);
+                    s.part(tmp, 0xFFFFD27A, 1);
+                }
+            }
+        }
+        if (held != null && !held.concealable && !aiming) {
+            copy(tmp, joint);
+            Mat.translate(tmp, 0, 0.35f, 0.17f);
+            Mat.rotZ(tmp, 0.7f);
+            Mat.scale(tmp, 0.07f, held.length + 0.25f, 0.08f);
+            s.part(tmp, 0xFF1A1A1E, 0);
         }
         limb(s, joint, 0, 0.66f, 0, 0.12f, 0.08f, 0.12f, p.skin);
         limb(s, joint, 0, 0.84f, 0, 0.28f, 0.3f, 0.28f, p.skin);

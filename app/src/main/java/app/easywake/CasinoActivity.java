@@ -50,7 +50,8 @@ public class CasinoActivity extends Activity {
     private volatile float stickX, stickY;
     private final Random rnd = new Random();
 
-    static final String FLAGS = "casinoFlags", PICKS = "lockpicks", STYLE = "casinoStyle";
+    static final String FLAGS = "casinoFlags", PICKS = "lockpicks", STYLE = "casinoStyle",
+            WEAPON = "casinoWeapon";
     private MapView mapView;
 
     @Override
@@ -67,6 +68,10 @@ public class CasinoActivity extends Activity {
         }
         world.applyFlags();
         world.hasPistol = world.flags.contains("item:pistol");
+        if (world.hasPistol) world.flags.add("own:pistol");
+        world.silencer = world.flags.contains("own:" + CasinoWeapons.SILENCER);
+        CasinoWeapons.Gun eq = CasinoWeapons.find(Prefs.getString(this, WEAPON));
+        if (eq != null && world.flags.contains("own:" + eq.id)) world.equip(eq);
         world.worn = CasinoShop.parseWorn(Prefs.getString(this, STYLE));
         world.ownClothes();
         if (Prefs.getInt(this, PICKS, -1) < 0) Prefs.putInt(this, PICKS, 5);
@@ -247,7 +252,21 @@ public class CasinoActivity extends Activity {
                 break;
             case CasinoWorld.SHOP:
                 if (CasinoShop.PAWN.equals(s.id)) shop();
+                else if ("range".equals(s.id)) gunShop();
                 else store(s.id);
+                break;
+            case CasinoWorld.RANGE_START:
+                if (world.weapon == null || world.weapon.melee) {
+                    overlay.show("Get a gun at the counter first, then pick it with the gun button.");
+                    break;
+                }
+                synchronized (world) {
+                    world.startRound();
+                    world.aiming = true;
+                    world.camYaw = (float) Math.PI;
+                    world.aimPitch = 0.08f;
+                }
+                overlay.show("Targets pop up for 40 seconds. Heads are worth more.");
                 break;
             default:
                 break;
@@ -343,7 +362,7 @@ public class CasinoActivity extends Activity {
                 overlay.show("Five lockpicks. Don't tell me what for.");
             }
         });
-        if (!gun) {
+        if (false) {
             items.add("A quiet pistol — 750");
             acts.add(new Runnable() {
                 @Override
@@ -367,6 +386,127 @@ public class CasinoActivity extends Activity {
                         acts.get(which).run();
                     }
                 }).setNegativeButton("Leave", null).show();
+    }
+
+    /** The Bullseye Range counter: guns, the silencer, and what you're carrying. */
+    private void gunShop() {
+        final List<String> items = new ArrayList<>();
+        final List<Runnable> acts = new ArrayList<>();
+        for (final CasinoWeapons.Gun g : CasinoWeapons.ALL) {
+            boolean own = owns(g.id);
+            String tag = g.concealable ? "hidden carry" : "open carry";
+            items.add(g.name + " (" + tag + ") — " + (own ? (g == world.weapon ? "in hand"
+                    : "owned: equip") : String.format(Locale.US, "%,d", g.price)));
+            acts.add(new Runnable() {
+                @Override
+                public void run() {
+                    if (owns(g.id)) {
+                        equip(g);
+                        return;
+                    }
+                    confirmBuy(g.name, g.price, new Runnable() {
+                        @Override
+                        public void run() {
+                            synchronized (world) {
+                                world.flags.add("own:" + g.id);
+                                if (g == CasinoWeapons.PISTOL) {
+                                    world.flags.add("item:pistol");
+                                    world.hasPistol = true;
+                                }
+                            }
+                            saveFlags();
+                            equip(g);
+                        }
+                    });
+                }
+            });
+        }
+        if (!owns(CasinoWeapons.SILENCER)) {
+            items.add(String.format(Locale.US, "Silencer for the pistol — %,d",
+                    CasinoWeapons.SILENCER_PRICE));
+            acts.add(new Runnable() {
+                @Override
+                public void run() {
+                    confirmBuy("Silencer", CasinoWeapons.SILENCER_PRICE, new Runnable() {
+                        @Override
+                        public void run() {
+                            synchronized (world) {
+                                world.flags.add("own:" + CasinoWeapons.SILENCER);
+                                world.silencer = true;
+                            }
+                            saveFlags();
+                            overlay.show("Silencer on. Pistol shots barely make a sound now.");
+                        }
+                    });
+                }
+            });
+        }
+        int best = Prefs.getInt(this, "rangeBest", 0);
+        new AlertDialog.Builder(this).setTitle(String.format(Locale.US,
+                        "Bullseye Range  •  %,d coupons  •  best %d", Wallet.coupons(this), best))
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        acts.get(which).run();
+                    }
+                }).setNegativeButton("Leave", null).show();
+    }
+
+    private void confirmBuy(String name, final int price, final Runnable then) {
+        new AlertDialog.Builder(this).setTitle(name)
+                .setMessage(String.format(Locale.US, "Buy for %,d coupons? You have %,d.",
+                        price, Wallet.coupons(this)))
+                .setPositiveButton("Buy", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        if (pay(price)) then.run();
+                    }
+                }).setNegativeButton("No", null).show();
+    }
+
+    private void equip(CasinoWeapons.Gun g) {
+        synchronized (world) {
+            world.equip(g);
+        }
+        Prefs.putString(this, WEAPON, g == null ? "" : g.id);
+        overlay.show(g == null ? "Fists." : "In hand: " + g.name
+                + (g.concealable ? " (hidden until you aim)" : " (people can see it)"));
+    }
+
+    /** Fists, then each gun you own, in order. */
+    private void nextWeapon() {
+        CasinoWeapons.Gun cur = world.weapon;
+        List<CasinoWeapons.Gun> mine = new ArrayList<>();
+        mine.add(null);
+        for (CasinoWeapons.Gun g : CasinoWeapons.ALL) {
+            if (owns(g.id)) mine.add(g);
+        }
+        if (mine.size() == 1) {
+            overlay.show("No weapons yet. The Bullseye Range across the street sells them.");
+            return;
+        }
+        int i = mine.indexOf(cur);
+        equip(mine.get((i + 1) % mine.size()));
+    }
+
+    private void rangeFinished() {
+        int score, hits, heads;
+        synchronized (world) {
+            if (!world.rangeDone) return;
+            world.rangeDone = false;
+            world.aiming = false;
+            score = world.rangeScore;
+            hits = world.rangeHits;
+            heads = world.rangeHeads;
+        }
+        int best = Prefs.getInt(this, "rangeBest", 0);
+        int pay = score / 4;
+        if (pay > 0) Wallet.addCoupons(this, pay);
+        if (score > best) Prefs.putInt(this, "rangeBest", score);
+        Sfx.play(this, score > best ? Sfx.BIG_WIN : Sfx.WIN);
+        info(score > best ? "New best!" : "Round over", String.format(Locale.US,
+                "Score: %d\nTargets hit: %d (%d headshots)\nBest: %d\n\nPrize: %,d coupons",
+                score, hits, heads, Math.max(best, score), pay));
     }
 
     /** Threads or Gold Rush. */
@@ -442,9 +582,17 @@ public class CasinoActivity extends Activity {
         acts.add(null);
         items.add("Lockpicks: " + picks() + (owns("propicks") ? "  (pro set: never snap)" : ""));
         acts.add(null);
-        if (world.hasPistol) {
-            items.add("Quiet pistol");
-            acts.add(null);
+        for (final CasinoWeapons.Gun g : CasinoWeapons.ALL) {
+            if (!owns(g.id)) continue;
+            items.add((g == world.weapon ? "✓ " : "") + g.name
+                    + (g == CasinoWeapons.PISTOL && world.silencer ? " + silencer" : "")
+                    + (g == world.weapon ? "  (in hand)" : "  (tap to hold)"));
+            acts.add(new Runnable() {
+                @Override
+                public void run() {
+                    equip(g);
+                }
+            });
         }
         if (world.flags.contains("key:hlkey")) {
             items.add("High Limit key card");
@@ -1283,23 +1431,29 @@ public class CasinoActivity extends Activity {
             float dt = (now - last) / 1000f;
             last = now;
             final int sounds;
-            final boolean finished;
+            final boolean finished, rangeOver;
             synchronized (world) {
                 world.update(dt, stickX, stickY);
                 sounds = world.sounds;
                 finished = world.contractDone;
+                rangeOver = world.rangeDone;
                 world.camera(glW / (float) Math.max(1, glH), view, proj, eye);
                 CasinoWorld.Mat.mul(vp, proj, view);
                 System.arraycopy(vp, 0, viewProj, 0, 16);
             }
-            if (sounds != 0 || finished) {
+            if (sounds != 0 || finished || rangeOver) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        if ((sounds & 32) != 0) Sfx.play(CasinoActivity.this, Sfx.PEG);
+                        if ((sounds & 64) != 0) Sfx.play(CasinoActivity.this, Sfx.CLICK);
+                        if ((sounds & 8) != 0) Sfx.play(CasinoActivity.this, Sfx.SILENCED);
+                        if ((sounds & 16) != 0) Sfx.play(CasinoActivity.this, Sfx.SHOT);
                         if ((sounds & 4) != 0) Sfx.play(CasinoActivity.this, Sfx.SHOT);
                         else if ((sounds & 1) != 0) Sfx.play(CasinoActivity.this, Sfx.PUNCH);
                         else if ((sounds & 2) != 0) Sfx.play(CasinoActivity.this, Sfx.WHOOSH);
                         if (finished) contractFinished();
+                        if (rangeOver) rangeFinished();
                     }
                 });
             }
@@ -1600,6 +1754,9 @@ public class CasinoActivity extends Activity {
         private final float[] vpCopy = new float[16];
         private int stickId = -1, lookId = -1;
         private float stickCx, stickCy, stickPx, stickPy, lookX, lookY;
+        private final RectF fireBtn = new RectF(), aimBtn = new RectF(), reloadBtn = new RectF(),
+                gunBtn = new RectF();
+        private int firePointer = -1;
         private final RectF punchBtn = new RectF(), shootBtn = new RectF(),
                 backBtn = new RectF(), phoneBtn = new RectF(), jobsBtn = new RectF(),
                 bagBtn = new RectF(), miniBtn = new RectF();
@@ -1761,25 +1918,7 @@ public class CasinoActivity extends Activity {
                 c.drawCircle(100 * d, h - 100 * d, 24 * d, paint);
             }
 
-            float pr = 36 * d;
-            punchBtn.set(w - 24 * d - 2 * pr, h - 24 * d - 2 * pr, w - 24 * d, h - 24 * d);
-            paint.setColor(0x99B71C1C);
-            c.drawOval(punchBtn, paint);
-            paint.setColor(0xFFFFFFFF);
-            paint.setTextSize(13 * d);
-            c.drawText("PUNCH", punchBtn.centerX(), punchBtn.centerY() + 5 * d, paint);
-            if (pistol) {
-                shootBtn.set(punchBtn.left - 16 * d - 2 * pr * 0.8f, h - 24 * d - 2 * pr * 0.8f,
-                        punchBtn.left - 16 * d, h - 24 * d);
-                paint.setColor(0x99202024);
-                c.drawOval(shootBtn, paint);
-                paint.setColor(0xFFFFFFFF);
-                c.drawText("SHOOT", shootBtn.centerX(), shootBtn.centerY() + 5 * d, paint);
-                paint.setColor(0x88FFFFFF);
-                c.drawCircle(w / 2f, h * 0.45f, 3 * d, paint);
-            } else {
-                shootBtn.setEmpty();
-            }
+            combatHud(c, w, h);
 
             actionBtns.clear();
             float by = h - 84 * d;
@@ -1813,6 +1952,143 @@ public class CasinoActivity extends Activity {
                 float k = escort > 0.6f ? (1.4f - escort) / 0.8f : escort / 0.6f;
                 paint.setColor(((int) (Math.max(0, Math.min(1, k)) * 255) << 24));
                 c.drawRect(0, 0, w, h, paint);
+            }
+        }
+
+        /** Punch / fire / aim / reload / weapon buttons, crosshair, health and range score. */
+        private void combatHud(Canvas c, int w, int h) {
+            CasinoWeapons.Gun g;
+            boolean aiming, reloading, rangeOn;
+            int ammo, score, markKind;
+            float health, hurtT, bloom, markAge, rangeTime;
+            synchronized (world) {
+                g = world.weapon;
+                aiming = world.aiming;
+                reloading = world.reloadT > 0;
+                ammo = world.ammoLeft();
+                health = world.health;
+                hurtT = world.hurtT;
+                bloom = world.bloom;
+                markAge = world.time - world.markT;
+                markKind = world.markKind;
+                rangeOn = world.rangeOn;
+                rangeTime = world.rangeTime;
+                score = world.rangeScore;
+            }
+            float pr = 36 * d;
+            boolean armed = g != null;
+            // The big button: punch with fists, fire with a weapon.
+            fireBtn.set(w - 24 * d - 2 * pr, h - 24 * d - 2 * pr, w - 24 * d, h - 24 * d);
+            paint.setColor(armed ? (firePointer >= 0 ? 0xDDFF4A3A : 0x99B71C1C) : 0x99B71C1C);
+            c.drawOval(fireBtn, paint);
+            paint.setColor(0xFFFFFFFF);
+            paint.setTextSize(13 * d);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            c.drawText(!armed ? "PUNCH" : (g.melee ? "STAB" : "FIRE"), fireBtn.centerX(),
+                    fireBtn.centerY() + 5 * d, paint);
+            punchBtn.setEmpty();
+            float sr = 26 * d;
+            if (armed && !g.melee) {
+                // Punch still works next to it; aim above it; reload beside aim.
+                punchBtn.set(fireBtn.left - 12 * d - 2 * sr, h - 30 * d - 2 * sr,
+                        fireBtn.left - 12 * d, h - 30 * d);
+                paint.setColor(0x77B71C1C);
+                c.drawOval(punchBtn, paint);
+                paint.setColor(0xFFFFFFFF);
+                paint.setTextSize(11 * d);
+                c.drawText("PUNCH", punchBtn.centerX(), punchBtn.centerY() + 4 * d, paint);
+                aimBtn.set(fireBtn.centerX() - sr, fireBtn.top - 14 * d - 2 * sr,
+                        fireBtn.centerX() + sr, fireBtn.top - 14 * d);
+                paint.setColor(aiming ? 0xDDE6B869 : 0x88000000);
+                c.drawOval(aimBtn, paint);
+                paint.setColor(aiming ? 0xFF1A120C : 0xFFFFFFFF);
+                c.drawText(aiming ? "LOWER" : "AIM", aimBtn.centerX(), aimBtn.centerY() + 4 * d,
+                        paint);
+                reloadBtn.set(aimBtn.left - 12 * d - 2 * sr * 0.8f, aimBtn.top + sr * 0.4f,
+                        aimBtn.left - 12 * d, aimBtn.top + sr * 0.4f + 2 * sr * 0.8f);
+                paint.setColor(0x88000000);
+                c.drawOval(reloadBtn, paint);
+                paint.setColor(0xFFFFFFFF);
+                paint.setTextSize(10 * d);
+                c.drawText("RELOAD", reloadBtn.centerX(), reloadBtn.centerY() + 4 * d, paint);
+            } else {
+                aimBtn.setEmpty();
+                reloadBtn.setEmpty();
+            }
+            // Weapon switch with the ammo count.
+            String label = !armed ? "Fists" : g.name + (g.melee ? "" : (reloading
+                    ? "  reloading…" : "  " + ammo + "/" + g.mag));
+            paint.setTextSize(12 * d);
+            float tw = paint.measureText(label) + 34 * d;
+            float gy = armed && !g.melee ? aimBtn.top - 46 * d : fireBtn.top - 46 * d;
+            gunBtn.set(w - 24 * d - tw, gy, w - 24 * d, gy + 34 * d);
+            paint.setColor(0x99000000);
+            c.drawRoundRect(gunBtn, 17 * d, 17 * d, paint);
+            paint.setColor(ammo == 0 && armed && !g.melee ? 0xFFFF6A5A : 0xFFE6B869);
+            c.drawText("⇄ " + label, gunBtn.centerX(), gunBtn.centerY() + 4 * d, paint);
+
+            // Crosshair, scope, hit marker.
+            float cx = w / 2f, cy = h / 2f;
+            if (aiming && armed && !g.melee) {
+                if (g.fov < 25) {
+                    float r = Math.min(w, h) * 0.46f;
+                    Path p = new Path();
+                    p.setFillType(Path.FillType.EVEN_ODD);
+                    p.addRect(0, 0, w, h, Path.Direction.CW);
+                    p.addCircle(cx, cy, r, Path.Direction.CW);
+                    paint.setColor(0xF0000000);
+                    c.drawPath(p, paint);
+                    paint.setColor(0xCC000000);
+                    c.drawRect(cx - r, cy - 0.7f * d, cx + r, cy + 0.7f * d, paint);
+                    c.drawRect(cx - 0.7f * d, cy - r, cx + 0.7f * d, cy + r, paint);
+                    paint.setColor(0xFFFF3030);
+                    c.drawCircle(cx, cy, 2 * d, paint);
+                } else {
+                    float gap = (6 + bloom * 8 + g.spread * 300) * d, len = 8 * d;
+                    paint.setColor(0xEEFFFFFF);
+                    c.drawRect(cx - gap - len, cy - d, cx - gap, cy + d, paint);
+                    c.drawRect(cx + gap, cy - d, cx + gap + len, cy + d, paint);
+                    c.drawRect(cx - d, cy - gap - len, cx + d, cy - gap, paint);
+                    c.drawRect(cx - d, cy + gap, cx + d, cy + gap + len, paint);
+                    paint.setColor(0xFFFF3030);
+                    c.drawCircle(cx, cy, 1.5f * d, paint);
+                }
+            }
+            if (markAge < 0.35f && markKind > 0) {
+                int col = markKind == 1 ? 0xFFFFFFFF : 0xFFFF3030;
+                paint.setColor(col);
+                paint.setStrokeWidth(2.5f * d);
+                float m1 = 7 * d, m2 = 14 * d;
+                c.drawLine(cx - m2, cy - m2, cx - m1, cy - m1, paint);
+                c.drawLine(cx + m2, cy - m2, cx + m1, cy - m1, paint);
+                c.drawLine(cx - m2, cy + m2, cx - m1, cy + m1, paint);
+                c.drawLine(cx + m2, cy + m2, cx + m1, cy + m1, paint);
+                if (markKind == 3) {
+                    paint.setTextSize(13 * d);
+                    c.drawText("HEADSHOT", cx, cy - 22 * d, paint);
+                }
+            }
+            // Health: a bar under your coupons, and red edges when you're hit.
+            if (health < 99.5f) {
+                RectF bar = new RectF(64 * d, 54 * d, 184 * d, 60 * d);
+                paint.setColor(0x88000000);
+                c.drawRect(bar, paint);
+                paint.setColor(health > 50 ? 0xFF6CFF8A : (health > 25 ? 0xFFFFC040 : 0xFFFF3030));
+                c.drawRect(bar.left, bar.top, bar.left + bar.width() * health / 100, bar.bottom,
+                        paint);
+            }
+            if (hurtT < 0.6f || health < 30) {
+                int a = (int) (Math.max(health < 30 ? 0.35f : 0, 0.5f * (1 - hurtT / 0.6f)) * 255);
+                paint.setShader(new android.graphics.RadialGradient(cx, cy, Math.max(w, h) * 0.6f,
+                        0x00000000, (a << 24) | 0xB00000, Shader.TileMode.CLAMP));
+                c.drawRect(0, 0, w, h, paint);
+                paint.setShader(null);
+            }
+            if (rangeOn) {
+                paint.setTextSize(22 * d);
+                paint.setColor(0xFFFFE8A8);
+                c.drawText(String.format(Locale.US, "0:%02d   •   %d pts", (int) Math.ceil(rangeTime),
+                        score), cx, 92 * d, paint);
             }
         }
 
@@ -1982,16 +2258,38 @@ public class CasinoActivity extends Activity {
                         else openMap();
                         return true;
                     }
-                    if (punchBtn.contains(x, y)) {
+                    if (fireBtn.contains(x, y)) {
+                        synchronized (world) {
+                            if (world.weapon == null) world.punch();
+                            else {
+                                world.triggerHeld = true;
+                                world.fire();
+                            }
+                        }
+                        firePointer = id;
+                        return true;
+                    }
+                    if (!punchBtn.isEmpty() && punchBtn.contains(x, y)) {
                         synchronized (world) {
                             world.punch();
                         }
                         return true;
                     }
-                    if (!shootBtn.isEmpty() && shootBtn.contains(x, y)) {
+                    if (!aimBtn.isEmpty() && aimBtn.contains(x, y)) {
                         synchronized (world) {
-                            world.shoot();
+                            world.aiming = !world.aiming;
+                            if (world.aiming) world.aimPitch = 0.05f;
                         }
+                        return true;
+                    }
+                    if (!reloadBtn.isEmpty() && reloadBtn.contains(x, y)) {
+                        synchronized (world) {
+                            world.reload();
+                        }
+                        return true;
+                    }
+                    if (gunBtn.contains(x, y)) {
+                        nextWeapon();
                         return true;
                     }
                     for (int i = 0; i < actionBtns.size() && i < actions.size(); i++) {
@@ -2036,7 +2334,8 @@ public class CasinoActivity extends Activity {
                             lookX = px;
                             lookY = py;
                             synchronized (world) {
-                                world.orbit(dx * 0.006f, dy * 0.004f);
+                                if (world.aiming) world.aimLook(dx * 0.005f, dy * 0.004f);
+                                else world.orbit(dx * 0.006f, dy * 0.004f);
                             }
                         }
                     }
@@ -2046,8 +2345,18 @@ public class CasinoActivity extends Activity {
                     stickId = -1;
                     lookId = -1;
                     stickX = stickY = 0;
+                    firePointer = -1;
+                    synchronized (world) {
+                        world.triggerHeld = false;
+                    }
                     return true;
                 case MotionEvent.ACTION_POINTER_UP:
+                    if (id == firePointer) {
+                        firePointer = -1;
+                        synchronized (world) {
+                            world.triggerHeld = false;
+                        }
+                    }
                     if (id == stickId) {
                         stickId = -1;
                         stickX = stickY = 0;

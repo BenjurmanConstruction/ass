@@ -28,7 +28,9 @@ final class Sfx {
     /** A lock pin clicking into place, and a muffled gunshot. */
     static final int CLICK = 11;
     static final int SHOT = 12;
-    private static final int COUNT = 13;
+    /** A suppressed shot. */
+    static final int SILENCED = 13;
+    private static final int COUNT = 14;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
@@ -178,6 +180,13 @@ final class Sfx {
                 burst(b, r, 0.02, 0.25, 0.25, 0.85);
                 break;
             }
+            case SILENCED: {
+                b = new float[(int) (0.12 * SR)];
+                Random r = new Random(13);
+                thump(b, r, 0, 0.45);
+                burst(b, r, 0, 0.03, 0.35, 0.3);
+                break;
+            }
             case WHOOSH: {
                 b = new float[(int) (0.2 * SR)];
                 Random r = new Random(10);
@@ -198,7 +207,7 @@ final class Sfx {
         for (float v : b) peak = Math.max(peak, Math.abs(v));
         // Kept well under full volume: these sit behind the game, not on top of it.
         float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f, 0.3f,
-                0.5f, 0.2f, 0.35f, 0.55f};
+                0.5f, 0.2f, 0.35f, 0.55f, 0.4f};
         float scale = loudness[id] / peak;
         short[] out = new short[b.length];
         for (int i = 0; i < b.length; i++) out[i] = (short) (b[i] * scale * 32767);

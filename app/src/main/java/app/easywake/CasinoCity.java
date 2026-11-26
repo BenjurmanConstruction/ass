@@ -136,7 +136,7 @@ final class CasinoCity {
                 for (int k = -1; k <= 1; k += 2) {
                     for (float t = -HALF + 0.4f; t < HALF - 0.4f; t += 0.9f) {
                         m.floor(ax + t, sz + k * (HALF + 0.4f) - 0.6f, ax + t + 0.45f,
-                                sz + k * (HALF + 0.4f) + 0.6f, 0.005f, 0xFFB8B8B0, 0, 1);
+                                sz + k * (HALF + 0.4f) + 0.6f, 0.012f, 0xFFB8B8B0, 0, 1);
                     }
                 }
             }
@@ -145,8 +145,8 @@ final class CasinoCity {
 
     private static void dashes(CasinoWorld.Mesh m, float a, float b, float c, boolean alongX) {
         for (float t = a + 1; t < b - 1.6f; t += 3.2f) {
-            if (alongX) m.floor(t, c - 0.06f, t + 1.6f, c + 0.06f, 0.004f, LINE, 0, 1);
-            else m.floor(c - 0.06f, t, c + 0.06f, t + 1.6f, 0.004f, LINE, 0, 1);
+            if (alongX) m.floor(t, c - 0.06f, t + 1.6f, c + 0.06f, 0.012f, LINE, 0, 1);
+            else m.floor(c - 0.06f, t, c + 0.06f, t + 1.6f, 0.012f, LINE, 0, 1);
         }
     }
 
@@ -223,10 +223,10 @@ final class CasinoCity {
         m.boxAA(x0 - 0.15f, h, z0 - 0.15f, x1 + 0.15f, h + 0.35f, z1 + 0.15f,
                 CasinoWorld.shade(col, 0.8f), 0);
         w.solid(x0, z0, x1, z1, h);
-        windows(m, r, x0, x1, z0 - 0.02f, NORTH, h, true);
-        windows(m, r, x0, x1, z1 + 0.02f, SOUTH, h, true);
-        windows(m, r, z0, z1, x0 - 0.02f, WEST, h, false);
-        windows(m, r, z0, z1, x1 + 0.02f, EAST, h, false);
+        windows(m, r, x0, x1, z0 - 0.04f, NORTH, h, true);
+        windows(m, r, x0, x1, z1 + 0.04f, SOUTH, h, true);
+        windows(m, r, z0, z1, x0 - 0.04f, WEST, h, false);
+        windows(m, r, z0, z1, x1 + 0.04f, EAST, h, false);
         // A street-level door on the long face.
         m.panel((x0 + x1) / 2, z1 + 0.03f, SOUTH, 1.4f, 0, 2.4f, 0xFF15110E, 0, null);
     }
@@ -289,7 +289,7 @@ final class CasinoCity {
         // The lot with parked cruisers.
         ground(m, 60, -2, 86, 15, 0xFF202226);
         for (float x = 62; x < 86; x += 3.4f) {
-            m.floor(x - 0.05f, 1, x + 0.05f, 7, 0.004f, 0xFFB8B8B0, 0, 1);
+            m.floor(x - 0.05f, 1, x + 0.05f, 7, 0.012f, 0xFFB8B8B0, 0, 1);
         }
         w.parkedCars.add(new float[]{63.7f, 4, CasinoWorld.PI, 0xFF101014, CasinoTraffic.POLICE});
         w.parkedCars.add(new float[]{67.1f, 4, CasinoWorld.PI, 0xFF101014, CasinoTraffic.POLICE});
@@ -312,7 +312,7 @@ final class CasinoCity {
         m.boxAA(sx0 - T / 2, 3.6f, sz0 - 0.2f, sx1 + T / 2, 4.6f, sz0 + 0.1f, 0xFF2A2A30, 0);
         m.panel((sx0 + sx1) / 2, sz0 - 0.22f, NORTH, 7, 3.65f, 4.55f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.SPRAY));
-        m.floor(SPRAY[0], SPRAY[1], SPRAY[2], SPRAY[3], 0.006f, 0xFF2A4A3A, 0, 1);
+        m.floor(SPRAY[0], SPRAY[1], SPRAY[2], SPRAY[3], 0.015f, 0xFF2A4A3A, 0, 1);
         w.regions.add(new float[]{sx0, sz0, sx1, sz1, 4.4f});
         w.lamps.add(new float[]{-70, 35, 4, 0.7f, 0.8f, 1, 0.85f});
         for (float z = 32; z < 40; z += 2.5f) {

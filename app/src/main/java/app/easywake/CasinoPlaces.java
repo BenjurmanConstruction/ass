@@ -226,7 +226,7 @@ final class CasinoPlaces {
         w.solid(8.3f, -16.88f, 8.7f, -16.3f, 1.5f);
 
         // ---- High Limit Room: the secret game. Same machines, much bigger bets.
-        m.floor(-18, -24, -6, -17, 0.003f, 0xFF2A1630, 0, 1);
+        m.floor(-18, -24, -6, -17, 0.015f, 0xFF2A1630, 0, 1);
         float wz = -24 + T / 2;
         int[] arts = {0, 3, 4};
         for (int i = 0; i < 3; i++) {
@@ -248,7 +248,7 @@ final class CasinoPlaces {
         note(w, "hl", "the plaque", -10.2f, -17.8f);
 
         // ---- Vault: coupon pallets, deposit boxes, the cash cart.
-        m.floor(-6, -24, 2, -17, 0.003f, 0xFF3A3C40, 0, 1);
+        m.floor(-6, -24, 2, -17, 0.015f, 0xFF3A3C40, 0, 1);
         for (int i = 0; i < 3; i++) {
             float x = -5.4f + i * 1.3f;
             m.boxAA(x - 0.5f, 0, -23.7f, x + 0.5f, 0.15f, -22.7f, WOOD, 0);
@@ -287,7 +287,7 @@ final class CasinoPlaces {
         chip(w, "neonace", 9.55f, -23.4f, 1.55f);
 
         // ---- Manager's office: desk, safe, bookshelf.
-        m.floor(10, -24, 18, -17, 0.003f, 0xFF3A2418, 0, 1);
+        m.floor(10, -24, 18, -17, 0.015f, 0xFF3A2418, 0, 1);
         m.boxAA(12.8f, 0, -22.3f, 15.2f, 0.8f, -21.5f, WOOD, 0);
         m.boxAA(12.7f, 0.8f, -22.4f, 15.3f, 0.85f, -21.4f, 0xFF2A1810, 0);
         w.solid(12.8f, -22.3f, 15.2f, -21.5f, 0.9f);
@@ -322,19 +322,19 @@ final class CasinoPlaces {
         m.floor(-48, fz, 48, 18, 0, CONCRETE, 0, 1);
         m.floor(-48, 18, 48, 26, 0, ASPHALT, 0, 1);
         m.floor(-48, 26, 48, 30 - T / 2, 0, CONCRETE, 0, 1);
-        m.floor(-48, 17.92f, 48, 18.08f, 0.004f, 0xFF8A8680, 0, 1);
-        m.floor(-48, 25.92f, 48, 26.08f, 0.004f, 0xFF8A8680, 0, 1);
+        m.floor(-48, 17.92f, 48, 18.08f, 0.012f, 0xFF8A8680, 0, 1);
+        m.floor(-48, 25.92f, 48, 26.08f, 0.012f, 0xFF8A8680, 0, 1);
         for (float x = -47; x < 48; x += 3.2f) {
-            m.floor(x, 21.94f, x + 1.6f, 22.06f, 0.004f, 0xFFB89A30, 0, 1);
+            m.floor(x, 21.94f, x + 1.6f, 22.06f, 0.012f, 0xFFB89A30, 0, 1);
         }
         for (float cx : new float[]{-14, 22}) {
             for (float z = 18.4f; z < 25.7f; z += 0.9f) {
-                m.floor(cx - 1.3f, z, cx + 1.3f, z + 0.45f, 0.005f, 0xFFB8B8B0, 0, 1);
+                m.floor(cx - 1.3f, z, cx + 1.3f, z + 0.45f, 0.012f, 0xFFB8B8B0, 0, 1);
             }
         }
         for (float x = -46; x < 47; x += 6) {
-            m.floor(x, 14.12f, x + 0.04f, 17.9f, 0.003f, 0xFF45423E, 0, 1);
-            m.floor(x, 26.1f, x + 0.04f, 29.88f, 0.003f, 0xFF45423E, 0, 1);
+            m.floor(x, 14.12f, x + 0.04f, 17.9f, 0.012f, 0xFF45423E, 0, 1);
+            m.floor(x, 26.1f, x + 0.04f, 29.88f, 0.012f, 0xFF45423E, 0, 1);
         }
         // Street lamps.
         for (float x = -44; x < 46; x += 12) streetLamp(w, x, 17.5f, 1);
@@ -383,7 +383,7 @@ final class CasinoPlaces {
         // Parking stalls.
         for (float z : new float[]{-10.5f, 3.5f}) {
             for (float x = -45; x <= -21; x += 3) {
-                m.floor(x - 0.05f, z - 2.6f, x + 0.05f, z + 2.6f, 0.004f, 0xFFB8B8B0, 0, 1);
+                m.floor(x - 0.05f, z - 2.6f, x + 0.05f, z + 2.6f, 0.012f, 0xFFB8B8B0, 0, 1);
             }
         }
         // x, z, color, type. North row faces south, south row faces north.
@@ -463,7 +463,7 @@ final class CasinoPlaces {
         for (float x = x0 + 1; x < x1 - 1.2f; x += 2.2f) {
             for (float y = 3.2f; y < h - 1; y += 2.4f) {
                 if (((int) (x * 7 + y * 3)) % 3 == 0) continue;
-                w.mesh.panel(x + 0.5f, 30 - T / 2 - 0.01f, NORTH, 0.9f, y, y + 1.1f,
+                w.mesh.panel(x + 0.5f, 30 - T / 2 - 0.03f, NORTH, 0.9f, y, y + 1.1f,
                         ((int) (x + y)) % 2 == 0 ? 0xFFFFD08A : 0xFF8AA8D8, 0.55f, null);
             }
         }
@@ -476,10 +476,10 @@ final class CasinoPlaces {
         w.regions.add(new float[]{-40, 30, -26, 42, 4});
         m.floor(-40, 30, -26, 42, 0, 0xFF3A3328, 0, 1);
         m.ceiling(-40, 30, -26, 42, 4, 0xFF1A1816, 0);
-        m.panel(-34, 30 - T / 2 - 0.02f, NORTH, 5, 3.2f, 4.1f, 0xFFFFFFFF, 1,
+        m.panel(-34, 30 - T / 2 - 0.04f, NORTH, 5, 3.2f, 4.1f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.PAWN));
-        m.panel(-37.5f, 30 - T / 2 - 0.01f, NORTH, 2.4f, 1.0f, 2.5f, 0xFF3A5A4A, 0.45f, null);
-        m.panel(-30.5f, 30 - T / 2 - 0.01f, NORTH, 2.4f, 1.0f, 2.5f, 0xFF3A5A4A, 0.45f, null);
+        m.panel(-37.5f, 30 - T / 2 - 0.03f, NORTH, 2.4f, 1.0f, 2.5f, 0xFF3A5A4A, 0.45f, null);
+        m.panel(-30.5f, 30 - T / 2 - 0.03f, NORTH, 2.4f, 1.0f, 2.5f, 0xFF3A5A4A, 0.45f, null);
         // Counter, shelves of junk, and the pawnbroker.
         m.boxAA(-38, 0, 36.0f, -30, 1.05f, 36.8f, 0xFF3A4A4A, 0);
         m.boxAA(-38, 1.05f, 35.95f, -30, 1.1f, 36.85f, WOOD, 0);
@@ -520,7 +520,7 @@ final class CasinoPlaces {
         for (float x = -21.5f; x < -6; x += 1) {
             for (float z = 30.5f; z < 42; z += 1) {
                 if (((int) (x + 22) + (int) (z - 30)) % 2 == 0) {
-                    m.floor(x, z, x + 1, z + 1, 0.003f, 0xFF2A2A2E, 0, 1);
+                    m.floor(x, z, x + 1, z + 1, 0.015f, 0xFF2A2A2E, 0, 1);
                 }
             }
         }
@@ -769,7 +769,7 @@ final class CasinoPlaces {
     private static void emptyLot(CasinoWorld w) {
         CasinoWorld.Mesh m = w.mesh;
         m.floor(34, 30 - T / 2, 48, 42, 0, 0xFF2A2620, 0, 1);
-        m.floor(36.8f, 32.6f, 48, 42, 0.003f, 0xFF3A3020, 0, 1);
+        m.floor(36.8f, 32.6f, 48, 42, 0.015f, 0xFF3A3020, 0, 1);
         w.wallX(30, 34, 48, 2.2f, FENCE, 40, 41.2f);
         m.boxAA(34, 0, 30, 34.1f, 2.2f, 42, FENCE, 0);
         w.wallX(42, 34, 48, 3.2f, 0xFF3A3A30);

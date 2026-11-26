@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v33**.
+- Latest release: **v34**.
 
 ## Standing rules
 
@@ -231,8 +231,23 @@ player name and uninstall.
 - Tests: T7 (driving, arrests, shootouts, evading, carjack, explosion), T10 (traffic flow:
   no wrecks/gridlock over 4 min on 5 seeds).
 
+### v34: flicker fix, lock-on aiming, fairer police (user feedback)
+- Flicker: DepthChooser asks EGL for a 24-bit depth buffer (falls back to 16); near plane
+  0.3 (walk) / 0.25 (aim) / 0.4 (drive); vertex shader nudges atlas-textured and emissive
+  (>0.3) vertices toward the camera; layered surfaces moved >= 1 cm apart (wall decor,
+  hanging signs, back-room floors, diner tiles, road markings, blood, shadows at 0.025).
+- Aiming: lock-on (findLock/trackLock): aiming or hip-fire locks the crosshair on the best
+  person within ~29 deg (enemies first) and tracks their chest; dragging aims by hand for
+  0.45 s and drops the lock. Red brackets on the locked person. FIRE button larger.
+- Police: report(amount, why, copWitness): civilian-only reports cap at 2 stars; cops add
+  freely. Shots fired count once per 6 s. Cruisers per star {0,1,1,2,3,4}. Cops chase your
+  last known spot (lastX/Z) and search nearby intersections; on-foot cops go there too.
+  Lose them after 6 + 3*stars s unseen. Cops only see you in their view (on foot 22 m with
+  facing; cruisers 26 m, not straight behind).
+
 ## Ideas not built yet
-- Queued (user asked): pool and arm wrestling at The Last Call; also offered taxi fares,
+- Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight
+  back); pool and arm wrestling at The Last Call; also offered taxi fares,
   street races, vigilante, valet, stunt jumps, darts. User asked for a strip club: declined
   (offered a goofy nightclub instead; no answer yet).
 

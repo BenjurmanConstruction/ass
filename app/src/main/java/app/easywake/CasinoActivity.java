@@ -112,7 +112,7 @@ public class CasinoActivity extends Activity {
         root = new FrameLayout(this);
         gl = new GLSurfaceView(this);
         gl.setEGLContextClientVersion(2);
-        gl.setEGLConfigChooser(8, 8, 8, 8, 16, 0);
+        gl.setEGLConfigChooser(new DepthChooser());
         gl.setPreserveEGLContextOnPause(true);
         gl.setRenderer(new Renderer());
         root.addView(gl);
@@ -1375,6 +1375,9 @@ public class CasinoActivity extends Activity {
                     + "  vColor = aColor * uTint; vUv = aUv; vEmit = max(aEmit, uGlow);\n"
                     + "  vTex = aTex;\n"
                     + "  gl_Position = uVP * w;\n"
+                    // Signs, screens and lit windows sit a hair in front of what they're on.
+                    + "  if ((aTex > 0.5 && aTex < 1.5) || aEmit > 0.3)\n"
+                    + "    gl_Position.z -= 0.0003 * gl_Position.w;\n"
                     + "}\n";
 
     /** Must match Preview.shade on the desktop. */
@@ -1415,7 +1418,7 @@ public class CasinoActivity extends Activity {
                     + "varying float vK;\n"
                     + "void main() {\n"
                     + "  vK = aPos.y;\n"
-                    + "  gl_Position = uVP * vec4(uAt.x + aPos.x * uAt.z, 0.012, uAt.y + aPos.z * uAt.z, 1.0);\n"
+                    + "  gl_Position = uVP * vec4(uAt.x + aPos.x * uAt.z, 0.025, uAt.y + aPos.z * uAt.z, 1.0);\n"
                     + "}\n";
     private static final String SHADOW_FRAGMENT =
             "precision mediump float; varying float vK;\n"
@@ -1748,6 +1751,38 @@ public class CasinoActivity extends Activity {
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T,
                 GLES20.GL_CLAMP_TO_EDGE);
         return id[0];
+    }
+
+    /**
+     * Picks a 24-bit depth buffer when the phone has one (no flicker where surfaces meet),
+     * falling back to 16-bit.
+     */
+    private static final class DepthChooser implements GLSurfaceView.EGLConfigChooser {
+        @Override
+        public EGLConfig chooseConfig(javax.microedition.khronos.egl.EGL10 egl,
+                                      javax.microedition.khronos.egl.EGLDisplay display) {
+            int[] depths = {24, 16};
+            for (int depth : depths) {
+                int[] attrs = {javax.microedition.khronos.egl.EGL10.EGL_RED_SIZE, 8,
+                        javax.microedition.khronos.egl.EGL10.EGL_GREEN_SIZE, 8,
+                        javax.microedition.khronos.egl.EGL10.EGL_BLUE_SIZE, 8,
+                        javax.microedition.khronos.egl.EGL10.EGL_DEPTH_SIZE, depth,
+                        javax.microedition.khronos.egl.EGL10.EGL_RENDERABLE_TYPE, 4,
+                        javax.microedition.khronos.egl.EGL10.EGL_NONE};
+                int[] count = new int[1];
+                EGLConfig[] configs = new EGLConfig[1];
+                if (egl.eglChooseConfig(display, attrs, configs, 1, count) && count[0] > 0) {
+                    return configs[0];
+                }
+            }
+            int[] attrs = {javax.microedition.khronos.egl.EGL10.EGL_DEPTH_SIZE, 16,
+                    javax.microedition.khronos.egl.EGL10.EGL_RENDERABLE_TYPE, 4,
+                    javax.microedition.khronos.egl.EGL10.EGL_NONE};
+            int[] count = new int[1];
+            EGLConfig[] configs = new EGLConfig[1];
+            egl.eglChooseConfig(display, attrs, configs, 1, count);
+            return configs[0];
+        }
     }
 
     /** CasinoArt's painter on an Android Canvas. */
@@ -2092,10 +2127,10 @@ public class CasinoActivity extends Activity {
                 c.drawText("stick: up gas, down brake, sideways steer", w / 2f, h - 10 * d, paint);
                 return;
             }
-            float pr = 36 * d;
+            float pr = (g != null && !g.melee ? 44 : 36) * d;
             boolean armed = g != null;
             // The big button: punch with fists, fire with a weapon.
-            fireBtn.set(w - 24 * d - 2 * pr, h - 24 * d - 2 * pr, w - 24 * d, h - 24 * d);
+            fireBtn.set(w - 20 * d - 2 * pr, h - 34 * d - 2 * pr, w - 20 * d, h - 34 * d);
             paint.setColor(armed ? (firePointer >= 0 ? 0xDDFF4A3A : 0x99B71C1C) : 0x99B71C1C);
             c.drawOval(fireBtn, paint);
             paint.setColor(0xFFFFFFFF);
@@ -2144,8 +2179,28 @@ public class CasinoActivity extends Activity {
             paint.setColor(ammo == 0 && armed && !g.melee ? 0xFFFF6A5A : 0xFFE6B869);
             c.drawText("⇄ " + label, gunBtn.centerX(), gunBtn.centerY() + 4 * d, paint);
 
-            // Crosshair, scope, hit marker.
+            // Crosshair, scope, hit marker, and brackets on whoever you're locked onto.
             float cx = w / 2f, cy = h / 2f;
+            float[] lp = null;
+            synchronized (world) {
+                CasinoWorld.Person lk = world.lock;
+                if (lk != null && aiming) {
+                    float[] o = new float[3];
+                    if (CasinoWorld.Mat.project(vpCopy, lk.x, 1.25f * lk.scale, lk.z, w, h, o)) lp = o;
+                }
+            }
+            if (lp != null && g.fov >= 25) {
+                float bs = Math.max(14 * d, 60 * d / Math.max(1, lp[2] * 0.25f));
+                paint.setColor(0xEEFF3030);
+                paint.setStrokeWidth(3 * d);
+                float bl = bs * 0.45f;
+                float[][] corners = {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+                for (float[] k : corners) {
+                    float x0 = lp[0] + k[0] * bs, y0 = lp[1] + k[1] * bs * 1.4f;
+                    c.drawLine(x0, y0, x0 - k[0] * bl, y0, paint);
+                    c.drawLine(x0, y0, x0, y0 - k[1] * bl, paint);
+                }
+            }
             if (aiming && armed && !g.melee) {
                 if (g.fov < 25) {
                     float r = Math.min(w, h) * 0.46f;

@@ -39,6 +39,8 @@ final class CasinoTraffic {
         int ni, nj;
         float[] bez;
         float knocked;
+        /** A cruiser that lost you and is checking the area. */
+        boolean searching;
     }
 
     private static int nextId;
@@ -737,11 +739,39 @@ final class CasinoTraffic {
     final List<CasinoWorld.Person> cops = new ArrayList<>();
     private float spawnCool;
 
-    void addHeat(float amount, String why) {
+    /** Where the cops think you are. */
+    float lastX, lastZ;
+    private float shotsCool;
+
+    /**
+     * A crime. Cops who see it raise your stars freely; a civilian calling it in can only
+     * get you up to two.
+     */
+    void report(float amount, String why, boolean copWitness) {
         int before = stars();
-        heat = Math.min(5, heat + amount);
-        unseen = 0;
+        if (copWitness) {
+            heat = Math.min(5, heat + amount);
+            unseen = 0;
+        } else {
+            heat = Math.max(heat, Math.min(2, heat + amount * 0.6f));
+        }
+        if (heat > 0 && (copWitness || before == 0)) {
+            lastX = w.player.x;
+            lastZ = w.player.z;
+        }
         if (stars() > before) flash = why + ": wanted " + stars() + (stars() == 1 ? " star" : " stars");
+    }
+
+    void addHeat(float amount, String why) {
+        report(amount, why, copSees());
+    }
+
+    /** Gunfire near the police, counted once every few seconds rather than per bullet. */
+    void shotsFired() {
+        if (shotsCool > 0) return;
+        shotsCool = 6;
+        boolean seen = copSees();
+        report(seen ? 0.5f : 1f, "Shots fired", seen);
     }
 
     void clearHeat() {
@@ -760,11 +790,14 @@ final class CasinoTraffic {
         float px = w.player.x, pz = w.player.z;
         for (CasinoWorld.Person p : cops) {
             if (!p.active || p.dead || p.ko || p.down > 0) continue;
-            if (CasinoWorld.dist2(p.x, p.z, px, pz) < 26 * 26 && w.clear(p.x, p.z, px, pz)) return true;
+            if (w.canSee(p, px, pz, 22)) return true;
         }
         for (Car c : cars) {
-            if (c.role != COP || !c.driver || c.wrecked) continue;
-            if (CasinoWorld.dist2(c.x, c.z, px, pz) < 32 * 32 && w.clear(c.x, c.z, px, pz)) return true;
+            if (c.role != COP || c.wrecked || (!c.driver && c.crew == null)) continue;
+            if (CasinoWorld.dist2(c.x, c.z, px, pz) > 26 * 26 || !w.clear(c.x, c.z, px, pz)) continue;
+            // Cruisers look ahead and to the sides, not straight behind.
+            float dx = px - c.x, dz = pz - c.z, d = Math.max(0.1f, (float) Math.hypot(dx, dz));
+            if ((dx * fx(c.h) + dz * fz(c.h)) / d > -0.3f || d < 8) return true;
         }
         return false;
     }
@@ -789,18 +822,22 @@ final class CasinoTraffic {
             }
             return;
         }
+        if (shotsCool > 0) shotsCool -= dt;
         if (copSees()) {
             unseen = 0;
+            lastX = w.player.x;
+            lastZ = w.player.z;
         } else {
             unseen += dt;
-            if (unseen > 8 + 5 * s) {
+            if (unseen > 6 + 3 * s) {
                 clearHeat();
                 flash = "You lost the cops.";
                 return;
             }
         }
         // Enough cruisers for your stars.
-        int want = Math.min(4, s);
+        int[] perStar = {0, 1, 1, 2, 3, 4};
+        int want = perStar[s];
         int have = 0;
         for (Car c : cars) if (c.role == COP && c.driver && !c.wrecked) have++;
         spawnCool -= dt;
@@ -818,8 +855,9 @@ final class CasinoTraffic {
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 float d = (float) Math.hypot(ix(i) - w.player.x, iz(j) - w.player.z);
-                if (d < 30 || d > 95) continue;
-                float score = 100 - Math.abs(d - 50) + (w.clear(ix(i), iz(j), w.player.x, w.player.z) ? 0 : 30)
+                if (d < 35 || d > 110) continue;
+                float dl = (float) Math.hypot(ix(i) - lastX, iz(j) - lastZ);
+                float score = 100 - Math.abs(dl - 45) + (w.clear(ix(i), iz(j), w.player.x, w.player.z) ? 0 : 30)
                         + rnd.nextFloat() * 20;
                 if (score > bestScore) {
                     bestScore = score;
@@ -840,7 +878,7 @@ final class CasinoTraffic {
         c.z = iz(bj);
         c.fi = c.ti = bi;
         c.fj = c.tj = bj;
-        c.h = (float) Math.atan2(w.player.x - c.x, -(w.player.z - c.z));
+        c.h = (float) Math.atan2(lastX - c.x, -(lastZ - c.z));
         cars.add(c);
     }
 
@@ -852,10 +890,35 @@ final class CasinoTraffic {
             return;
         }
         c.siren = true;
-        float tx = w.player.x, tz = w.player.z;
-        if (driving != null) {
-            tx += fx(driving.h) * driving.speed * 0.6f;
-            tz += fz(driving.h) * driving.speed * 0.6f;
+        boolean seen = unseen < 1.5f;
+        float tx = lastX, tz = lastZ;
+        if (seen) {
+            tx = w.player.x;
+            tz = w.player.z;
+            c.searching = false;
+            if (driving != null) {
+                tx += fx(driving.h) * driving.speed * 0.6f;
+                tz += fz(driving.h) * driving.speed * 0.6f;
+            }
+        } else if (c.searching || Math.hypot(lastX - c.x, lastZ - c.z) < 12) {
+            // Got to where you were last seen: drive the nearby blocks looking for you.
+            if (!c.searching) {
+                c.searching = true;
+                c.ti = nearestI(c.x);
+                c.tj = nearestJ(c.z);
+            }
+            if (Math.hypot(ix(c.ti) - c.x, iz(c.tj) - c.z) < 7) {
+                int[] nb = neighbor(c.ti, c.tj, c.fi, c.fj);
+                c.fi = c.ti;
+                c.fj = c.tj;
+                c.ti = nb[0];
+                c.tj = nb[1];
+            }
+            tx = ix(c.ti);
+            tz = iz(c.tj);
+            float want = (float) Math.atan2(tx - c.x, -(tz - c.z));
+            steerTo(c, angle(want - c.h), 9, dt, 2.4f);
+            return;
         }
         float d = (float) Math.hypot(tx - c.x, tz - c.z);
         boolean direct = d < 32 && w.clear(c.x, c.z, tx, tz);
@@ -912,7 +975,7 @@ final class CasinoTraffic {
         if (Math.abs(c.speed) < 1 && target > 3) c.stuck += dt;
         else if (c.stuck < 1.5f) c.stuck = 0;
         // You're on foot and close: out they come.
-        if (driving == null && d < 14 && Math.abs(c.speed) < 2 && c.crew == null) {
+        if (driving == null && seen && d < 14 && Math.abs(c.speed) < 2 && c.crew == null) {
             c.crew = new ArrayList<>();
             for (int k = 0; k < 2; k++) {
                 float side = k == 0 ? 1 : -1;
@@ -923,6 +986,22 @@ final class CasinoTraffic {
             }
             c.driver = false;
         }
+    }
+
+    private static int nearestI(float x) {
+        int best = 0;
+        for (int i = 1; i < CasinoCity.AVE_X.length; i++) {
+            if (Math.abs(CasinoCity.AVE_X[i] - x) < Math.abs(CasinoCity.AVE_X[best] - x)) best = i;
+        }
+        return best;
+    }
+
+    private static int nearestJ(float z) {
+        int best = 0;
+        for (int j = 1; j < CasinoCity.ST_Z.length; j++) {
+            if (Math.abs(CasinoCity.ST_Z[j] - z) < Math.abs(CasinoCity.ST_Z[best] - z)) best = j;
+        }
+        return best;
     }
 
     private void trafficFallback(Car c, float dt) {

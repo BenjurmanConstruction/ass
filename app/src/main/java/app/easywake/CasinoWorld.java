@@ -451,17 +451,17 @@ final class CasinoWorld {
         }
         // Walls: thick stone outside, wood and gold trim inside.
         wallX(Z0, X0 - T / 2, X1 + T / 2, CEIL + 0.3f, STONE, 15.2f, 16.4f);
-        decorX(Z0 + T / 2 + 0.003f, X0, X1, SOUTH, 15.2f, 16.4f);
+        decorX(Z0 + T / 2 + 0.01f, X0, X1, SOUTH, 15.2f, 16.4f);
         wallX(Z1, X0 - T / 2, X1 + T / 2, CEIL + 0.3f, STONE, -1.6f, 1.6f);
-        decorX(Z1 - T / 2 - 0.003f, X0, X1, NORTH, -1.6f, 1.6f);
+        decorX(Z1 - T / 2 - 0.01f, X0, X1, NORTH, -1.6f, 1.6f);
         wallZ(X0, Z0, Z1, CEIL + 0.3f, STONE);
-        decorZ(X0 + T / 2 + 0.003f, Z0, Z1, EAST);
+        decorZ(X0 + T / 2 + 0.01f, Z0, Z1, EAST);
         wallZ(X1, Z0, Z1, CEIL + 0.3f, STONE);
-        decorZ(X1 - T / 2 - 0.003f, Z0, Z1, WEST);
+        decorZ(X1 - T / 2 - 0.01f, Z0, Z1, WEST);
         // Brass frame on the way out.
         m.boxAA(-1.75f, 0, Z1 - 0.3f, -1.6f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
         m.boxAA(1.6f, 0, Z1 - 0.3f, 1.75f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
-        m.boxAA(-1.75f, 2.6f, Z1 - 0.3f, 1.75f, 3.0f, Z1 + 0.3f, BRASS, 0.15f);
+        m.boxAA(-1.75f, 2.52f, Z1 - 0.32f, 1.75f, 3.0f, Z1 + 0.32f, BRASS, 0.15f);
         // The staff door, tucked in the north-east corner.
         Door staff = new Door("staff", "Staff Only", 15.8f, Z0, true, 1.2f, 3, 0xFF4A4E55);
         staff.access = 1;
@@ -491,7 +491,7 @@ final class CasinoWorld {
         }
         float boardX = -15 + 1.5f * 1.9f;
         m.boxAA(boardX - 3.0f, 2.45f, wz, boardX + 3.0f, 4.75f, wz + 0.12f, 0xFF050507, 0);
-        m.panel(boardX, wz + 0.13f, SOUTH, 5.8f, 2.5f, 4.7f, 0xFFFFFFFF, 1,
+        m.panel(boardX, wz + 0.15f, SOUTH, 5.8f, 2.5f, 4.7f, 0xFFFFFFFF, 1,
                 CasinoArt.JACKPOT_BOARD);
         boardPanel = new float[]{boardX, wz + 0.13f};
         m.panel(boardX, wz + 0.05f, SOUTH, 4.6f, 4.8f, 5.3f, 0xFFFFFFFF, 1,
@@ -512,7 +512,7 @@ final class CasinoWorld {
             spots.add(new Spot(SlotMath.NAMES[i], "machine", i, "parlor", x, wz + 1.63f,
                     NORTH));
         }
-        m.panel(4 + 2 * 1.9f, wz + 0.02f, SOUTH, 4.6f, 3.0f, 3.5f, 0xFFFFFFFF, 1,
+        m.panel(4 + 2 * 1.9f, wz + 0.05f, SOUTH, 4.6f, 3.0f, 3.5f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.PARLOR));
 
         // ---- Classic slots island (Lucky Sevens faces south, Royal Riches north).
@@ -589,7 +589,7 @@ final class CasinoWorld {
             stool(ex - 1.75f, z, 0xFF1A3A5A);
         }
         spots.add(new Spot("Video Poker", "vpoker", 0, "vpoker", ex - 2.0f, 0.4f, EAST));
-        m.panel(ex - 0.02f, 0.45f, WEST, 4.6f, 2.6f, 3.1f, 0xFFFFFFFF, 1,
+        m.panel(ex - 0.05f, 0.45f, WEST, 4.6f, 2.6f, 3.1f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.POKER));
 
         // ---- Cashier cage in the south-west corner.
@@ -669,7 +669,7 @@ final class CasinoWorld {
     }
 
     private void decor(float cx, float cz, float faceYaw, float len) {
-        float fx = (float) Math.sin(faceYaw) * 0.001f, fz = (float) -Math.cos(faceYaw) * 0.001f;
+        float fx = (float) Math.sin(faceYaw) * 0.006f, fz = (float) -Math.cos(faceYaw) * 0.006f;
         mesh.panel(cx, cz, faceYaw, len, 0, CEIL, WALL, 0, null);
         mesh.panel(cx + fx * 2, cz + fz * 2, faceYaw, len, 0, 1.1f, WAINSCOT, 0, null);
         mesh.panel(cx + fx * 4, cz + fz * 4, faceYaw, len, 1.08f, 1.14f, GOLD, 0.25f, null);
@@ -755,8 +755,8 @@ final class CasinoWorld {
         m.boxAA(x - 0.015f, y + 0.5f, z - 0.015f, x + 0.015f, CEIL, z + 0.015f, 0xFF2A2420, 0);
         m.box(x, z, NORTH + yaw, 1.45f, 0.06f, y - 0.02f, y + 0.52f, 0xFF050507, 0);
         CasinoArt.Region r = CasinoArt.sign(sign);
-        m.panel(x, z + 0.065f, SOUTH, 2.8f, y, y + 0.5f, 0xFFFFFFFF, 1, r);
-        m.panel(x, z - 0.065f, NORTH, 2.8f, y, y + 0.5f, 0xFFFFFFFF, 1, r);
+        m.panel(x, z + 0.085f, SOUTH, 2.8f, y, y + 0.5f, 0xFFFFFFFF, 1, r);
+        m.panel(x, z - 0.085f, NORTH, 2.8f, y, y + 0.5f, 0xFFFFFFFF, 1, r);
     }
 
     private void halfMoon(float cx, float cz, float rx, float rz, CasinoArt.Region felt) {
@@ -1823,8 +1823,8 @@ final class CasinoWorld {
             sounds |= 2;
             return;
         }
-        if (p.kind == COP) traffic.addHeat(1, "Assaulted an officer");
-        else if (traffic.copSees()) traffic.addHeat(0.5f, "Assault");
+        if (p.kind == COP) traffic.addHeat(0.6f, "Assaulted an officer");
+        else if (traffic.copSees()) traffic.report(0.5f, "Assault", true);
         sounds |= 1;
         p.hitAt = time;
         witnessed(0.45f, false);
@@ -1921,6 +1921,55 @@ final class CasinoWorld {
     final List<float[]> sparks = new ArrayList<>();
     private final float[] eye = new float[3], fwd = new float[3];
 
+    /** Who the crosshair is locked onto, and seconds you're aiming by hand. */
+    Person lock;
+    float manualAim;
+
+    private boolean hostile(Person p) {
+        return p.kind == COP || p.target || (p.kind == GUARD && alarm) || p.angry > 0;
+    }
+
+    private boolean lockable(Person p, float range) {
+        if (!p.active || p.dead || p.hidden || p.ko || p.fall > 0.5f || p == player) return false;
+        float d = dist(p, player);
+        return d > 0.6f && d < range && clear(player.x, player.z, p.x, p.z);
+    }
+
+    /** The best person near the crosshair: closest to the centre, enemies first. */
+    Person findLock(float cone) {
+        float range = weapon != null ? Math.min(weapon.range, 45) : 30;
+        Person best = null;
+        float bestScore = 1e9f;
+        for (Person p : people) {
+            if (!lockable(p, range)) continue;
+            float ang = Math.abs(CasinoTraffic.angle(
+                    (float) Math.atan2(p.x - player.x, -(p.z - player.z)) - camYaw));
+            if (ang > cone) continue;
+            float score = ang * 8 + dist(p, player) * 0.04f - (hostile(p) ? 1.2f : 0);
+            if (score < bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /** Turns the aim toward the locked person's chest; k 1 snaps straight on. */
+    private void trackLock(float k) {
+        Person t = lock;
+        float ty = (t.sitting ? 1.05f : 1.25f) * t.scale;
+        for (int i = 0; i < 2; i++) {
+            aimRay();
+            aimEye();
+            float dx = t.x - eye[0], dz = t.z - eye[2];
+            float yaw = (float) Math.atan2(dx, -dz);
+            float pitch = (float) Math.atan2(eye[1] - ty, Math.hypot(dx, dz));
+            camYaw = turn(camYaw, yaw, k);
+            aimPitch += (pitch - aimPitch) * Math.min(1, k);
+            if (k < 1) break;
+        }
+    }
+
     void equip(CasinoWeapons.Gun g) {
         weapon = g;
         reloadT = 0;
@@ -1963,6 +2012,18 @@ final class CasinoWorld {
                 sounds |= 64;
             }
         }
+        // Aim assist: stay locked on whoever's under the crosshair unless you're steering.
+        if (aiming && weapon != null && !weapon.melee && traffic.driving == null) {
+            if (manualAim > 0) {
+                manualAim -= dt;
+            } else {
+                float range = Math.min(weapon.range, 45) + 5;
+                if (lock == null || !lockable(lock, range)) lock = findLock(0.5f);
+                if (lock != null) trackLock(dt * 9);
+            }
+        } else {
+            lock = null;
+        }
         if (weapon != null && weapon.auto && triggerHeld && aiming) fire();
         // Health comes back if nobody's hit you for a few seconds.
         hurtT += dt;
@@ -1996,7 +2057,12 @@ final class CasinoWorld {
             reload();
             return;
         }
-        if (!aiming) aiming = true;
+        if (!aiming) {
+            aiming = true;
+            aimPitch = 0.05f;
+            lock = findLock(0.75f);
+        }
+        if (lock != null && manualAim <= 0 && lockable(lock, weapon.range + 5)) trackLock(1);
         fireCool = weapon.delay;
         lastShotDraw = time;
         ammo.put(weapon.id, ammoLeft() - 1);
@@ -2122,7 +2188,7 @@ final class CasinoWorld {
         p.kx = dx * 1.2f;
         p.kz = dz * 1.2f;
         p.ko = false;
-        if (p.kind == COP) traffic.addHeat(1, "Shot a cop");
+        if (p.kind == COP) traffic.addHeat(0.6f, "Shot a cop");
         if (p.kind == GUARD) raiseAlarm("A guard took a bullet.");
         else {
             p.flee = 6;
@@ -2155,12 +2221,21 @@ final class CasinoWorld {
         }
         lastLoud = loud > 0.3f ? time : lastLoud;
         if (loud > 0.3f) {
+            boolean copNear = false;
             for (Person cp : traffic.cops) {
-                if (cp.active && !cp.dead && dist(cp, player) < 35) {
-                    traffic.addHeat(0.6f, "Shots fired");
-                    break;
+                if (cp.active && !cp.dead && dist(cp, player) < 35) copNear = true;
+            }
+            for (CasinoTraffic.Car pc : traffic.cars) {
+                if (pc.role == CasinoTraffic.COP && !pc.wrecked
+                        && dist2(pc.x, pc.z, player.x, player.z) < 35 * 35) {
+                    copNear = true;
                 }
             }
+            boolean earshot = false;
+            for (Person h : people) {
+                if (awake(h) && h.kind != GUARD && dist(h, player) < 22) earshot = true;
+            }
+            if (copNear || earshot) traffic.shotsFired();
         }
         if (guardKnows && nearCasino(player)) raiseAlarm("Shots fired.");
         else if (loud > 0.3f) suspicion = Math.min(0.95f, suspicion + 0.3f);
@@ -2246,6 +2321,15 @@ final class CasinoWorld {
         }
         boolean lethal = st >= 2 || aiming;
         boolean los = d < 22 && clear(p.x, p.z, me.x, me.z);
+        if (!los && traffic.unseen > 1.5f) {
+            if (dist2(p.x, p.z, traffic.lastX, traffic.lastZ) > 2) {
+                step(p, traffic.lastX, traffic.lastZ, dt);
+            } else {
+                p.walk = Math.max(0, p.walk - dt * 4);
+                p.yaw += dt * 0.8f;
+            }
+            return;
+        }
         if (lethal && los && (d < 14 || traffic.driving != null)) {
             p.walk = Math.max(0, p.walk - dt * 5);
             p.yaw = turn(p.yaw, (float) Math.atan2(me.x - p.x, -(me.z - p.z)), dt * 8);
@@ -2310,7 +2394,7 @@ final class CasinoWorld {
     void crimeSeen(float amount, String why) {
         boolean seen = anyoneSees() || time - lastLoud < 1.0f;
         if (!seen) return;
-        traffic.addHeat(amount + (traffic.copSees() ? 0.5f : 0), why);
+        traffic.report(amount, why, traffic.copSees());
     }
 
     /** A kill by you (or a car you were pushed into, etc). */
@@ -2607,8 +2691,12 @@ final class CasinoWorld {
             civKills++;
         }
         if (how != KILL_CAR) {
-            if (p.kind == COP) traffic.addHeat(2, "Killed a cop");
-            else crimeSeen(1, "Murder");
+            if (p.kind == COP) {
+                if (traffic.copSees()) traffic.report(1, "Killed a cop", true);
+                else crimeSeen(1, "Killed a cop");
+            } else {
+                crimeSeen(how == KILL_RUNOVER ? 0.7f : 1, "Murder");
+            }
         }
     }
 
@@ -2952,7 +3040,7 @@ final class CasinoWorld {
             ey += (float) Math.cos(time * 53) * k;
         }
         Mat.lookAt(view, ex, ey, ez, tx, ty, tz);
-        Mat.perspective(proj, 62, aspect, 0.1f, 80);
+        Mat.perspective(proj, 62, aspect, 0.3f, 120);
         eye[0] = me.x + (float) Math.cos(camYaw) * 0.55f;
         eye[1] = 1.62f;
         eye[2] = me.z + (float) Math.sin(camYaw) * 0.55f;
@@ -2984,7 +3072,7 @@ final class CasinoWorld {
             ey += (float) Math.cos(time * 53) * k;
         }
         Mat.lookAt(view, ex, ey, ez, tx, ty, tz);
-        Mat.perspective(proj, 62 + Math.min(12, Math.abs(c.speed) * 0.5f), aspect, 0.2f, 120);
+        Mat.perspective(proj, 62 + Math.min(12, Math.abs(c.speed) * 0.5f), aspect, 0.4f, 140);
         if (eyeOut != null) {
             eyeOut[0] = ex;
             eyeOut[1] = ey;
@@ -3033,11 +3121,13 @@ final class CasinoWorld {
         eye[1] = ey;
         eye[2] = ez;
         Mat.lookAt(view, ex, ey, ez, ex + fwd[0] * 10, ey + fwd[1] * 10, ez + fwd[2] * 10);
-        Mat.perspective(proj, weapon.fov, aspect, 0.1f, 100);
+        Mat.perspective(proj, weapon.fov, aspect, 0.25f, 140);
         if (eyeOut != null) System.arraycopy(eye, 0, eyeOut, 0, 3);
     }
 
     void aimLook(float dYaw, float dPitch) {
+        manualAim = 0.45f;
+        lock = null;
         float k = weapon != null ? weapon.fov / 62f : 1;
         camYaw += dYaw * k;
         aimPitch = Math.max(-0.7f, Math.min(0.9f, aimPitch + dPitch * k));
@@ -3149,7 +3239,7 @@ final class CasinoWorld {
             float fade = sp[4] > SPLAT_LIFE - 4 ? (SPLAT_LIFE - sp[4]) / 4 : 1;
             float r = sp[2] * grow * fade;
             Mat.identity(tmp);
-            Mat.translate(tmp, sp[0], 0.006f, sp[1]);
+            Mat.translate(tmp, sp[0], 0.016f, sp[1]);
             Mat.rotY(tmp, sp[3]);
             Mat.scale(tmp, r, 0.004f, r * 0.7f);
             sink.part(tmp, 0xFFC4161E, 0);

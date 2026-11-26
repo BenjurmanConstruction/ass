@@ -1497,8 +1497,9 @@ public class CasinoActivity extends Activity {
             final String flash;
             synchronized (world) {
                 world.update(dt, stickX, stickY);
-                fine = world.traffic.fineDue;
+                fine = world.traffic.fineDue - world.cashDue;
                 world.traffic.fineDue = 0;
+                world.cashDue = 0;
                 spray = world.traffic.sprayReady && !sprayAsked;
                 if (spray) sprayAsked = true;
                 if (!world.traffic.sprayReady) sprayAsked = false;
@@ -1511,13 +1512,15 @@ public class CasinoActivity extends Activity {
                 CasinoWorld.Mat.mul(vp, proj, view);
                 System.arraycopy(vp, 0, viewProj, 0, 16);
             }
-            if (fine > 0 || spray || flash != null) {
+            if (fine != 0 || spray || flash != null) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         if (fine > 0) {
                             int pay = Math.min(fine, Wallet.coupons(CasinoActivity.this));
                             if (pay > 0) Wallet.addCoupons(CasinoActivity.this, -pay);
+                        } else if (fine < 0) {
+                            Wallet.addCoupons(CasinoActivity.this, -fine);
                         }
                         if (flash != null) overlay.show(flash);
                         if (spray) offerSpray();
@@ -1535,6 +1538,7 @@ public class CasinoActivity extends Activity {
                         if ((sounds & 4) != 0) Sfx.play(CasinoActivity.this, Sfx.SHOT);
                         if ((sounds & 128) != 0) Sfx.play(CasinoActivity.this, Sfx.BOOM);
                         else if ((sounds & 1) != 0) Sfx.play(CasinoActivity.this, Sfx.PUNCH);
+                        else if ((sounds & 256) != 0) Sfx.play(CasinoActivity.this, Sfx.BLOCK);
                         else if ((sounds & 2) != 0) Sfx.play(CasinoActivity.this, Sfx.WHOOSH);
                         if (finished) contractFinished();
                         if (rangeOver) rangeFinished();
@@ -1872,7 +1876,8 @@ public class CasinoActivity extends Activity {
         private float stickCx, stickCy, stickPx, stickPy, lookX, lookY;
         private final RectF fireBtn = new RectF(), aimBtn = new RectF(), reloadBtn = new RectF(),
                 gunBtn = new RectF();
-        private int firePointer = -1;
+        private int firePointer = -1, blockPointer = -1;
+        private final RectF kickBtn = new RectF(), blockBtn = new RectF(), dodgeBtn = new RectF();
         private final RectF punchBtn = new RectF(), shootBtn = new RectF(),
                 backBtn = new RectF(), phoneBtn = new RectF(), jobsBtn = new RectF(),
                 bagBtn = new RectF(), miniBtn = new RectF();
@@ -1931,6 +1936,16 @@ public class CasinoActivity extends Activity {
                     float y = CasinoWorld.headY(p);
                     if (!CasinoWorld.Mat.project(vpCopy, p.x, y, p.z, w, h, scratch)) continue;
                     if (scratch[2] > 18) continue;
+                    if ((p.fighter || p.act != 0) && !p.dead && !p.ko && scratch[2] < 14) {
+                        float max = p.style == CasinoFight.BRUISER ? 150 : 100;
+                        float bw = 46 * d, bx = scratch[0] - bw / 2, byy = scratch[1] - 22 * d;
+                        paint.setColor(0xAA000000);
+                        c.drawRect(bx - 2 * d, byy - 2 * d, bx + bw + 2 * d, byy + 7 * d, paint);
+                        paint.setColor(CasinoFight.attacking(p) && p.actT < p.actWind
+                                ? 0xFFFFE070 : 0xFFE03030);
+                        c.drawRect(bx, byy, bx + bw * Math.max(0, Math.min(1, p.health / max)),
+                                byy + 5 * d, paint);
+                    }
                     if (p.bubble != null && p.bubbleT > 0) {
                         bubble(c, p.bubble, scratch[0], scratch[1],
                                 Math.min(1, p.bubbleT * 3));
@@ -2064,6 +2079,22 @@ public class CasinoActivity extends Activity {
                 c.drawText(message, m.centerX(), m.centerY() + 5 * d, paint);
             }
 
+            String big;
+            float bigT;
+            synchronized (world) {
+                big = world.fight.bigText;
+                bigT = world.fight.bigT;
+            }
+            if (big != null && bigT > 0) {
+                float k = Math.min(1, bigT * 4);
+                float sc = 1 + Math.max(0, bigT - 0.7f) * 2.5f;
+                paint.setTypeface(Typeface.DEFAULT_BOLD);
+                paint.setTextSize(54 * d * sc);
+                paint.setColor(((int) (k * 200) << 24));
+                c.drawText(big, w / 2f + 3 * d, h * 0.36f + 3 * d, paint);
+                paint.setColor(((int) (k * 255) << 24) | (big.startsWith("K") ? 0xFF3A3A : 0xFFE070));
+                c.drawText(big, w / 2f, h * 0.36f, paint);
+            }
             if (escort > 0) {
                 float k = escort > 0.6f ? (1.4f - escort) / 0.8f : escort / 0.6f;
                 paint.setColor(((int) (Math.max(0, Math.min(1, k)) * 255) << 24));
@@ -2140,6 +2171,31 @@ public class CasinoActivity extends Activity {
                     fireBtn.centerY() + 5 * d, paint);
             punchBtn.setEmpty();
             float sr = 26 * d;
+            kickBtn.setEmpty();
+            blockBtn.setEmpty();
+            dodgeBtn.setEmpty();
+            if (!armed) {
+                // Fists: kick above-left, block left, dodge above.
+                float kr = 28 * d;
+                kickBtn.set(fireBtn.left - 14 * d - 2 * kr, fireBtn.top - 10 * d - 2 * kr,
+                        fireBtn.left - 14 * d, fireBtn.top - 10 * d);
+                blockBtn.set(fireBtn.left - 16 * d - 2 * kr, fireBtn.bottom - 2 * kr + 6 * d,
+                        fireBtn.left - 16 * d, fireBtn.bottom + 6 * d);
+                dodgeBtn.set(fireBtn.centerX() - kr * 0.85f, fireBtn.top - 16 * d - 1.7f * kr,
+                        fireBtn.centerX() + kr * 0.85f, fireBtn.top - 16 * d);
+                paint.setTextSize(11 * d);
+                paint.setColor(0x99D0601C);
+                c.drawOval(kickBtn, paint);
+                paint.setColor(blockPointer >= 0 ? 0xDD3A7BFF : 0x88264A8C);
+                c.drawOval(blockBtn, paint);
+                paint.setColor(0x88000000);
+                c.drawOval(dodgeBtn, paint);
+                paint.setColor(0xFFFFFFFF);
+                c.drawText("KICK", kickBtn.centerX(), kickBtn.centerY() + 4 * d, paint);
+                c.drawText("BLOCK", blockBtn.centerX(), blockBtn.centerY() + 4 * d, paint);
+                paint.setTextSize(10 * d);
+                c.drawText("DODGE", dodgeBtn.centerX(), dodgeBtn.centerY() + 4 * d, paint);
+            }
             if (armed && !g.melee) {
                 // Punch still works next to it; aim above it; reload beside aim.
                 punchBtn.set(fireBtn.left - 12 * d - 2 * sr, h - 30 * d - 2 * sr,
@@ -2172,7 +2228,8 @@ public class CasinoActivity extends Activity {
                     ? "  reloading…" : "  " + ammo + "/" + g.mag));
             paint.setTextSize(12 * d);
             float tw = paint.measureText(label) + 34 * d;
-            float gy = armed && !g.melee ? aimBtn.top - 46 * d : fireBtn.top - 46 * d;
+            float gy = armed && !g.melee ? aimBtn.top - 46 * d
+                    : (!armed ? dodgeBtn.top - 44 * d : fireBtn.top - 46 * d);
             gunBtn.set(w - 24 * d - tw, gy, w - 24 * d, gy + 34 * d);
             paint.setColor(0x99000000);
             c.drawRoundRect(gunBtn, 17 * d, 17 * d, paint);
@@ -2488,6 +2545,25 @@ public class CasinoActivity extends Activity {
                         firePointer = id;
                         return true;
                     }
+                    if (!kickBtn.isEmpty() && kickBtn.contains(x, y)) {
+                        synchronized (world) {
+                            world.fight.kickPressed();
+                        }
+                        return true;
+                    }
+                    if (!blockBtn.isEmpty() && blockBtn.contains(x, y)) {
+                        synchronized (world) {
+                            world.fight.block(true);
+                        }
+                        blockPointer = id;
+                        return true;
+                    }
+                    if (!dodgeBtn.isEmpty() && dodgeBtn.contains(x, y)) {
+                        synchronized (world) {
+                            world.fight.dodge(stickX, stickY);
+                        }
+                        return true;
+                    }
                     if (!punchBtn.isEmpty() && punchBtn.contains(x, y)) {
                         synchronized (world) {
                             world.punch();
@@ -2565,8 +2641,10 @@ public class CasinoActivity extends Activity {
                     lookId = -1;
                     stickX = stickY = 0;
                     firePointer = -1;
+                    blockPointer = -1;
                     synchronized (world) {
                         world.triggerHeld = false;
+                        world.fight.block(false);
                     }
                     return true;
                 case MotionEvent.ACTION_POINTER_UP:
@@ -2574,6 +2652,12 @@ public class CasinoActivity extends Activity {
                         firePointer = -1;
                         synchronized (world) {
                             world.triggerHeld = false;
+                        }
+                    }
+                    if (id == blockPointer) {
+                        blockPointer = -1;
+                        synchronized (world) {
+                            world.fight.block(false);
                         }
                     }
                     if (id == stickId) {

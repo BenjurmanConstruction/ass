@@ -898,8 +898,18 @@ final class CasinoWorld {
         float health = 100;
         /** Seconds since this guard last fired. */
         float gunCool;
+        // Fighting: the current move and its timing, see CasinoFight.
+        int act;
+        float actT, actWind, actDur, blockAt, blockRoll = -1;
+        boolean actHit, guard;
+        float dodgeX, dodgeZ;
+        boolean fighter, startedIt, reported, robbed;
+        int style;
+        float power = 1, fightCool, cower, challengeT, comboAt; int combo;
+        final int id = nextPersonId++;
     }
 
+    private static int nextPersonId;
     static final float DOWN_TIME = 3.4f;
     static final float PUNCH_TIME = 0.42f;
     static final float SPEED = 3.3f, DRAG_SPEED = 1.7f;
@@ -967,6 +977,9 @@ final class CasinoWorld {
             "Don't let him leave!"};
 
     CasinoTraffic traffic;
+    CasinoFight fight;
+    /** Coupons found on someone you knocked out, for the phone to pay. */
+    int cashDue;
     /** Parked cars to place when the world starts: x, z, heading, color, type. */
     final List<float[]> parkedCars = new ArrayList<>();
     /** Smoke and fire: x, y, z, rise speed, life, size, 1 if fire. */
@@ -979,6 +992,7 @@ final class CasinoWorld {
         setupPeople();
         traffic = new CasinoTraffic(this, seed);
         traffic.spawnAll();
+        fight = new CasinoFight(this, seed);
     }
 
     Person newPerson(int kind) {
@@ -1168,6 +1182,7 @@ final class CasinoWorld {
      */
     void update(float dt, float sx, float sy) {
         dt = Math.min(dt, 0.05f);
+        if (fight != null) dt *= fight.timeScale();
         time += dt;
         sounds = 0;
 
@@ -1216,7 +1231,8 @@ final class CasinoWorld {
         float carX = sx, carY = sy;
         if (traffic.driving != null) sx = sy = 0;
         float mag = (float) Math.min(1, Math.hypot(sx, sy));
-        if (picking) mag = 0;
+        if (picking || me.down > 0 || (CasinoFight.busy(me) && me.act != CasinoFight.HIT)) mag = 0;
+        if (me.act == CasinoFight.BLOCK) mag *= 0.4f;
         float speed = dragging != null ? DRAG_SPEED : (aiming ? 1.9f : SPEED);
         if (mag > 0.08f) {
             float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
@@ -1249,12 +1265,8 @@ final class CasinoWorld {
             b.yaw = me.yaw + PI;
         }
 
-        if (me.punch > 0) {
-            float before = me.punch;
-            me.punch -= dt;
-            float hitAt = PUNCH_TIME - 0.14f;
-            if (before > hitAt && me.punch <= hitAt) landPunch();
-        }
+        if (me.punch > 0) me.punch -= dt;
+        fight.update(dt);
 
         traffic.update(dt, escort > 0 ? 0 : carX, escort > 0 ? 0 : carY);
         CasinoTraffic.Car car = traffic.driving;
@@ -1313,20 +1325,29 @@ final class CasinoWorld {
                 p.walk = 0;
                 if (p.down <= 0) {
                     p.fall = 0;
-                    say(p, p.kind == STAFF ? STAFF_OUCH : OUCH);
-                    p.angry = 5;
-                    if (p.kind == WANDER) {
-                        p.speed = 1.9f;
-                        pickTarget(p);
+                    if (!p.fighter) {
+                        say(p, p.kind == STAFF ? STAFF_OUCH : OUCH);
+                        p.angry = 5;
+                        if (p.kind == WANDER) {
+                            p.speed = 1.9f;
+                            pickTarget(p);
+                        }
                     }
                 }
                 continue;
             }
-            if (p.punch > 0) {
-                float before = p.punch;
-                p.punch -= dt;
-                float hitAt = PUNCH_TIME - 0.14f;
-                if (before > hitAt && p.punch <= hitAt) npcLands(p);
+            if (p.punch > 0) p.punch -= dt;
+            if (p.fighter && fight.think(p, dt)) continue;
+            fight.animate(p, dt);
+            if (CasinoFight.busy(p)) {
+                p.walk = Math.max(0, p.walk - dt * 6);
+                continue;
+            }
+            if (p.cower > 0) {
+                p.cower -= dt;
+                p.walk = 0;
+                p.act = CasinoFight.BLOCK;
+                if (p.cower <= 0) p.act = CasinoFight.NONE;
                 continue;
             }
             if (p.flee > 0) {
@@ -1360,16 +1381,10 @@ final class CasinoWorld {
                     goHome(p, dt);
                     break;
             }
-            if (p.tough && p.angry > 0 && !p.swung && escort <= 0) {
-                float d = dist(p, me);
-                if (d < 1.1f) {
-                    p.yaw = (float) Math.atan2(me.x - p.x, -(me.z - p.z));
-                    p.punch = PUNCH_TIME;
-                    p.swung = true;
-                } else if (d < 4 && p.kind == WANDER) {
-                    p.tx = me.x;
-                    p.tz = me.z;
-                }
+            if (p.challengeT > 0 && p.kind == WANDER) {
+                p.tx = me.x;
+                p.tz = me.z;
+                p.idle = 0;
             }
             if (p.talk != null && dist(p, me) < 9) {
                 p.talkT -= dt;
@@ -1794,10 +1809,21 @@ final class CasinoWorld {
     // ================================================================== punching & takedowns
 
     void punch() {
-        if (player.punch > 0 || escort > 0 || dragging != null) return;
-        Person t = target(1.6f, 1.1f);
-        if (t != null) player.yaw = (float) Math.atan2(t.x - player.x, -(t.z - player.z));
-        player.punch = PUNCH_TIME;
+        if (escort > 0 || dragging != null) return;
+        fight.punchPressed();
+    }
+
+    void stepPerson(Person p, float tx, float tz, float dt) {
+        step(p, tx, tz, dt);
+    }
+
+    void raiseAlarmPublic(String why) {
+        if (nearCasino(player)) raiseAlarm(why);
+    }
+
+    /** You knocked your contract target out cold: they can be finished where they lie. */
+    void knockedOutTarget(Person t) {
+        toast = t.name + " is out cold. Finish the job.";
     }
 
     private Person target(float reach, float cone) {
@@ -2857,7 +2883,8 @@ final class CasinoWorld {
 
     /** What the main button does right now. */
     static final int A_NONE = 0, A_SPOT = 1, A_DOOR = 2, A_TAKEDOWN = 3, A_DRAG = 4,
-            A_DROP = 5, A_HIDE = 6, A_OUTFIT = 7, A_CAR = 8, A_EXIT = 9;
+            A_DROP = 5, A_HIDE = 6, A_OUTFIT = 7, A_CAR = 8, A_EXIT = 9, A_ROB = 10,
+            A_FINISH = 11;
 
     static final class Action {
         final int type;
@@ -2893,6 +2920,12 @@ final class CasinoWorld {
         if (t != null) out.add(new Action(A_TAKEDOWN, t.target ? "Eliminate " + t.name
                 : "Takedown", t));
         Person b = bodyNear();
+        if (b != null && b.ko && b.target && !b.dead) {
+            out.add(new Action(A_FINISH, "Finish " + b.name, b));
+        } else if (b != null && b.ko && !b.robbed && !b.dead && b.kind != COP
+                && b.kind != GUARD) {
+            out.add(new Action(A_ROB, "Search pockets", b));
+        }
         if (b != null) {
             out.add(new Action(A_DRAG, "Drag body", b));
             if (b.outfit != CIVILIAN && b.outfit != player.outfit) {
@@ -2997,6 +3030,27 @@ final class CasinoWorld {
                 traffic.enter((CasinoTraffic.Car) a.ref);
                 camYaw = ((CasinoTraffic.Car) a.ref).h;
                 break;
+            case A_ROB: {
+                Person v = (Person) a.ref;
+                v.robbed = true;
+                int cash = 10 + rnd.nextInt(70);
+                if (v.vest || v.kind == STAFF) cash += 40;
+                if (v.scale > 1.05f) cash += 30;
+                cashDue += cash;
+                toast = "Found " + cash + " coupons.";
+                crimeSeen(0.3f, "Mugging");
+                break;
+            }
+            case A_FINISH: {
+                Person v = (Person) a.ref;
+                player.yaw = (float) Math.atan2(v.x - player.x, -(v.z - player.z));
+                player.punch = PUNCH_TIME;
+                sounds |= 1;
+                boolean seen = witnessed(0.7f, true, v);
+                if (seen) targetWitnessed = true;
+                kill(v, KILL_TAKEDOWN);
+                break;
+            }
             case A_EXIT:
                 exitCar(false);
                 break;
@@ -3492,6 +3546,141 @@ final class CasinoWorld {
         s.part(tmp, c, glow);
     }
 
+    private final float[] armOut = new float[3], legOut = new float[2];
+    private float armRoll;
+
+    /** A fighter winding up a swing you can see coming. */
+    private boolean telegraph(Person p) {
+        return p != player && CasinoFight.attacking(p) && p.actT < p.actWind;
+    }
+
+    private static float pullOf(Person p) {
+        return p.actT < p.actWind ? p.actT / Math.max(0.01f, p.actWind) : 0;
+    }
+
+    private static float extOf(Person p) {
+        if (p.actT < p.actWind) return 0;
+        float t = p.actT - p.actWind;
+        if (t < 0.07f) return 1;
+        return Math.max(0, 1 - (t - 0.07f) / Math.max(0.05f, p.actDur - p.actWind - 0.07f));
+    }
+
+    private static void mix(float[] out, float[] a, float[] b, float k) {
+        for (int i = 0; i < out.length; i++) out[i] = a[i] + (b[i] - a[i]) * k;
+    }
+
+    /** Arm angle, elbow and roll for fighting poses; false to use the normal pose. */
+    private boolean fightArm(Person p, int side, float[] out) {
+        int m = p.act;
+        boolean stance = p.guard || p.fighter;
+        float[] g = {1.0f, 2.0f, -0.25f * side};
+        if (m == CasinoFight.BLOCK) {
+            out[0] = 1.85f;
+            out[1] = 2.55f;
+            out[2] = -0.35f * side;
+            return true;
+        }
+        if (m == CasinoFight.STAGGER) {
+            out[0] = 0.5f;
+            out[1] = 0.4f;
+            out[2] = 0.5f * side;
+            return true;
+        }
+        if (CasinoFight.attacking(p)) {
+            if (m >= CasinoFight.KICK) {
+                float[] bal = {0.6f, 0.5f, 0.45f * side};
+                System.arraycopy(stance ? g : bal, 0, out, 0, 3);
+                return true;
+            }
+            int armSide = m == CasinoFight.JAB ? -1 : 1;
+            if (side != armSide) {
+                System.arraycopy(g, 0, out, 0, 3);
+                return true;
+            }
+            float[] wp, sp;
+            switch (m) {
+                case CasinoFight.JAB:
+                    wp = new float[]{0.9f, 2.1f, -0.1f * side};
+                    sp = new float[]{1.6f, 0.05f, -0.15f * side};
+                    break;
+                case CasinoFight.CROSS:
+                    wp = new float[]{0.7f, 2.2f, 0};
+                    sp = new float[]{1.6f, 0.05f, -0.2f * side};
+                    break;
+                case CasinoFight.HOOK:
+                    wp = new float[]{1.0f, 1.5f, 0.7f * side};
+                    sp = new float[]{1.45f, 1.4f, -0.6f * side};
+                    break;
+                default:
+                    wp = new float[]{0.1f, 2.0f, 0};
+                    sp = new float[]{2.6f, 0.6f, -0.1f * side};
+                    break;
+            }
+            if (p.actT < p.actWind) mix(out, g, wp, pullOf(p));
+            else mix(out, g, sp, extOf(p));
+            return true;
+        }
+        if (stance && p.walk < 0.95f) {
+            System.arraycopy(g, 0, out, 0, 3);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean fightLeg(Person p, int side, float[] out) {
+        int m = p.act;
+        if (side != 1 || m < CasinoFight.KICK || m > CasinoFight.STOMP) return false;
+        float[] g = {0, 0}, wp, sp;
+        if (m == CasinoFight.KICK) {
+            wp = new float[]{0.7f, 1.3f};
+            sp = new float[]{1.55f, 0.05f};
+        } else if (m == CasinoFight.ROUND) {
+            wp = new float[]{0.9f, 1.4f};
+            sp = new float[]{1.7f, 0.1f};
+        } else {
+            wp = new float[]{1.1f, 1.6f};
+            sp = new float[]{0.25f, 0.1f};
+        }
+        if (p.actT < p.actWind) mix(out, g, wp, pullOf(p));
+        else mix(out, g, sp, extOf(p));
+        return true;
+    }
+
+    private static float fightTwist(Person p) {
+        switch (p.act) {
+            case CasinoFight.CROSS:
+                return 0.45f * extOf(p) - 0.15f * pullOf(p);
+            case CasinoFight.HOOK:
+                return 0.7f * extOf(p) - 0.3f * pullOf(p);
+            case CasinoFight.ROUND:
+                return 1.2f * extOf(p) - 0.8f * pullOf(p);
+            case CasinoFight.JAB:
+                return -0.2f * extOf(p);
+            default:
+                return 0;
+        }
+    }
+
+    private static float fightLean(Person p) {
+        switch (p.act) {
+            case CasinoFight.KICK:
+            case CasinoFight.ROUND:
+                return 0.28f * Math.max(pullOf(p), extOf(p));
+            case CasinoFight.UPPER:
+                return -0.2f * pullOf(p) + 0.12f * extOf(p);
+            case CasinoFight.HIT:
+                return 0.35f * Math.max(0, 1 - p.actT / Math.max(0.05f, p.actDur));
+            case CasinoFight.STAGGER:
+                return 0.22f + 0.08f * (float) Math.sin(p.actT * 14);
+            case CasinoFight.DODGE:
+                return 0.25f;
+            case CasinoFight.BLOCK:
+                return -0.1f;
+            default:
+                return p.guard || p.fighter ? -0.06f : 0;
+        }
+    }
+
     private void drawPerson(Person p, PartSink s) {
         float sc = p.scale;
         boolean sit = p.sitting && p.down <= 0 && !p.ko && !p.dead;
@@ -3516,6 +3705,9 @@ final class CasinoWorld {
             if (p.fall > 0) {
                 a = 0.15f * side;
                 knee = 0.1f;
+            } else if (fightLeg(p, side, legOut)) {
+                a = legOut[0];
+                knee = legOut[1];
             }
             copy(joint, base);
             Mat.translate(joint, 0.105f * side, hip, 0);
@@ -3524,6 +3716,12 @@ final class CasinoWorld {
             Mat.translate(joint, 0, -0.43f, 0);
             Mat.rotX(joint, -knee);
             limb(s, joint, 0, -0.2f, 0, 0.155f, 0.42f, 0.18f, p.pants);
+            if (side == 1 && telegraph(p) && p.act >= CasinoFight.KICK) {
+                copy(tmp, joint);
+                Mat.translate(tmp, 0, -0.42f, -0.05f);
+                Mat.scale(tmp, 0.22f, 0.14f, 0.34f);
+                s.part(tmp, 0xFFFFE070, 1);
+            }
             if (p.shoes != 0) {
                 copy(tmp, joint);
                 Mat.translate(tmp, 0, -0.42f, -0.05f);
@@ -3539,8 +3737,11 @@ final class CasinoWorld {
             float t = 1 - p.punch / PUNCH_TIME;
             twist = (float) Math.sin(Math.min(1, t * 2.2f) * Math.PI) * 0.35f;
         }
+        twist += fightTwist(p);
         Mat.translate(joint, 0, hip, 0);
         Mat.rotY(joint, twist);
+        float lean = fightLean(p);
+        if (lean != 0) Mat.rotX(joint, lean);
         if (p.jacket != 0) {
             // A jacket hanging open over the shirt.
             limb(s, joint, 0, 0.3f, 0, 0.5f, 0.64f, 0.29f, p.jacket);
@@ -3612,6 +3813,13 @@ final class CasinoWorld {
                     elbow = 1.7f;
                 }
             }
+            if (!gun && p.fall <= 0 && !sit && fightArm(p, side, armOut)) {
+                a = armOut[0];
+                elbow = armOut[1];
+                armRoll = armOut[2];
+            } else {
+                armRoll = Float.NaN;
+            }
             if (gun) {
                 float ap = p == player ? aimPitch : 0;
                 boolean two = held != null && held.twoHand;
@@ -3624,7 +3832,8 @@ final class CasinoWorld {
                 }
             }
             Mat.rotX(shoulder, a);
-            Mat.rotZ(shoulder, (gun && side == -1 ? -0.55f : 0.06f) * side);
+            Mat.rotZ(shoulder, !Float.isNaN(armRoll) && !gun ? armRoll
+                    : (gun && side == -1 ? -0.55f : 0.06f) * side);
             int sleeve = p.jacket != 0 ? p.jacket : p.shirt;
             limb(s, shoulder, 0, -0.16f, 0, 0.13f, 0.34f, 0.14f, sleeve);
             Mat.translate(shoulder, 0, -0.32f, 0);
@@ -3632,6 +3841,13 @@ final class CasinoWorld {
             limb(s, shoulder, 0, -0.14f, 0, 0.12f, 0.3f, 0.13f,
                     p.jacket != 0 ? p.jacket : (p.tie || p.outfit == COOK ? p.shirt : p.skin));
             limb(s, shoulder, 0, -0.32f, 0, 0.12f, 0.1f, 0.12f, p.skin);
+            if (telegraph(p) && p.act < CasinoFight.KICK
+                    && side == (p.act == CasinoFight.JAB ? -1 : 1)) {
+                copy(tmp, shoulder);
+                Mat.translate(tmp, 0, -0.33f, 0);
+                Mat.scale(tmp, 0.17f, 0.15f, 0.17f);
+                s.part(tmp, 0xFFFFE070, 1);
+            }
             if (held != null && held.melee && side == 1) {
                 limb(s, shoulder, 0, -0.43f, -0.03f, 0.03f, 0.16f, 0.05f, 0xFFC8CCD4);
             }

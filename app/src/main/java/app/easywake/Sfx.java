@@ -32,7 +32,8 @@ final class Sfx {
     static final int SILENCED = 13;
     /** A car blowing up. */
     static final int BOOM = 14;
-    private static final int COUNT = 15;
+    static final int BLOCK = 15;
+    private static final int COUNT = 16;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
@@ -165,6 +166,14 @@ final class Sfx {
                 Random r = new Random(9);
                 thump(b, r, 0, 1.0);
                 burst(b, r, 0, 0.05, 0.9, 0.2);
+                break;
+            }
+            case BLOCK: {
+                b = new float[(int) (0.16 * SR)];
+                Random r = new Random(15);
+                thump(b, r, 0, 0.5);
+                burst(b, r, 0, 0.02, 0.6, 0.15);
+                bell(b, 0, 620, 0.08, 0.25);
                 break;
             }
             case CLICK: {

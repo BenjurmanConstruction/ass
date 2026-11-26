@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v34**.
+- Latest release: **v35**.
 
 ## Standing rules
 
@@ -244,6 +244,16 @@ player name and uninstall.
   last known spot (lastX/Z) and search nearby intersections; on-foot cops go there too.
   Lose them after 6 + 3*stars s unseen. Cops only see you in their view (on foot 22 m with
   facing; cruisers 26 m, not straight behind).
+
+### v35: fight system
+- New `CasinoFight.java` holds all hand-to-hand logic. Each move has its own wind-up, recovery, reach, damage, knockback and guard break: JAB, CROSS, HOOK, UPPER, KICK, ROUND, STOMP, plus BLOCK / HIT / DODGE / STAGGER. Each person tracks the move they're in (`Person.act`, `actT`, `actWind`, `actDur`).
+- Controls with fists: PUNCH chains jab→cross→hook; KICK becomes a roundhouse after punches; hold BLOCK (blocks take 12%, kicks break guard); DODGE moves you in the stick direction (or back) and nothing can hit you mid-dodge; punch on a downed person = stomp.
+- Parry: block within 0.22 s of a hit → attacker staggers, "COUNTER!" slow motion, and your next punch is an uppercut.
+- Fighter AI comes in four styles: BRAWLER, BOXER (blocks a lot, quick), DRUNK (slow, wild hooks), BRUISER (150 HP, heavy hits). Attacks are telegraphed with a glowing fist or foot and a yellow health bar. At most 2 swing at once; a second attacker flanks. Poise: after 2–4 clean hits a fighter covers up and swings back. A swing already coming in only stops for a knockdown. Below 22 HP, 40% of fighters run.
+- A hit person fights back 45% of the time (tough guys always do), runs 40%, otherwise cowers. Street toughs challenge you every 70–140 s.
+- Fists knock out instead of killing ("K.O.!"). "Search pockets" on a KO'd person gives 10–80 coupons (crime). A KO'd contract target can be finished off ("Finish …").
+- Sound bit 256 is the block sound (`Sfx.BLOCK`). `world.cashDue` gets paid out through the fine path in the Activity.
+- Off-device balance test: /home/claude/work/casino/T13.java (stand still / button-mash / block+punch vs 1–2 fighters of each style).
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

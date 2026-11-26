@@ -53,6 +53,39 @@ public class CasinoActivity extends Activity {
     static final String FLAGS = "casinoFlags", PICKS = "lockpicks", STYLE = "casinoStyle",
             WEAPON = "casinoWeapon";
     private MapView mapView;
+    private volatile boolean sprayAsked;
+
+    /** Parked in the spray booth: pay to repaint, repair and lose the cops. */
+    private void offerSpray() {
+        stickX = stickY = 0;
+        final int cost = CasinoTraffic.SPRAY_COST;
+        new AlertDialog.Builder(this).setTitle("Spray Shop")
+                .setMessage(String.format(Locale.US, "New paint, fixed engine, and the cops "
+                        + "won't recognize you. %,d coupons? You have %,d.", cost,
+                        Wallet.coupons(this)))
+                .setPositiveButton("Do it", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        if (!pay(cost)) {
+                            synchronized (world) {
+                                world.traffic.skipSpray();
+                            }
+                            return;
+                        }
+                        synchronized (world) {
+                            world.traffic.respray();
+                        }
+                        overlay.show("Fresh paint. Nobody's looking for you.");
+                    }
+                }).setNegativeButton("No", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        synchronized (world) {
+                            world.traffic.skipSpray();
+                        }
+                    }
+                }).setCancelable(false).show();
+    }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -905,6 +938,10 @@ public class CasinoActivity extends Activity {
         Canvas c = new Canvas(b);
         Paint p = new Paint();
         c.drawColor(0xFF0B0D12);
+        for (float[] g : CasinoCity.GROUND) {
+            p.setColor(g[4] == CasinoCity.ASPHALT ? 0xFF26262C : 0xFF3A3834);
+            c.drawRect(mx(g[0]), mz(g[1]), mx(g[2]), mz(g[3]), p);
+        }
         float[][] ground = {{-48, 14, 48, 18, 0xFF46433F}, {-48, 26, 48, 30, 0xFF46433F},
                 {-48, 18, 48, 26, 0xFF26262C}, {-48, -14, -18, 14, 0xFF1E2028},
                 {18, -28, 26, 14, 0xFF2A2624}, {34, 30, 48, 42, 0xFF24221E}};
@@ -987,7 +1024,26 @@ public class CasinoActivity extends Activity {
                 c.drawText((String) pl[0], ox + (x - CasinoWorld.WX0) * k,
                         oy + (z - CasinoWorld.WZ0) * k, p);
             }
+            p.setColor(0x99E6B869);
+            for (int i = 0; i < CasinoCity.ST_Z.length; i++) {
+                c.drawText(CasinoCity.ST_NAMES[i], ox + (70 - CasinoWorld.WX0) * k,
+                        oy + (CasinoCity.ST_Z[i] + 1.2f - CasinoWorld.WZ0) * k, p);
+            }
+            for (int i = 0; i < CasinoCity.AVE_X.length; i++) {
+                c.save();
+                float ax = ox + (CasinoCity.AVE_X[i] - CasinoWorld.WX0) * k;
+                float az = oy + (-50 - CasinoWorld.WZ0) * k;
+                c.rotate(-90, ax, az);
+                c.drawText(CasinoCity.AVE_NAMES[i], ax, az + 4 * d, p);
+                c.restore();
+            }
             synchronized (world) {
+                for (CasinoTraffic.Car pc : world.traffic.cars) {
+                    if (pc.role != CasinoTraffic.COP || pc.wrecked) continue;
+                    p.setColor(0xFF3A6AFF);
+                    float x = ox + (pc.x - CasinoWorld.WX0) * k, y = oy + (pc.z - CasinoWorld.WZ0) * k;
+                    c.drawRect(x - 4 * d, y - 4 * d, x + 4 * d, y + 4 * d, p);
+                }
                 for (CasinoWorld.Door dr : world.doors) {
                     if (dr.unlocked || world.canOpen(dr)) continue;
                     p.setColor(0xFFFF9A30);
@@ -1032,7 +1088,8 @@ public class CasinoActivity extends Activity {
             p.setTextSize(11 * d);
             float lx = 14 * d, ly = h - 14 * d;
             Object[][] legend = {{0xFFFFFFFF, "You"}, {0xFFFF2A2A, "Target"},
-                    {0xFF5AA8FF, "Security"}, {0xFFFFD24A, "Store"}, {0xFFFF9A30, "Locked (pins)"}};
+                    {0xFF5AA8FF, "Security"}, {0xFF3A6AFF, "Police"}, {0xFFFFD24A, "Store"},
+                    {0xFFFF9A30, "Locked (pins)"}};
             for (Object[] l : legend) {
                 p.setColor((Integer) l[0]);
                 c.drawCircle(lx + 4 * d, ly - 4 * d, 4 * d, p);
@@ -1432,14 +1489,37 @@ public class CasinoActivity extends Activity {
             last = now;
             final int sounds;
             final boolean finished, rangeOver;
+            final int fine;
+            final boolean spray;
+            final String flash;
             synchronized (world) {
                 world.update(dt, stickX, stickY);
+                fine = world.traffic.fineDue;
+                world.traffic.fineDue = 0;
+                spray = world.traffic.sprayReady && !sprayAsked;
+                if (spray) sprayAsked = true;
+                if (!world.traffic.sprayReady) sprayAsked = false;
+                flash = world.traffic.flash;
+                world.traffic.flash = null;
                 sounds = world.sounds;
                 finished = world.contractDone;
                 rangeOver = world.rangeDone;
                 world.camera(glW / (float) Math.max(1, glH), view, proj, eye);
                 CasinoWorld.Mat.mul(vp, proj, view);
                 System.arraycopy(vp, 0, viewProj, 0, 16);
+            }
+            if (fine > 0 || spray || flash != null) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (fine > 0) {
+                            int pay = Math.min(fine, Wallet.coupons(CasinoActivity.this));
+                            if (pay > 0) Wallet.addCoupons(CasinoActivity.this, -pay);
+                        }
+                        if (flash != null) overlay.show(flash);
+                        if (spray) offerSpray();
+                    }
+                });
             }
             if (sounds != 0 || finished || rangeOver) {
                 runOnUiThread(new Runnable() {
@@ -1450,6 +1530,7 @@ public class CasinoActivity extends Activity {
                         if ((sounds & 8) != 0) Sfx.play(CasinoActivity.this, Sfx.SILENCED);
                         if ((sounds & 16) != 0) Sfx.play(CasinoActivity.this, Sfx.SHOT);
                         if ((sounds & 4) != 0) Sfx.play(CasinoActivity.this, Sfx.SHOT);
+                        if ((sounds & 128) != 0) Sfx.play(CasinoActivity.this, Sfx.BOOM);
                         else if ((sounds & 1) != 0) Sfx.play(CasinoActivity.this, Sfx.PUNCH);
                         else if ((sounds & 2) != 0) Sfx.play(CasinoActivity.this, Sfx.WHOOSH);
                         if (finished) contractFinished();
@@ -1975,6 +2056,42 @@ public class CasinoActivity extends Activity {
                 rangeTime = world.rangeTime;
                 score = world.rangeScore;
             }
+            drawStars(c, w);
+            CasinoTraffic.Car car;
+            float carSpeed = 0, carHealth = 0;
+            synchronized (world) {
+                car = world.traffic.driving;
+                if (car != null) {
+                    carSpeed = Math.abs(car.speed);
+                    carHealth = car.health;
+                }
+            }
+            if (car != null) {
+                fireBtn.setEmpty();
+                punchBtn.setEmpty();
+                aimBtn.setEmpty();
+                reloadBtn.setEmpty();
+                gunBtn.setEmpty();
+                float cx = w - 90 * d, cy = h - 90 * d;
+                paint.setColor(0x99000000);
+                c.drawCircle(cx, cy, 58 * d, paint);
+                paint.setColor(0xFFFFFFFF);
+                paint.setTextSize(30 * d);
+                c.drawText(String.valueOf(Math.round(carSpeed * 2.237f)), cx, cy + 8 * d, paint);
+                paint.setTextSize(11 * d);
+                paint.setColor(0xAAFFFFFF);
+                c.drawText("MPH", cx, cy + 26 * d, paint);
+                RectF bar = new RectF(cx - 46 * d, cy + 34 * d, cx + 46 * d, cy + 40 * d);
+                paint.setColor(0x66000000);
+                c.drawRect(bar, paint);
+                paint.setColor(carHealth > 50 ? 0xFF6CFF8A : (carHealth > 25 ? 0xFFFFC040 : 0xFFFF3030));
+                c.drawRect(bar.left, bar.top, bar.left + bar.width() * Math.max(0, carHealth) / 100,
+                        bar.bottom, paint);
+                paint.setTextSize(11 * d);
+                paint.setColor(0x99FFFFFF);
+                c.drawText("stick: up gas, down brake, sideways steer", w / 2f, h - 10 * d, paint);
+                return;
+            }
             float pr = 36 * d;
             boolean armed = g != null;
             // The big button: punch with fists, fire with a weapon.
@@ -2092,6 +2209,34 @@ public class CasinoActivity extends Activity {
             }
         }
 
+        /** Wanted stars under the top-right buttons; they flash while cops can see you. */
+        private void drawStars(Canvas c, int w) {
+            int stars;
+            boolean seen;
+            synchronized (world) {
+                stars = world.traffic.stars();
+                seen = stars > 0 && world.traffic.unseen < 0.5f;
+            }
+            if (stars == 0) return;
+            float r = 9 * d, gap = 22 * d;
+            float x0 = w - 12 * d - 5 * gap + gap / 2, y = 70 * d;
+            boolean blink = seen && (SystemClock.uptimeMillis() / 250) % 2 == 0;
+            for (int i = 0; i < 5; i++) {
+                Path p = new Path();
+                float cx = x0 + i * gap;
+                for (int k = 0; k < 10; k++) {
+                    double a = -Math.PI / 2 + k * Math.PI / 5;
+                    float rr = k % 2 == 0 ? r : r * 0.45f;
+                    float px = cx + (float) Math.cos(a) * rr, py = y + (float) Math.sin(a) * rr;
+                    if (k == 0) p.moveTo(px, py);
+                    else p.lineTo(px, py);
+                }
+                p.close();
+                paint.setColor(i < stars ? (blink ? 0xFFFFFFFF : 0xFFFFC94A) : 0x55FFFFFF);
+                c.drawPath(p, paint);
+            }
+        }
+
         private void topButton(Canvas c, RectF r, String label, int color) {
             paint.setColor(0x88000000);
             c.drawRoundRect(r, 20 * d, 20 * d, paint);
@@ -2113,7 +2258,9 @@ public class CasinoActivity extends Activity {
             Bitmap map = mapBitmap();
             float r = 60 * d, cx = 12 * d + r, cy = 64 * d + r;
             miniBtn.set(cx - r, cy - r, cx + r, cy + r);
-            float k = r / 24f;
+            float view = world.traffic.driving != null
+                    ? 30 + Math.min(25, Math.abs(world.traffic.driving.speed) * 1.2f) : 24;
+            float k = r / view;
             CasinoWorld.Person me = world.player;
             float yaw = world.camYaw;
             paint.setColor(0xCC07080C);
@@ -2145,6 +2292,23 @@ public class CasinoActivity extends Activity {
                 toMini(sp.x - me.x, sp.z - me.z, yaw, k, o);
                 if (o[0] * o[0] + o[1] * o[1] > (r - 4 * d) * (r - 4 * d)) continue;
                 paint.setColor(0xFFFFD24A);
+                c.drawCircle(cx + o[0], cy + o[1], 3 * d, paint);
+            }
+            // Police: cruisers and cops on foot, flashing red and blue.
+            boolean blink = ((int) (world.time * 4)) % 2 == 0;
+            for (CasinoTraffic.Car pc : world.traffic.cars) {
+                if (pc.role != CasinoTraffic.COP || pc.wrecked) continue;
+                toMini(pc.x - me.x, pc.z - me.z, yaw, k, o);
+                if (o[0] * o[0] + o[1] * o[1] > (r - 4 * d) * (r - 4 * d)) continue;
+                paint.setColor(blink ? 0xFFFF3030 : 0xFF3A6AFF);
+                c.drawRect(cx + o[0] - 4 * d, cy + o[1] - 4 * d, cx + o[0] + 4 * d, cy + o[1] + 4 * d,
+                        paint);
+            }
+            for (CasinoWorld.Person cp : world.traffic.cops) {
+                if (!cp.active || cp.dead) continue;
+                toMini(cp.x - me.x, cp.z - me.z, yaw, k, o);
+                if (o[0] * o[0] + o[1] * o[1] > (r - 4 * d) * (r - 4 * d)) continue;
+                paint.setColor(blink ? 0xFF3A6AFF : 0xFFFF3030);
                 c.drawCircle(cx + o[0], cy + o[1], 3 * d, paint);
             }
             // Security.

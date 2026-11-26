@@ -323,7 +323,7 @@ final class CasinoWorld {
     /** The casino's main room. */
     static final float X0 = -18, X1 = 18, Z0 = -14, Z1 = 14, CEIL = 5.4f;
     /** The whole walkable world. */
-    static final float WX0 = -48, WX1 = 48, WZ0 = -28, WZ1 = 42;
+    static final float WX0 = -112, WX1 = 112, WZ0 = -82, WZ1 = 80;
     static final float SPAWN_X = 0, SPAWN_Z = 11.5f;
     /** Where security drops you: the sidewalk outside the front door. */
     static final float OUT_X = 0, OUT_Z = 16.5f;
@@ -610,8 +610,9 @@ final class CasinoWorld {
         // A low brass rail around the jackpot corner, purely for looks.
         m.boxAA(-16.5f, 0.85f, -11.0f, -7.6f, 0.92f, -10.92f, BRASS, 0.2f);
 
-        // Everything outside the main room.
+        // Everything outside the main room, then the city around it.
         CasinoPlaces.build(this);
+        CasinoCity.build(this);
     }
 
     final float[][] blackjackSeats = new float[4][];
@@ -798,7 +799,7 @@ final class CasinoWorld {
     // ================================================================== lighting map
 
     /** Light map resolution: texels per metre is 1 / LM_STEP. */
-    static final float LM_STEP = 0.25f;
+    static final float LM_STEP = 0.33f;
     static final int LM_W = (int) ((WX1 - WX0) / LM_STEP), LM_H = (int) ((WZ1 - WZ0) / LM_STEP);
 
     /** Which room a point is in, or -1 outside. */
@@ -854,7 +855,8 @@ final class CasinoWorld {
 
     // ================================================================== people
 
-    static final int WANDER = 0, SEATED = 1, STAFF = 2, GUARD = 3, PLAYER = 4, ROUTE = 5;
+    static final int WANDER = 0, SEATED = 1, STAFF = 2, GUARD = 3, PLAYER = 4, ROUTE = 5,
+            COP = 6;
     /** Outfits. Staff and cooks get into staff areas; security gets in almost anywhere. */
     static final int CIVILIAN = 0, STAFF_OUTFIT = 1, SECURITY = 2, COOK = 3;
     static final String[] OUTFIT_NAMES = {"your own clothes", "a staff uniform",
@@ -964,10 +966,19 @@ final class CasinoWorld {
     static final String[] ALARM_GUARD = {"Stop right there!", "Got eyes on him!",
             "Don't let him leave!"};
 
+    CasinoTraffic traffic;
+    /** Parked cars to place when the world starts: x, z, heading, color, type. */
+    final List<float[]> parkedCars = new ArrayList<>();
+    /** Smoke and fire: x, y, z, rise speed, life, size, 1 if fire. */
+    final List<float[]> smokes = new ArrayList<>();
+    private float lastLoud = -9;
+
     CasinoWorld(long seed) {
         rnd = new Random(seed);
         build();
         setupPeople();
+        traffic = new CasinoTraffic(this, seed);
+        traffic.spawnAll();
     }
 
     Person newPerson(int kind) {
@@ -1137,65 +1148,8 @@ final class CasinoWorld {
 
     // ================================================================== cars
 
-    /** Cars on the strip: x, lane z, direction, speed, color, wheel turn, type. */
-    final List<float[]> cars = new ArrayList<>();
-    /** Parked cars: x, z, facing, color, type. */
-    final List<float[]> parked = new ArrayList<>();
-    static final float LANE_W = 20, LANE_E = 24, CAR_TOP = 10;
-    static final int SEDAN = 0, SUV = 1, TAXI = 2, PICKUP = 3;
     static final int TAXI_YELLOW = 0xFFE8B420;
-
-    private void spawnCars() {
-        int[] colors = {0xFF9A1E1E, TAXI_YELLOW, 0xFFC8CCD2, 0xFF2A4E8A, 0xFF1C1C20,
-                0xFF2E6A44};
-        int[] types = {SEDAN, TAXI, SUV, SEDAN, PICKUP, SUV};
-        for (int i = 0; i < 6; i++) {
-            boolean west = i % 2 == 0;
-            cars.add(new float[]{-50 + i * 19, west ? LANE_W : LANE_E, west ? -1 : 1,
-                    CAR_TOP, colors[i], 0, types[i]});
-        }
-    }
-
-    private void updateCars(float dt) {
-        if (cars.isEmpty()) spawnCars();
-        for (float[] c : cars) {
-            // Brake for anyone walking in the lane ahead.
-            boolean brake = false;
-            for (Person p : allPeople()) {
-                if (!p.active || p.fall > 0.05f) continue;
-                if (Math.abs(p.z - c[1]) > 1.7f) continue;
-                float ahead = (p.x - c[0]) * c[2];
-                if (ahead > 0 && ahead < 10) brake = true;
-            }
-            float want = brake ? 0 : CAR_TOP;
-            c[3] += Math.max(-22 * dt, Math.min(5 * dt, want - c[3]));
-            c[0] += c[2] * c[3] * dt;
-            c[5] -= c[3] * dt / 0.34f;
-            if (c[0] > WX1 + 8) c[0] = WX0 - 8;
-            if (c[0] < WX0 - 8) c[0] = WX1 + 8;
-            if (c[3] < 3) continue;
-            for (Person p : allPeople()) {
-                if (!p.active || p.dead || p.hidden) continue;
-                if (Math.abs(p.z - c[1]) > 1.25f || Math.abs(p.x - c[0]) > 2.4f) continue;
-                if (p == player) {
-                    player.pushZ = (p.z < 22 ? -1 : 1) * 9;
-                    player.pushX = c[2] * 4;
-                    player.shake = 0.6f;
-                    player.bleed = 8;
-                    spray(p.x, 1.3f, p.z, c[2], 0, 12);
-                    sounds |= 1;
-                    toast = "Watch the road.";
-                } else {
-                    p.kx = c[2] * 7;
-                    p.kz = (p.z < 22 ? -1 : 1) * 3;
-                    spray(p.x, 1.3f, p.z, c[2], 0, 18);
-                    sounds |= 1;
-                    boolean blame = time - p.hitAt < 4;
-                    kill(p, blame ? KILL_PUSH : KILL_CAR);
-                }
-            }
-        }
-    }
+    static final int SEDAN = 0, SUV = 1, TAXI = 2, PICKUP = 3;
 
     // ================================================================== moving
 
@@ -1233,12 +1187,24 @@ final class CasinoWorld {
                     g.z = g.route[0][1];
                     g.routeI = 0;
                 }
-                toast = downed ? "You got shot down. You woke up outside. The job's off."
+                toast = downed ? "WASTED. You woke up outside the casino. The job's off."
                         : "Security threw you out. Lie low for a bit.";
+                if (traffic.driving != null) exitCar(false);
+                if (traffic.busted) {
+                    player.x = CasinoCity.BUSTED_X;
+                    player.z = CasinoCity.BUSTED_Z;
+                    player.yaw = WEST;
+                    camYaw = WEST;
+                    traffic.fineDue = 200;
+                    toast = "BUSTED. You paid a fine and walked out of the station.";
+                    traffic.busted = false;
+                    abortContract();
+                }
                 if (downed) {
                     abortContract();
                     downed = false;
                 }
+                traffic.reset();
                 health = 100;
                 aiming = false;
             }
@@ -1247,6 +1213,8 @@ final class CasinoWorld {
 
         // ---- the player
         Person me = player;
+        float carX = sx, carY = sy;
+        if (traffic.driving != null) sx = sy = 0;
         float mag = (float) Math.min(1, Math.hypot(sx, sy));
         if (picking) mag = 0;
         float speed = dragging != null ? DRAG_SPEED : (aiming ? 1.9f : SPEED);
@@ -1288,7 +1256,20 @@ final class CasinoWorld {
             if (before > hitAt && me.punch <= hitAt) landPunch();
         }
 
-        updateCars(dt);
+        traffic.update(dt, escort > 0 ? 0 : carX, escort > 0 ? 0 : carY);
+        CasinoTraffic.Car car = traffic.driving;
+        if (car != null) {
+            me.x = car.x;
+            me.z = car.z;
+            me.yaw = car.h;
+            me.walk = 0;
+            if (Math.abs(car.speed) > 1.5f && lookT <= 0) {
+                float follow = car.speed < 0 ? car.h + PI : car.h;
+                camYaw = turn(camYaw, follow, dt * 2.2f);
+            }
+        }
+        if (lookT > 0) lookT -= dt;
+        updateSmoke(dt);
         updateBlood(dt);
         updateDoors(dt);
 
@@ -1359,8 +1340,12 @@ final class CasinoWorld {
                 p.speed = sp;
                 continue;
             }
-            if (p.kind == GUARD && alarm && escort <= 0) {
+            if (p.kind == GUARD && alarm && escort <= 0 && nearCasino(me)) {
                 chase(p, dt);
+                continue;
+            }
+            if (p.kind == COP) {
+                copThink(p, dt);
                 continue;
             }
             switch (p.kind) {
@@ -1526,21 +1511,24 @@ final class CasinoWorld {
         step(p, tx, tz, dt, true);
     }
 
-    /** True when stepping off the curb now would put someone in front of a car. */
+    /** True when stepping into the road now would put someone in front of a car. */
     private boolean carComing(Person p, float tx, float tz) {
-        for (float[] c : cars) {
-            float lane = c[1];
-            boolean inLane = Math.abs(p.z - lane) < 1.7f;
-            boolean crosses = Math.min(p.z, tz) < lane + 1.7f && Math.max(p.z, tz) > lane - 1.7f;
-            if (inLane || !crosses) continue;
-            float ahead = (p.x - c[0]) * c[2];
-            if (ahead > -3f && ahead < 18) return true;
+        if (CasinoCity.onRoad(p.x, p.z) || !CasinoCity.onRoad(tx, tz)) return false;
+        for (CasinoTraffic.Car c : traffic.cars) {
+            if (Math.abs(c.speed) < 2) continue;
+            float fx = CasinoTraffic.fx(c.h) * Math.signum(c.speed);
+            float fz = CasinoTraffic.fz(c.h) * Math.signum(c.speed);
+            float dx = tx - c.x, dz = tz - c.z;
+            float ahead = dx * fx + dz * fz;
+            float side = Math.abs(dx * fz - dz * fx);
+            if (ahead > -3 && ahead < 22 && side < 3.5f) return true;
         }
         return false;
     }
 
     private void step(Person p, float tx, float tz, float dt, boolean solid) {
-        if (p != player && p.kind != GUARD && carComing(p, tx, tz)) {
+        if (p != player && p.kind != GUARD && p.kind != COP && p.flee <= 0
+                && carComing(p, tx, tz)) {
             p.walk = Math.max(0, p.walk - dt * 5);
             return;
         }
@@ -1697,7 +1685,7 @@ final class CasinoWorld {
         return zoneAt(player.x, player.z) > allowed(player.outfit);
     }
 
-    private boolean awake(Person p) {
+    boolean awake(Person p) {
         return p.active && !p.ko && !p.dead && p.down <= 0 && p.kind != PLAYER;
     }
 
@@ -1835,6 +1823,8 @@ final class CasinoWorld {
             sounds |= 2;
             return;
         }
+        if (p.kind == COP) traffic.addHeat(1, "Assaulted an officer");
+        else if (traffic.copSees()) traffic.addHeat(0.5f, "Assault");
         sounds |= 1;
         p.hitAt = time;
         witnessed(0.45f, false);
@@ -2132,6 +2122,7 @@ final class CasinoWorld {
         p.kx = dx * 1.2f;
         p.kz = dz * 1.2f;
         p.ko = false;
+        if (p.kind == COP) traffic.addHeat(1, "Shot a cop");
         if (p.kind == GUARD) raiseAlarm("A guard took a bullet.");
         else {
             p.flee = 6;
@@ -2151,6 +2142,8 @@ final class CasinoWorld {
             boolean sees = canSee(w, player.x, player.z, 16);
             if (w.kind == GUARD) {
                 if (sees || d < r * 0.5f) guardKnows = true;
+            } else if (w.kind == COP) {
+                continue;
             } else if (w.kind != ROUTE || !w.target) {
                 if (sees || rnd.nextFloat() < 0.6f) {
                     w.flee = 5 + rnd.nextFloat() * 3;
@@ -2160,7 +2153,16 @@ final class CasinoWorld {
             }
             if (w.target && sees) targetWitnessed = true;
         }
-        if (guardKnows) raiseAlarm("Shots fired.");
+        lastLoud = loud > 0.3f ? time : lastLoud;
+        if (loud > 0.3f) {
+            for (Person cp : traffic.cops) {
+                if (cp.active && !cp.dead && dist(cp, player) < 35) {
+                    traffic.addHeat(0.6f, "Shots fired");
+                    break;
+                }
+            }
+        }
+        if (guardKnows && nearCasino(player)) raiseAlarm("Shots fired.");
         else if (loud > 0.3f) suspicion = Math.min(0.95f, suspicion + 0.3f);
         if (suspicion >= 1 && !alarm) raiseAlarm("Someone saw you shoot.");
         if (contract != null && (guardKnows || suspicion > 0.6f)) spotted = true;
@@ -2179,18 +2181,200 @@ final class CasinoWorld {
                 0.07f});
         g.punch = PUNCH_TIME * 0.5f;
         if (!hit) return;
-        health -= 16 + rnd.nextFloat() * 8;
-        hurtT = 0;
-        player.shake = 0.3f;
         player.bleed = 6;
         spray(player.x, 1.3f, player.z, fx, fz, 8);
-        if (health <= 0 && escort <= 0) {
+        hurtPlayer(16 + rnd.nextFloat() * 8);
+    }
+
+    void hurtPlayer(float amount) {
+        if (escort > 0) return;
+        health -= amount;
+        hurtT = 0;
+        player.shake = Math.max(player.shake, 0.3f);
+        if (health <= 0) {
             health = 0;
             downed = true;
             dragging = null;
             escort = 1.6f;
             aiming = false;
         }
+    }
+
+    // ---------------------------------------------------------------- police on foot
+
+    Person spawnCop(float x, float z) {
+        Person p = newPerson(COP);
+        p.x = x;
+        p.z = z;
+        p.shirt = 0xFF1E2A4A;
+        p.pants = 0xFF141A2A;
+        p.hatType = CasinoShop.CAP;
+        p.hatColor = 0xFF141A2A;
+        p.health = 120;
+        p.speed = 2.9f;
+        p.tough = true;
+        p.name = "Police";
+        collide(p, 0.3f);
+        return p;
+    }
+
+    Person spawnPedestrian(float x, float z) {
+        Person p = newPerson(WANDER);
+        p.x = x;
+        p.z = z;
+        p.area = new float[]{x - 12, z - 12, x + 12, z + 12};
+        collide(p, 0.3f);
+        pickTarget(p);
+        return p;
+    }
+
+    boolean isFree(float x, float z) {
+        return x > WX0 + 1 && x < WX1 - 1 && z > WZ0 + 1 && z < WZ1 - 1 && free(x, z, 0.4f);
+    }
+
+    boolean nearCasino(Person me) {
+        return me.x > -20 && me.x < 20 && me.z > -26 && me.z < 16;
+    }
+
+    private void copThink(Person p, float dt) {
+        int st = traffic.stars();
+        Person me = player;
+        float d = dist(p, me);
+        if (st == 0) {
+            p.walk = Math.max(0, p.walk - dt * 4);
+            return;
+        }
+        boolean lethal = st >= 2 || aiming;
+        boolean los = d < 22 && clear(p.x, p.z, me.x, me.z);
+        if (lethal && los && (d < 14 || traffic.driving != null)) {
+            p.walk = Math.max(0, p.walk - dt * 5);
+            p.yaw = turn(p.yaw, (float) Math.atan2(me.x - p.x, -(me.z - p.z)), dt * 8);
+            p.gunCool -= dt;
+            if (p.gunCool <= 0) {
+                p.gunCool = 0.8f + rnd.nextFloat() * 0.7f;
+                copFires(p, d);
+            }
+            if (d > 9) {
+                float sp = p.speed;
+                p.speed = 1.8f;
+                step(p, me.x, me.z, dt);
+                p.speed = sp;
+            }
+            return;
+        }
+        if (!lethal && d < 1.0f && traffic.driving == null && escort <= 0) {
+            traffic.busted = true;
+            escort = 1.6f;
+            say(p, new String[]{"You're under arrest.", "Hands behind your back.",
+                    "Don't make this worse."});
+            return;
+        }
+        if (!lethal && d < 6 && rnd.nextFloat() < dt * 0.4f) {
+            say(p, new String[]{"Police! Stop right there!", "On the ground!", "Freeze!"});
+        }
+        step(p, me.x, me.z, dt);
+    }
+
+    private void copFires(Person p, float d) {
+        sounds |= 16;
+        float chance = 0.55f - d * 0.02f - (player.walk > 0.3f ? 0.15f : 0);
+        boolean hit = rnd.nextFloat() < Math.max(0.1f, chance);
+        float fx = (float) Math.sin(p.yaw), fz = (float) -Math.cos(p.yaw);
+        float tx = player.x + (hit ? 0 : (rnd.nextFloat() - 0.5f) * 1.8f);
+        float tz = player.z + (hit ? 0 : (rnd.nextFloat() - 0.5f) * 1.8f);
+        tracers.add(new float[]{p.x + fx * 0.6f, 1.4f, p.z + fz * 0.6f, tx,
+                hit ? 1.2f : 0.7f + rnd.nextFloat(), tz, 0.07f});
+        p.punch = PUNCH_TIME * 0.5f;
+        if (!hit) return;
+        if (traffic.driving != null) {
+            traffic.damage(traffic.driving, 7, false);
+            if (rnd.nextFloat() < 0.35f) hurtPlayer(10);
+            return;
+        }
+        player.bleed = 6;
+        spray(player.x, 1.3f, player.z, fx, fz, 8);
+        hurtPlayer(14 + rnd.nextFloat() * 8);
+    }
+
+    // ---------------------------------------------------------------- crimes
+
+    /** Anyone awake who can see you right now. */
+    boolean anyoneSees() {
+        for (Person w : people) {
+            if (awake(w) && canSee(w, player.x, player.z, 20)) return true;
+        }
+        return false;
+    }
+
+    /** A crime: the police only care if someone saw it or heard the shot. */
+    void crimeSeen(float amount, String why) {
+        boolean seen = anyoneSees() || time - lastLoud < 1.0f;
+        if (!seen) return;
+        traffic.addHeat(amount + (traffic.copSees() ? 0.5f : 0), why);
+    }
+
+    /** A kill by you (or a car you were pushed into, etc). */
+    void killBy(Person p, int how) {
+        kill(p, how);
+    }
+
+    // ---------------------------------------------------------------- fire and smoke
+
+    void smoke(float x, float y, float z, boolean fire) {
+        if (smokes.size() > 160) return;
+        smokes.add(new float[]{x + (rnd.nextFloat() - 0.5f) * 0.6f, y,
+                z + (rnd.nextFloat() - 0.5f) * 0.6f, fire ? 2.2f : 1.0f,
+                fire ? 0.5f : 1.6f, fire ? 0.25f : 0.3f, fire ? 1 : 0});
+    }
+
+    private void updateSmoke(float dt) {
+        for (int i = smokes.size() - 1; i >= 0; i--) {
+            float[] p = smokes.get(i);
+            p[1] += p[3] * dt;
+            p[4] -= dt;
+            p[5] += dt * (p[6] > 0 ? 0.3f : 0.5f);
+            if (p[4] <= 0) smokes.remove(i);
+        }
+    }
+
+    /** A car blowing up: hurts everyone close, sets off a fireball. */
+    void blast(float x, float z, boolean byPlayer) {
+        for (int i = 0; i < 40; i++) {
+            sparks.add(new float[]{x, 1.0f, z, (rnd.nextFloat() - 0.5f) * 14,
+                    2 + rnd.nextFloat() * 7, (rnd.nextFloat() - 0.5f) * 14, 0.9f});
+        }
+        for (int i = 0; i < 24; i++) smoke(x, 0.6f + rnd.nextFloat(), z, i % 2 == 0);
+        float dp = (float) Math.hypot(player.x - x, player.z - z);
+        if (dp < 6) {
+            player.shake = 0.8f;
+            hurtPlayer((6 - dp) * 22);
+        } else if (dp < 25) {
+            player.shake = Math.max(player.shake, 0.3f);
+        }
+        for (Person p : people) {
+            if (!p.active || p.dead) continue;
+            float d = (float) Math.hypot(p.x - x, p.z - z);
+            if (d > 5) continue;
+            float k = (5 - d) * 2;
+            p.kx = (p.x - x) / Math.max(0.3f, d) * k;
+            p.kz = (p.z - z) / Math.max(0.3f, d) * k;
+            if (byPlayer) killBy(p, KILL_BLAST);
+            else kill(p, KILL_CAR);
+        }
+        if (byPlayer) crimeSeen(1, "Blew up a car");
+    }
+
+    /** Puts you back on your feet next to the car. */
+    void exitCar(boolean hurried) {
+        CasinoTraffic.Car c = traffic.driving;
+        if (c == null) return;
+        float[] at = traffic.exitSpot(c);
+        traffic.driving = null;
+        player.x = at[0];
+        player.z = at[1];
+        player.yaw = c.h;
+        c.driver = false;
+        c.role = c.type == CasinoTraffic.POLICE ? CasinoTraffic.PARKED : CasinoTraffic.PARKED;
     }
 
     // ---------------------------------------------------------------- the practice range
@@ -2406,7 +2590,8 @@ final class CasinoWorld {
         return tb;
     }
 
-    static final int KILL_TAKEDOWN = 0, KILL_SHOT = 1, KILL_CAR = 2, KILL_PUSH = 3;
+    static final int KILL_TAKEDOWN = 0, KILL_SHOT = 1, KILL_CAR = 2, KILL_PUSH = 3,
+            KILL_RUNOVER = 4, KILL_BLAST = 5;
 
     private void kill(Person p, int how) {
         if (p.dead) return;
@@ -2420,6 +2605,10 @@ final class CasinoWorld {
             finishContract(how);
         } else if (how != KILL_CAR) {
             civKills++;
+        }
+        if (how != KILL_CAR) {
+            if (p.kind == COP) traffic.addHeat(2, "Killed a cop");
+            else crimeSeen(1, "Murder");
         }
     }
 
@@ -2580,7 +2769,7 @@ final class CasinoWorld {
 
     /** What the main button does right now. */
     static final int A_NONE = 0, A_SPOT = 1, A_DOOR = 2, A_TAKEDOWN = 3, A_DRAG = 4,
-            A_DROP = 5, A_HIDE = 6, A_OUTFIT = 7;
+            A_DROP = 5, A_HIDE = 6, A_OUTFIT = 7, A_CAR = 8, A_EXIT = 9;
 
     static final class Action {
         final int type;
@@ -2598,6 +2787,14 @@ final class CasinoWorld {
     List<Action> actions() {
         List<Action> out = new ArrayList<>();
         if (escort > 0) return out;
+        if (traffic.driving != null) {
+            out.add(new Action(A_EXIT, "Get out", null));
+            return out;
+        }
+        CasinoTraffic.Car near = traffic.carNear();
+        if (near != null && dragging == null) {
+            out.add(new Action(A_CAR, traffic.enterLabel(near), near));
+        }
         if (dragging != null) {
             Spot h = hideNear();
             if (h != null) out.add(new Action(A_HIDE, "Hide body: " + h.label, h));
@@ -2707,6 +2904,14 @@ final class CasinoWorld {
             case A_OUTFIT:
                 takeOutfit((Person) a.ref);
                 break;
+            case A_CAR:
+                aiming = false;
+                traffic.enter((CasinoTraffic.Car) a.ref);
+                camYaw = ((CasinoTraffic.Car) a.ref).h;
+                break;
+            case A_EXIT:
+                exitCar(false);
+                break;
             default:
                 break;
         }
@@ -2715,8 +2920,12 @@ final class CasinoWorld {
     // ================================================================== camera
 
     void camera(float aspect, float[] view, float[] proj, float[] eyeOut) {
-        if (aiming && weapon != null && escort <= 0) {
+        if (aiming && weapon != null && escort <= 0 && traffic.driving == null) {
             aimCamera(aspect, view, proj, eyeOut);
+            return;
+        }
+        if (traffic.driving != null) {
+            driveCamera(aspect, view, proj, eyeOut);
             return;
         }
         Person me = player;
@@ -2747,6 +2956,35 @@ final class CasinoWorld {
         eye[0] = me.x + (float) Math.cos(camYaw) * 0.55f;
         eye[1] = 1.62f;
         eye[2] = me.z + (float) Math.sin(camYaw) * 0.55f;
+        if (eyeOut != null) {
+            eyeOut[0] = ex;
+            eyeOut[1] = ey;
+            eyeOut[2] = ez;
+        }
+    }
+
+    /** Behind and above the car, pulled in when something's in the way. */
+    private void driveCamera(float aspect, float[] view, float[] proj, float[] eyeOut) {
+        CasinoTraffic.Car c = traffic.driving;
+        float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
+        float tx = c.x + fx * 2, ty = 1.4f, tz = c.z + fz * 2;
+        float back = 7.5f + Math.abs(c.speed) * 0.08f, up = 3.0f;
+        float dist = back;
+        for (int k = 1; k <= 12; k++) {
+            float t = back * k / 12;
+            if (blocked(c.x - fx * t, up * t / back + 0.8f, c.z - fz * t)) {
+                dist = Math.max(2.5f, t - 0.5f);
+                break;
+            }
+        }
+        float ex = c.x - fx * dist, ey = 0.8f + up * dist / back, ez = c.z - fz * dist;
+        if (player.shake > 0) {
+            float k = player.shake * 0.12f;
+            ex += (float) Math.sin(time * 71) * k;
+            ey += (float) Math.cos(time * 53) * k;
+        }
+        Mat.lookAt(view, ex, ey, ez, tx, ty, tz);
+        Mat.perspective(proj, 62 + Math.min(12, Math.abs(c.speed) * 0.5f), aspect, 0.2f, 120);
         if (eyeOut != null) {
             eyeOut[0] = ex;
             eyeOut[1] = ey;
@@ -2824,7 +3062,11 @@ final class CasinoWorld {
         return x < WX0 || x > WX1 || z < WZ0 || z > WZ1;
     }
 
+    /** Seconds the camera stays where you dragged it before following the car again. */
+    float lookT;
+
     void orbit(float dYaw, float dPitch) {
+        if (traffic != null && traffic.driving != null) lookT = 1.5f;
         camYaw += dYaw;
         camPitch = Math.max(0.05f, Math.min(1.1f, camPitch + dPitch));
     }
@@ -2856,7 +3098,7 @@ final class CasinoWorld {
         while (splats.size() > 160) splats.remove(0);
     }
 
-    private void spray(float x, float y, float z, float dx, float dz, int n) {
+    void spray(float x, float y, float z, float dx, float dz, int n) {
         for (int i = 0; i < n; i++) {
             float sp = 1.5f + rnd.nextFloat() * 2.5f;
             drops.add(new float[]{x, y, z,
@@ -2885,14 +3127,14 @@ final class CasinoWorld {
             shoulder = new float[16];
 
     /** Things farther than this from you aren't drawn, to keep older phones smooth. */
-    static final float DRAW_FAR = 42;
+    static final float DRAW_FAR = 62;
 
-    private boolean far(float x, float z) {
+    boolean far(float x, float z) {
         return dist2(x, z, player.x, player.z) > DRAW_FAR * DRAW_FAR;
     }
 
     void drawPeople(PartSink sink) {
-        drawPerson(player, sink);
+        if (traffic.driving == null) drawPerson(player, sink);
         for (Person p : people) {
             if (p.active && !far(p.x, p.z)) drawPerson(p, sink);
         }
@@ -2932,7 +3174,14 @@ final class CasinoWorld {
             sink.part(tmp, 0xFFFFC870, 1);
         }
         drawRange(sink);
-        drawCars(sink);
+        traffic.draw(sink);
+        for (float[] p : smokes) {
+            Mat.identity(tmp);
+            Mat.translate(tmp, p[0], p[1], p[2]);
+            Mat.rotY(tmp, p[0] * 3);
+            Mat.scale(tmp, p[5], p[5], p[5]);
+            sink.part(tmp, p[6] > 0 ? 0xFFFF8A2A : 0xFF3A3836, p[6] > 0 ? 1 : 0);
+        }
         // A small red marker over the contract target.
         if (targetP != null && targetP.active && !targetP.dead) {
             Mat.identity(tmp);
@@ -2989,15 +3238,17 @@ final class CasinoWorld {
         }
     }
 
-    private void drawCars(PartSink s) {
-        for (float[] c : cars) {
-            if (far(c[0], c[1])) continue;
-            drawCar(s, c[0], c[1], c[2] > 0 ? 0 : PI, (int) c[4], (int) c[6], c[5], true);
+    /** White doors and a roof light bar on the last car drawn (a police sedan). */
+    void drawPoliceBits(PartSink s, boolean siren) {
+        for (int side = -1; side <= 1; side += 2) {
+            cp(s, -0.2f, 0.62f, side * 0.906f, 1.9f, 0.4f, 0.01f, 0xFFE8E8EA, 0);
         }
-        for (float[] c : parked) {
-            if (far(c[0], c[1])) continue;
-            drawCar(s, c[0], c[1], c[2], (int) c[3], (int) c[4], 0, false);
-        }
+        cp(s, -0.33f, 1.49f, 0, 0.22f, 0.08f, 1.2f, 0xFF202024, 0);
+        boolean blink = ((int) (time * 6)) % 2 == 0;
+        cp(s, -0.33f, 1.55f, 0.32f, 0.2f, 0.1f, 0.5f, 0xFF2A5AFF,
+                siren ? (blink ? 1 : 0.25f) : 0.2f);
+        cp(s, -0.33f, 1.55f, -0.32f, 0.2f, 0.1f, 0.5f, 0xFFFF2A2A,
+                siren ? (blink ? 0.25f : 1) : 0.2f);
     }
 
     private final float[] car = new float[16];
@@ -3238,7 +3489,8 @@ final class CasinoWorld {
         }
         CasinoWeapons.Gun held = p == player ? weapon : null;
         boolean gun = held != null && !held.melee && aiming;
-        boolean guardGun = p.kind == GUARD && alarm && armedThreat && !p.ko && !p.dead;
+        boolean guardGun = (p.kind == GUARD && alarm && armedThreat
+                || p.kind == COP && (traffic.stars() >= 2 || aiming)) && !p.ko && !p.dead;
         if (guardGun) gun = true;
         for (int side = -1; side <= 1; side += 2) {
             copy(shoulder, joint);

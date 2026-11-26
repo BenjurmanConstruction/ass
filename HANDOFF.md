@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v32**.
+- Latest release: **v33**.
 
 ## Standing rules
 
@@ -207,7 +207,34 @@ player name and uninstall.
 - Tests: /home/claude/work/casino/T6.java (body/head shots, aimbot range round, guard
   takedown, silenced vs loud).
 
+### v33: the city, driving, police and wanted stars
+- World is now x -112..112, z -82..80 (LM_STEP 0.33). CasinoCity: road grid avenues
+  x = -92, -54, 54, 92 and streets z = -62 (North Ring), -36 (Back Street), 22 (The Strip),
+  60 (Harbor Road); 8 m roads, 2 m lane offset, 3 m sidewalks; generated buildings with lit
+  windows (seeded), skyline past the ring, street lamps; Police HQ block x 58..88 z -32..18
+  (3 parked cruisers); Spray Shop garage x -76..-64 z 30..41 (booth CasinoCity.SPRAY).
+  GROUND list feeds the map bitmap. The alley now opens onto Back Street.
+- CasinoTraffic: all cars. AI traffic runs on rails (lane lines + Bezier turns, junction
+  reservation so crossing cars wait), queues behind same-direction cars, brakes for people;
+  hard hits knock a car off its rail and it steers back. Player driving: stick up = gas,
+  down = brake/reverse, sideways = steer; max 24 m/s (54 mph). 3-circle collision vs walls
+  and cars, damage, smoke < 35 hp, fire at 0 -> explodes after 4.5 s (blast kills within
+  5 m, chains to cars). Get in / Carjack / Steal police car via actions; Get out.
+- Police: heat 0..5 (stars = ceil). crimeSeen() only counts if someone sees you or a loud
+  shot was just fired; killing a cop +2, shooting/punching a cop +1, carjack +0.6, stealing a
+  cruiser +1. Cruisers spawn 30-95 m away (stars = count, max 4), route along the grid until
+  they can see you, then chase/ram; on foot near you, 2 cops get out. 1 star: cops arrest
+  (BUSTED -> released at the station, 200 coupon fine). 2+ stars or you aiming: they shoot
+  (WASTED -> outside the casino). Lose them by staying unseen 8 + 5*stars s, or the Spray
+  Shop (300 coupons: repaint, repair, stars cleared).
+- Casino security only chases you near the casino now.
+- Tests: T7 (driving, arrests, shootouts, evading, carjack, explosion), T10 (traffic flow:
+  no wrecks/gridlock over 4 min on 5 seeds).
+
 ## Ideas not built yet
+- Queued (user asked): pool and arm wrestling at The Last Call; also offered taxi fares,
+  street races, vigilante, valet, stunt jumps, darts. User asked for a strip club: declined
+  (offered a goofy nightclub instead; no answer yet).
 
 - Fan sounds: the v21 "Real fan" recording is mostly 60 Hz hum, inaudible on a phone
   speaker. Six phone-friendly fan samples were made (box, window, AC, purifier,

@@ -19,9 +19,13 @@ final class CasinoPlaces {
     // ---------------------------------------------------------------- people who roam outside
 
     static final float[][] OUTSIDE_AREAS = {
-            {-46, 14.8f, 46, 17.4f}, // north sidewalk
-            {-46, 26.6f, 46, 29.3f}, // south sidewalk
+            {-95, 14.8f, 95, 17.4f}, // The Strip, casino side
+            {-95, 26.6f, 95, 29.3f}, // The Strip, far side
             {-46, -12, -20, 12}, // parking lot
+            {-95, -31.6f, 95, -29.2f}, // Back Street
+            {-95, 53.4f, 95, 55.6f}, // Harbor Road
+            {-49.8f, -60, -48.2f, 50}, // West Avenue
+            {48.2f, -60, 49.8f, 50}, // East Avenue
     };
 
     /** Security's rounds: x, z, seconds to wait, facing, sit. */
@@ -117,6 +121,7 @@ final class CasinoPlaces {
             {"Starlite Motel", 0f, 28f, 30f, 42f}, {"Bullseye Range", 34f, 30f, 48f, 42f},
             {"The Last Call", 26f, 4f, 48f, 14f}, {"Back alley", 18f, -28f, 26f, 14f},
             {"Parking lot", -48f, -14f, -18f, 14f}, {"Casino floor", -18f, -14f, 18f, 14f},
+            {"Police HQ", 58f, -32f, 88f, 18f}, {"Spray Shop", -76f, 29f, -64f, 41f},
             {"The Strip", -48f, 14f, 48f, 30f}};
 
     static String placeName(float x, float z) {
@@ -126,7 +131,8 @@ final class CasinoPlaces {
                 return (String) p[0];
             }
         }
-        return "Out of town";
+        String road = CasinoCity.roadName(x, z);
+        return road != null ? road : "Downtown";
     }
 
     // ---------------------------------------------------------------- colors
@@ -386,9 +392,9 @@ final class CasinoPlaces {
                 {-40.5f, 3.5f, 0xFF1C1C20, 1}, {-34.5f, 3.5f, 0xFFE8E8EA, 0},
                 {-22.5f, 3.5f, 0xFF5A2A5A, 0}};
         for (float[] c : cars) {
-            float yaw = c[1] < 0 ? -CasinoWorld.PI / 2 : CasinoWorld.PI / 2;
-            w.parked.add(new float[]{c[0], c[1], yaw, c[2], c[3]});
-            w.solid(c[0] - 1.0f, c[1] - 2.45f, c[0] + 1.0f, c[1] + 2.45f, 1.6f);
+            // Heading: the north row faces south, the south row faces north.
+            float h = c[1] < 0 ? CasinoWorld.PI : 0;
+            w.parkedCars.add(new float[]{c[0], c[1], h, c[2], c[3]});
         }
         loot(w, "trunk", "the car trunk", -30, -7.2f, 3, 120);
         hide(w, "Car trunk", -34.5f, 6.7f, 1);
@@ -408,7 +414,6 @@ final class CasinoPlaces {
         CasinoWorld.Mesh m = w.mesh;
         float x0 = 18 + T / 2;
         m.floor(x0, -28, 26, 14 + T / 2, 0, 0xFF262220, 0, 1);
-        w.wallX(-28, 18, 26 + T / 2, 4, BRICK);
         w.wallZ(26, -28, -6, 5, BRICK);
         // Dumpster and crates.
         m.boxAA(23.5f, 0, -20.2f, 25.8f, 1.4f, -18.3f, 0xFF2E4A34, 0);

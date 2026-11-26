@@ -21,7 +21,7 @@ final class LockPick {
     boolean overset;
     /** True while the binding pin is inside its window: a click you can feel. */
     private boolean inWindow;
-    static final float OVER = 0.12f;
+    static final float OVER = 0.2f;
 
     LockPick(int pins, Random r) {
         this.pins = pins;
@@ -30,7 +30,7 @@ final class LockPick {
         set = new boolean[pins];
         order = new int[pins];
         // More pins, tighter window.
-        tol = Math.max(0.03f, 0.075f - (pins - 3) * 0.012f);
+        tol = Math.max(0.055f, 0.11f - (pins - 3) * 0.014f);
         for (int i = 0; i < pins; i++) {
             target[i] = 0.3f + r.nextFloat() * 0.45f;
             order[i] = i;

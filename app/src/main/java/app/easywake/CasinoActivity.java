@@ -1017,12 +1017,48 @@ public class CasinoActivity extends Activity {
             p.setColor(0xFFE6B869);
             c.drawText("Map  •  tap anywhere to close", w / 2f, 28 * d, p);
             p.setTextSize(10 * d);
+            // Place names, nudged apart so none sit on top of each other.
+            java.util.List<RectF> placed = new java.util.ArrayList<>();
+            float lh = 12 * d;
+            float[] tries = {0, -1, 1, -2, 2, -3, 3};
             for (Object[] pl : CasinoPlaces.PLACES) {
                 float x = ((Float) pl[1] + (Float) pl[3]) / 2, z = ((Float) pl[2] + (Float) pl[4]) / 2;
                 if (pl[0].equals("The Strip")) z = 22;
-                p.setColor(0xCCFFFFFF);
-                c.drawText((String) pl[0], ox + (x - CasinoWorld.WX0) * k,
-                        oy + (z - CasinoWorld.WZ0) * k, p);
+                String name = (String) pl[0];
+                float boxW = ((Float) pl[3] - (Float) pl[1]) * k;
+                String[] lines = {name};
+                int sp = name.indexOf(' ');
+                if (sp > 0 && p.measureText(name) > Math.max(boxW * 1.2f, 40 * d)) {
+                    lines = new String[]{name.substring(0, sp), name.substring(sp + 1)};
+                }
+                float tw = 0;
+                for (String l : lines) tw = Math.max(tw, p.measureText(l));
+                float sx = ox + (x - CasinoWorld.WX0) * k, sy = oy + (z - CasinoWorld.WZ0) * k;
+                float bh = lines.length * lh;
+                RectF r = null;
+                for (float t : tries) {
+                    RectF cand = new RectF(sx - tw / 2 - 3 * d, sy - bh / 2 + t * lh - 2 * d,
+                            sx + tw / 2 + 3 * d, sy + bh / 2 + t * lh + 2 * d);
+                    boolean hit = false;
+                    for (RectF o : placed) {
+                        if (RectF.intersects(o, cand)) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                    if (!hit) {
+                        r = cand;
+                        break;
+                    }
+                }
+                if (r == null) continue;
+                placed.add(r);
+                p.setColor(0x99000000);
+                c.drawRoundRect(r, 4 * d, 4 * d, p);
+                p.setColor(0xEEFFFFFF);
+                for (int i = 0; i < lines.length; i++) {
+                    c.drawText(lines[i], r.centerX(), r.top + 2 * d + (i + 1) * lh - 3 * d, p);
+                }
             }
             p.setColor(0x99E6B869);
             for (int i = 0; i < CasinoCity.ST_Z.length; i++) {
@@ -1422,11 +1458,12 @@ public class CasinoActivity extends Activity {
                     + "}\n";
     private static final String SHADOW_FRAGMENT =
             "precision mediump float; varying float vK;\n"
-                    + "void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 0.55 * pow(vK, 0.8)); }\n";
+                    + "uniform vec4 uCol;\n"
+                    + "void main() { gl_FragColor = vec4(uCol.rgb, uCol.a * pow(vK, 0.8)); }\n";
 
     private final class Renderer implements GLSurfaceView.Renderer {
         private int prog, shadowProg;
-        private int staticVbo, cubeVbo, diskVbo, staticCount, cubeCount, diskCount;
+        private int staticVbo, cubeVbo, diskVbo, staticCount, cubeCount, diskCount, groundStart;
         private int atlasTex, carpetTex, lightTex;
         private final float[] view = new float[16], proj = new float[16], vp = new float[16],
                 ident = new float[16], eye = new float[3];
@@ -1443,6 +1480,7 @@ public class CasinoActivity extends Activity {
                 CasinoWorld.Mesh m = world.mesh;
                 staticVbo = upload(m.data, m.floats);
                 staticCount = m.vertices();
+                groundStart = world.groundStart;
                 light = world.bakeLight();
             }
             CasinoWorld.Mesh cube = new CasinoWorld.Mesh();
@@ -1496,7 +1534,13 @@ public class CasinoActivity extends Activity {
             final boolean spray;
             final String flash;
             synchronized (world) {
-                world.update(dt, stickX, stickY);
+                float sy = stickY;
+                if (world.traffic.driving != null) {
+                    // Pedals drive; the stick only counts for gas/brake if pushed hard.
+                    sy = overlay.gasPointer >= 0 ? -1 : (overlay.brakePointer >= 0 ? 1
+                            : (Math.abs(stickY) > 0.7f ? stickY : 0));
+                }
+                world.update(dt, stickX, sy);
                 fine = world.traffic.fineDue - world.cashDue;
                 world.traffic.fineDue = 0;
                 world.cashDue = 0;
@@ -1583,10 +1627,14 @@ public class CasinoActivity extends Activity {
             GLES20.glUniform3f(uTint, 1, 1, 1);
             GLES20.glUniform1f(uGlow, 0);
             bindMain(staticVbo);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, staticCount);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, groundStart);
+            // Ground layers last, bottom to top, painted in order: no fighting between them.
+            GLES20.glDepthMask(false);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, groundStart, staticCount - groundStart);
+            GLES20.glDepthMask(true);
 
             bindMain(cubeVbo);
-            final float[] shadows = new float[3 * 96];
+            final float[] shadows = new float[3 * 256];
             final int[] shadowCount = {0};
             synchronized (world) {
                 world.drawPeople(new CasinoWorld.PartSink() {
@@ -1602,7 +1650,7 @@ public class CasinoActivity extends Activity {
                     @Override
                     public void shadow(float x, float z, float r) {
                         int i = shadowCount[0];
-                        if (i >= 96) return;
+                        if (i >= 256) return;
                         shadows[i * 3] = x;
                         shadows[i * 3 + 1] = z;
                         shadows[i * 3 + 2] = r;
@@ -1622,11 +1670,23 @@ public class CasinoActivity extends Activity {
             GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, diskVbo);
             GLES20.glEnableVertexAttribArray(aPos);
             GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 12, 0);
-            int uAt = loc(shadowProg, "uAt");
-            for (int i = 0; i < shadowCount[0]; i++) {
-                GLES20.glUniform3f(uAt, shadows[i * 3], shadows[i * 3 + 1], shadows[i * 3 + 2]);
-                GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, diskCount);
+            int uAt = loc(shadowProg, "uAt"), uCol = loc(shadowProg, "uCol");
+            for (int pass = 0; pass < 2; pass++) {
+                // Shadows darken; headlight pools (negative radius) add warm light.
+                if (pass == 0) {
+                    GLES20.glUniform4f(uCol, 0, 0, 0, 0.55f);
+                } else {
+                    GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE);
+                    GLES20.glUniform4f(uCol, 1.0f, 0.9f, 0.65f, 0.35f);
+                }
+                for (int i = 0; i < shadowCount[0]; i++) {
+                    float r = shadows[i * 3 + 2];
+                    if ((r < 0) != (pass == 1)) continue;
+                    GLES20.glUniform3f(uAt, shadows[i * 3], shadows[i * 3 + 1], Math.abs(r));
+                    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, diskCount);
+                }
             }
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
             GLES20.glDisableVertexAttribArray(aPos);
             GLES20.glDepthMask(true);
             GLES20.glDisable(GLES20.GL_BLEND);
@@ -1876,7 +1936,8 @@ public class CasinoActivity extends Activity {
         private float stickCx, stickCy, stickPx, stickPy, lookX, lookY;
         private final RectF fireBtn = new RectF(), aimBtn = new RectF(), reloadBtn = new RectF(),
                 gunBtn = new RectF();
-        private int firePointer = -1, blockPointer = -1;
+        private int firePointer = -1, blockPointer = -1, gasPointer = -1, brakePointer = -1;
+        private final RectF gasBtn = new RectF(), brakeBtn = new RectF();
         private final RectF kickBtn = new RectF(), blockBtn = new RectF(), dodgeBtn = new RectF();
         private final RectF punchBtn = new RectF(), shootBtn = new RectF(),
                 backBtn = new RectF(), phoneBtn = new RectF(), jobsBtn = new RectF(),
@@ -2037,16 +2098,27 @@ public class CasinoActivity extends Activity {
                 if (!label.isEmpty()) c.drawText(label, cx, cy + rh + 16 * d, paint);
             }
 
-            if (stickId >= 0) {
-                paint.setColor(0x33FFFFFF);
-                c.drawCircle(stickCx, stickCy, 56 * d, paint);
-                paint.setColor(0x88FFFFFF);
-                c.drawCircle(stickPx, stickPy, 24 * d, paint);
-            } else {
+            // The stick stays put in the bottom-left corner.
+            stickCx = 104 * d;
+            stickCy = h - 104 * d;
+            boolean inCar;
+            synchronized (world) {
+                inCar = world.traffic.driving != null;
+            }
+            paint.setColor(stickId >= 0 ? 0x33FFFFFF : 0x22FFFFFF);
+            c.drawCircle(stickCx, stickCy, 62 * d, paint);
+            if (inCar) {
+                // Steering only: a left/right bar.
                 paint.setColor(0x22FFFFFF);
-                c.drawCircle(100 * d, h - 100 * d, 56 * d, paint);
-                paint.setColor(0x44FFFFFF);
-                c.drawCircle(100 * d, h - 100 * d, 24 * d, paint);
+                c.drawRect(stickCx - 62 * d, stickCy - 6 * d, stickCx + 62 * d, stickCy + 6 * d, paint);
+            }
+            paint.setColor(stickId >= 0 ? 0x99FFFFFF : 0x44FFFFFF);
+            c.drawCircle(stickId >= 0 ? stickPx : stickCx,
+                    stickId >= 0 ? (inCar ? stickCy : stickPy) : stickCy, 26 * d, paint);
+            if (stickId < 0) {
+                paint.setTextSize(10 * d);
+                paint.setColor(0x66FFFFFF);
+                c.drawText(inCar ? "STEER" : "MOVE", stickCx, stickCy + 4 * d, paint);
             }
 
             combatHud(c, w, h);
@@ -2135,12 +2207,29 @@ public class CasinoActivity extends Activity {
             if (car != null) {
                 fireBtn.setEmpty();
                 punchBtn.setEmpty();
+                kickBtn.setEmpty();
+                blockBtn.setEmpty();
+                dodgeBtn.setEmpty();
                 aimBtn.setEmpty();
                 reloadBtn.setEmpty();
                 gunBtn.setEmpty();
-                float cx = w - 90 * d, cy = h - 90 * d;
+                // Pedals: big GAS in the corner, BRAKE / REVERSE beside it.
+                gasBtn.set(w - 20 * d - 92 * d, h - 24 * d - 120 * d, w - 20 * d, h - 24 * d);
+                brakeBtn.set(gasBtn.left - 16 * d - 86 * d, h - 24 * d - 86 * d,
+                        gasBtn.left - 16 * d, h - 24 * d);
+                paint.setColor(gasPointer >= 0 ? 0xDD3FBF5A : 0x8830803F);
+                c.drawRoundRect(gasBtn, 18 * d, 18 * d, paint);
+                paint.setColor(brakePointer >= 0 ? 0xDDE0403A : 0x88902A26);
+                c.drawRoundRect(brakeBtn, 18 * d, 18 * d, paint);
+                paint.setColor(0xFFFFFFFF);
+                paint.setTextSize(16 * d);
+                c.drawText("GAS", gasBtn.centerX(), gasBtn.centerY() + 6 * d, paint);
+                paint.setTextSize(12 * d);
+                c.drawText(carSpeed < 0.5f ? "REVERSE" : "BRAKE", brakeBtn.centerX(),
+                        brakeBtn.centerY() + 5 * d, paint);
+                float cx = w - 66 * d, cy = gasBtn.top - 70 * d;
                 paint.setColor(0x99000000);
-                c.drawCircle(cx, cy, 58 * d, paint);
+                c.drawCircle(cx, cy, 52 * d, paint);
                 paint.setColor(0xFFFFFFFF);
                 paint.setTextSize(30 * d);
                 c.drawText(String.valueOf(Math.round(carSpeed * 2.237f)), cx, cy + 8 * d, paint);
@@ -2155,9 +2244,11 @@ public class CasinoActivity extends Activity {
                         bar.bottom, paint);
                 paint.setTextSize(11 * d);
                 paint.setColor(0x99FFFFFF);
-                c.drawText("stick: up gas, down brake, sideways steer", w / 2f, h - 10 * d, paint);
+                c.drawText("steer with the stick, hold GAS / BRAKE", w / 2f, h - 10 * d, paint);
                 return;
             }
+            gasBtn.setEmpty();
+            brakeBtn.setEmpty();
             float pr = (g != null && !g.melee ? 44 : 36) * d;
             boolean armed = g != null;
             // The big button: punch with fists, fire with a weapon.
@@ -2366,6 +2457,20 @@ public class CasinoActivity extends Activity {
         }
 
         /** A round map in the corner that turns with the camera. Call with the world locked. */
+        private void moveStick(float px, float py) {
+            float dx = px - stickCx, dy = py - stickCy;
+            float max = 56 * d;
+            float l = (float) Math.hypot(dx, dy);
+            if (l > max) {
+                dx *= max / l;
+                dy *= max / l;
+            }
+            stickPx = stickCx + dx;
+            stickPy = stickCy + dy;
+            stickX = dx / max;
+            stickY = dy / max;
+        }
+
         private void drawMinimap(Canvas c) {
             Bitmap map = mapBitmap();
             float r = 60 * d, cx = 12 * d + r, cy = 64 * d + r;
@@ -2534,6 +2639,14 @@ public class CasinoActivity extends Activity {
                         else openMap();
                         return true;
                     }
+                    if (!gasBtn.isEmpty() && gasBtn.contains(x, y)) {
+                        gasPointer = id;
+                        return true;
+                    }
+                    if (!brakeBtn.isEmpty() && brakeBtn.contains(x, y)) {
+                        brakePointer = id;
+                        return true;
+                    }
                     if (fireBtn.contains(x, y)) {
                         synchronized (world) {
                             if (world.weapon == null) world.punch();
@@ -2598,10 +2711,10 @@ public class CasinoActivity extends Activity {
                             return true;
                         }
                     }
-                    if (x < getWidth() * 0.45f && stickId < 0) {
+                    if (x < getWidth() * 0.45f && y > miniBtn.bottom + 24 * d && stickId < 0) {
+                        // Grab the fixed stick from anywhere down there.
                         stickId = id;
-                        stickCx = stickPx = x;
-                        stickCy = stickPy = y;
+                        moveStick(x, y);
                     } else if (lookId < 0) {
                         lookId = id;
                         lookX = x;
@@ -2613,17 +2726,7 @@ public class CasinoActivity extends Activity {
                         int pid = e.getPointerId(i);
                         float px = e.getX(i), py = e.getY(i);
                         if (pid == stickId) {
-                            float dx = px - stickCx, dy = py - stickCy;
-                            float max = 56 * d;
-                            float l = (float) Math.hypot(dx, dy);
-                            if (l > max) {
-                                dx *= max / l;
-                                dy *= max / l;
-                            }
-                            stickPx = stickCx + dx;
-                            stickPy = stickCy + dy;
-                            stickX = dx / max;
-                            stickY = dy / max;
+                            moveStick(px, py);
                         } else if (pid == lookId) {
                             float dx = px - lookX, dy = py - lookY;
                             lookX = px;
@@ -2642,6 +2745,7 @@ public class CasinoActivity extends Activity {
                     stickX = stickY = 0;
                     firePointer = -1;
                     blockPointer = -1;
+                    gasPointer = brakePointer = -1;
                     synchronized (world) {
                         world.triggerHeld = false;
                         world.fight.block(false);
@@ -2654,6 +2758,8 @@ public class CasinoActivity extends Activity {
                             world.triggerHeld = false;
                         }
                     }
+                    if (id == gasPointer) gasPointer = -1;
+                    if (id == brakePointer) brakePointer = -1;
                     if (id == blockPointer) {
                         blockPointer = -1;
                         synchronized (world) {

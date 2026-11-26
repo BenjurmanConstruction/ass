@@ -63,6 +63,7 @@ final class CasinoTraffic {
     private boolean sprayUsed;
     static final int SPRAY_COST = 300;
 
+    private static final float PI_F = (float) Math.PI;
     static final float CAR_LEN = 4.5f, CAR_R = 1.0f, MAX_SPEED = 24, REVERSE = 7;
     static final int TRAFFIC_CARS = 16;
 
@@ -225,19 +226,32 @@ final class CasinoTraffic {
         }
         float throttle = -sy, steer = sx;
         if (Math.abs(throttle) < 0.12f) throttle = 0;
+        steer = Math.abs(steer) < 0.1f ? 0 : (steer - Math.signum(steer) * 0.1f) / 0.9f;
         if (throttle > 0) {
-            if (c.speed < -0.5f) c.speed += 16 * dt;
-            else c.speed += 10 * throttle * dt * (1 - c.speed / MAX_SPEED * 0.6f);
+            if (c.speed < -0.5f) c.speed += 18 * dt;
+            else c.speed += 9 * throttle * dt * (1 - c.speed / MAX_SPEED * 0.6f);
         } else if (throttle < 0) {
-            if (c.speed > 0.5f) c.speed -= 18 * -throttle * dt;
+            if (c.speed > 0.5f) c.speed -= 20 * -throttle * dt;
             else c.speed -= 6 * -throttle * dt;
         } else {
-            float d = Math.min(Math.abs(c.speed), 3 * dt);
+            float d = Math.min(Math.abs(c.speed), 2.5f * dt);
             c.speed -= Math.signum(c.speed) * d;
         }
         c.speed = Math.max(-REVERSE, Math.min(MAX_SPEED, c.speed));
-        float grip = Math.max(-1, Math.min(1, c.speed / 5));
-        c.h += steer * grip * 2.0f * dt / (1 + Math.abs(c.speed) * 0.025f);
+        float v = Math.abs(c.speed);
+        // Turns sharp at city speeds, a bit wider when you're flying.
+        float rate = 2.7f * Math.min(1, v / 2.5f) / (1 + v * 0.028f);
+        c.h += steer * Math.signum(c.speed) * rate * dt;
+        // Cranking the wheel at speed scrubs speed off, so corners actually make it round.
+        if (Math.abs(steer) > 0.45f && v > 10) {
+            c.speed -= Math.signum(c.speed) * 8 * Math.abs(steer) * dt;
+        }
+        // Let go of the wheel near a road's direction and the car straightens up onto it.
+        if (steer == 0 && v > 2) {
+            float axis = Math.round(c.h / (PI_F / 2)) * (PI_F / 2);
+            float d = CasinoWorld.angleDiff(axis, c.h);
+            if (Math.abs(d) < 0.35f) c.h += d * Math.min(1, dt * 3.5f);
+        }
         move(c, dt);
     }
 
@@ -502,7 +516,7 @@ final class CasinoTraffic {
         float v = Math.abs(c.speed);
         if (into > 0.5f) {
             // Head-on: bounce back and take damage.
-            if (v > 5) damage(c, (v - 5) * (c == driving ? 2.4f : 1.2f), c == driving);
+            if (v > 8) damage(c, (v - 8) * (c == driving ? 0.8f : 0.6f), c == driving);
             if (c == driving && v > 6) {
                 w.player.shake = Math.min(0.6f, v * 0.03f);
                 w.sounds |= 1;
@@ -511,7 +525,7 @@ final class CasinoTraffic {
         } else {
             // A scrape: keep sliding along it.
             c.speed *= 0.93f;
-            if (v > 9 && c == driving) damage(c, v * 0.02f, true);
+            if (v > 14 && c == driving) damage(c, v * 0.004f, true);
         }
     }
 
@@ -539,9 +553,9 @@ final class CasinoTraffic {
                         float vqx = fx(q.h) * q.speed, vqz = fz(q.h) * q.speed;
                         float rel = -((vqx - vpx) * dx + (vqz - vpz) * dz);
                         boolean mineHit = p == driving || q == driving;
-                        if (rel > (mineHit ? 4 : 8)) {
+                        if (rel > (mineHit ? 6 : 8)) {
                             boolean mine = p == driving || q == driving;
-                            float k = mine ? 1.6f : 0.6f;
+                            float k = mine ? 0.55f : 0.4f;
                             damage(p, rel * k, mine);
                             damage(q, rel * k, mine);
                             if (mine) {
@@ -624,9 +638,9 @@ final class CasinoTraffic {
         c.health -= amount;
         if (byPlayer) c.playerDamaged = true;
         if (c.health <= 0 && c.fire < 0) {
-            c.fire = 4.5f;
+            c.fire = 9f;
             c.health = 0;
-            if (c == driving) w.toast = "Your car's on fire. Get out!";
+            if (c == driving) w.toast = "Your car's on fire! You've got a few seconds. Get out!";
         }
     }
 
@@ -654,7 +668,7 @@ final class CasinoTraffic {
         for (Car o : cars) {
             if (o == c) continue;
             float d = (float) Math.hypot(o.x - c.x, o.z - c.z);
-            if (d < 6) damage(o, (6 - d) * 18, c.playerDamaged);
+            if (d < 5) damage(o, (5 - d) * 9, c.playerDamaged);
         }
         if (c == driving) w.exitCar(true);
     }

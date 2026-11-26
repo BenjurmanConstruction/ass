@@ -154,8 +154,8 @@ final class CasinoCity {
         for (int j = 0; j < ST_Z.length; j++) {
             for (float x = X_MIN + 6; x < X_MAX - 4; x += 16) {
                 if (j == 2 && x > -50 && x < 50) continue;
-                lamp(w, x, ST_Z[j] - HALF - 0.6f, 1);
-                lamp(w, x + 8, ST_Z[j] + HALF + 0.6f, -1);
+                if (clearOfAvenues(x)) lamp(w, x, ST_Z[j] - HALF - 0.6f, 1);
+                if (clearOfAvenues(x + 8)) lamp(w, x + 8, ST_Z[j] + HALF + 0.6f, -1);
             }
         }
         for (float ax : AVE_X) {
@@ -166,6 +166,14 @@ final class CasinoCity {
                 }
             }
         }
+    }
+
+    /** Not in an avenue, its crosswalk or the corner where you'd step off the curb. */
+    private static boolean clearOfAvenues(float x) {
+        for (float ax : AVE_X) {
+            if (Math.abs(x - ax) < HALF + WALK + 0.5f) return false;
+        }
+        return true;
     }
 
     /** A street lamp whose arm reaches over the road along z. */

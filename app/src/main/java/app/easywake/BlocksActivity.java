@@ -63,6 +63,8 @@ public class BlocksActivity extends Activity {
     private int py;
     private int score;
     private int lines;
+    /** Fun Coupons paid out this game. */
+    private int won;
     private boolean running;
     private boolean over;
     private boolean paused;
@@ -274,6 +276,7 @@ public class BlocksActivity extends Activity {
         for (int[] row : board) java.util.Arrays.fill(row, 0);
         bag.clear();
         score = 0;
+        won = 0;
         lines = 0;
         over = false;
         paused = false;
@@ -397,6 +400,10 @@ public class BlocksActivity extends Activity {
         if (cleared > 0) {
             int[] worth = {0, 100, 300, 500, 800};
             score += worth[cleared] * level();
+            // Every clear pays Fun Coupons on the spot: a tenth of the points.
+            int pay = worth[cleared] * level() / 10;
+            Wallet.addCoupons(this, pay);
+            won += pay;
             lines += cleared;
             Sfx.play(this, cleared >= 4 ? Sfx.BIG_WIN : Sfx.WIN);
             boardView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
@@ -437,8 +444,8 @@ public class BlocksActivity extends Activity {
         Stats.add(this, "blocksRows", lines);
         Stats.log(this, String.format(Locale.US, "Block Drop: %,d points, %d rows", score,
                 lines));
-        String msg = String.format(Locale.US, "Score %,d\nRows cleared: %d\nLevel %d",
-                score, lines, level())
+        String msg = String.format(Locale.US, "Score %,d\nRows cleared: %d\nLevel %d"
+                        + "\nFun Coupons won: %,d", score, lines, level(), won)
                 + (record ? "\n\nNew best score!" : String.format(Locale.US,
                 "\nBest: %,d", best))
                 + (kp > 0 ? "\n\n+" + kp + " Knowledge Points"
@@ -473,6 +480,8 @@ public class BlocksActivity extends Activity {
                         + "more rows at once scores more: 100, 300, 500, then 800 for "
                         + "four, times your level. Every 10 rows the level goes up and "
                         + "the shapes fall faster.\n\n"
+                        + "Every clear pays Fun Coupons right away: a tenth of the points "
+                        + "(10 for one row at level 1, 80 for four, more at higher levels).\n\n"
                         + "Every 2 rows cleared earns 1 Knowledge Point when the game "
                         + "ends, up to " + DAILY_KP + " a day.")
                 .setPositiveButton("Got it", null)
@@ -481,8 +490,9 @@ public class BlocksActivity extends Activity {
 
     private void paint() {
         scoreText.setText(String.format(Locale.US, "%,d", score));
-        infoText.setText(String.format(Locale.US, "Rows %d\nLevel %d\nBest %,d", lines,
-                level(), Math.max(score, Prefs.getInt(this, "blocksBest", 0))));
+        infoText.setText(String.format(Locale.US, "Rows %d\nLevel %d\nBest %,d\nWon %,d FC\nWallet %,d FC",
+                lines, level(), Math.max(score, Prefs.getInt(this, "blocksBest", 0)), won,
+                Wallet.coupons(this)));
         boardView.invalidate();
         nextView.invalidate();
     }

@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v35**.
+- Latest release: **v36**.
 
 ## Standing rules
 
@@ -254,6 +254,29 @@ player name and uninstall.
 - Fists knock out instead of killing ("K.O.!"). "Search pockets" on a KO'd person gives 10–80 coupons (crime). A KO'd contract target can be finished off ("Finish …").
 - Sound bit 256 is the block sound (`Sfx.BLOCK`). `world.cashDue` gets paid out through the fine path in the Activity.
 - Off-device balance test: /home/claude/work/casino/T13.java (stand still / button-mash / block+punch vs 1–2 fighters of each style).
+
+### v36: fixes from phone feedback (flicker, controls, driving, bar)
+- **Flicker fix:** `Mesh.sortGround()` moves every flat ground triangle (y −0.01..0.06, facing up) to the end of the static mesh, lowest first. The renderer draws them last with depth writes off, so overlapping road/sidewalk/paint/threshold layers paint in order instead of fighting. A scan (/home/claude/work/casino/ZF.java) had found 8k+ exactly overlapping ground faces.
+- The camera eases back out after a wall pulls it in (`camDistNow`), so it no longer pumps in doorways.
+- Street lamps skip avenues and crosswalks (`clearOfAvenues`); one used to stand in the road at x −90.
+- Headlights are now soft additive light pools: `PartSink.shadow` with a negative radius, drawn in a second pass of the shadow shader (`uCol`). The glowing road rectangle is gone.
+- **Controls:**
+  - Fixed MOVE stick in the bottom-left; you can grab it anywhere in the lower-left below the minimap.
+  - While driving it steers only, with big GAS and BRAKE/REVERSE pedals at the bottom right. The stick only works as gas/brake if pushed past 0.7.
+  - Push the stick all the way to run (1.65× speed).
+  - The camera swings behind you while you walk. Dragging to look pauses that for 2 s (`lookT`).
+- **Driving:** turns sharper at city speeds; hard steering above 10 m/s scrubs speed; letting go of the wheel within 20° of a road direction straightens the car. Test: T16 (corners at 12–16 m/s clean).
+- **Cars are about 3× tougher:**
+  - Walls only hurt above 8 m/s.
+  - Car-on-car damage is lower.
+  - The fire fuse is 9 s.
+  - The blast radius is 5 m with less damage.
+  - Cop bullets do 3 damage to your car.
+- **The Last Call is open to the public:** door unlocked, no trespass zone. It's ready for bar games.
+- **Lockpicking is easier:** window 0.11 − 0.014 per pin above 3 (min 0.055); overset margin 0.2.
+- **Security is about half as fast:** guard trespass 0.4/s, view range 9 m, decay 0.35/s.
+- **Map labels** are placed so they never overlap, long names wrap, and each has a dark backing.
+- **Block Drop** pays Fun Coupons on every clear (a tenth of the points), shown live and on the game-over screen.
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

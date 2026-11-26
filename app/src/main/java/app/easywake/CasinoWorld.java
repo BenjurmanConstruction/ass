@@ -295,6 +295,42 @@ final class CasinoWorld {
             }
         }
 
+        /**
+         * Moves every flat piece of ground (roads, sidewalks, floors, paint, crosswalks) to the
+         * end, lowest first, and returns the vertex where they start. The renderer draws them
+         * last without writing depth, so overlapping layers paint in order and never flicker.
+         */
+        int sortGround() {
+            int tri = 3 * STRIDE, n = floats / tri;
+            float[] out = new float[floats];
+            java.util.List<Integer> ground = new java.util.ArrayList<>();
+            int o = 0;
+            for (int t = 0; t < n; t++) {
+                int i = t * tri;
+                boolean flat = data[i + 4] > 0.99f;
+                for (int k = 0; k < 3 && flat; k++) {
+                    float y = data[i + k * STRIDE + 1];
+                    if (y < -0.01f || y > 0.06f) flat = false;
+                }
+                if (flat) ground.add(t);
+                else {
+                    System.arraycopy(data, i, out, o, tri);
+                    o += tri;
+                }
+            }
+            final float[] d = data;
+            java.util.Collections.sort(ground, (a, b) -> Float.compare(
+                    d[a * tri + 1] + d[a * tri + STRIDE + 1] + d[a * tri + 2 * STRIDE + 1],
+                    d[b * tri + 1] + d[b * tri + STRIDE + 1] + d[b * tri + 2 * STRIDE + 1]));
+            int start = o / STRIDE;
+            for (int t : ground) {
+                System.arraycopy(data, t * tri, out, o, tri);
+                o += tri;
+            }
+            data = out;
+            return start;
+        }
+
         /** One triangle, with an upward normal for flat tops. map: world box to uv box. */
         void vertexTri(float[] a, float[] b, float[] c, int color, float emit, int tex,
                                float[] map) {
@@ -613,7 +649,11 @@ final class CasinoWorld {
         // Everything outside the main room, then the city around it.
         CasinoPlaces.build(this);
         CasinoCity.build(this);
+        groundStart = mesh.sortGround();
     }
+
+    /** First vertex of the ground layers at the end of the mesh. */
+    int groundStart;
 
     final float[][] blackjackSeats = new float[4][];
 
@@ -1234,6 +1274,9 @@ final class CasinoWorld {
         if (picking || me.down > 0 || (CasinoFight.busy(me) && me.act != CasinoFight.HIT)) mag = 0;
         if (me.act == CasinoFight.BLOCK) mag *= 0.4f;
         float speed = dragging != null ? DRAG_SPEED : (aiming ? 1.9f : SPEED);
+        // Stick pushed all the way: run.
+        running = mag > 0.9f && dragging == null && !aiming && me.act == CasinoFight.NONE;
+        if (running) speed *= 1.65f;
         if (mag > 0.08f) {
             float fx = (float) Math.sin(camYaw), fz = (float) -Math.cos(camYaw);
             float rx = (float) Math.cos(camYaw), rz = (float) Math.sin(camYaw);
@@ -1246,7 +1289,12 @@ final class CasinoWorld {
             me.x += dx * speed * mag * dt;
             me.z += dz * speed * mag * dt;
             me.walk = mag;
-            me.phase += dt * 9.5f * mag * speed / SPEED;
+            me.phase += dt * 9.5f * mag * Math.min(1.3f, speed / SPEED);
+            // The camera swings round behind you unless you've just looked around.
+            if (!aiming && lookT <= 0 && mag > 0.3f) {
+                float diff = Math.abs(angleDiff(me.yaw, camYaw));
+                if (diff < 2.0f) camYaw = turn(camYaw, me.yaw, dt * (running ? 2.4f : 1.5f) * mag);
+            }
         } else {
             me.walk = Math.max(0, me.walk - dt * 6);
         }
@@ -1712,15 +1760,15 @@ final class CasinoWorld {
         Person who = null;
         for (Person w : people) {
             if (!awake(w) || w == dragging) continue;
-            if (!canSee(w, me.x, me.z, 11)) continue;
+            if (!canSee(w, me.x, me.z, 9)) continue;
             float r = 0;
-            if (trespass) r += w.kind == GUARD ? 0.9f : 0.4f;
+            if (trespass) r += w.kind == GUARD ? 0.4f : 0.18f;
             if (dragging != null) r += 1.6f;
             if (picking) {
                 float dd = dist(w, me);
-                if (w.kind == GUARD) r += dd < 6 ? 0.9f : 0.4f;
-                else if (w.kind == STAFF || w.kind == ROUTE) r += dd < 8 ? 0.45f : 0;
-                else r += dd < 4.5f ? 0.3f : 0;
+                if (w.kind == GUARD) r += dd < 6 ? 0.45f : 0.2f;
+                else if (w.kind == STAFF || w.kind == ROUTE) r += dd < 6 ? 0.22f : 0;
+                else r += dd < 3.5f ? 0.12f : 0;
             }
             if (me.outfit == SECURITY && w.kind == GUARD && dist(w, me) < 3.5f) r += 0.35f;
             if (weapon != null && !inRange(me.x, me.z) && !weapon.melee) {
@@ -1764,7 +1812,7 @@ final class CasinoWorld {
                 say(who, dragging != null || picking ? ODD : TRESPASS);
             }
         } else {
-            suspicion = Math.max(0, suspicion - 0.25f * dt);
+            suspicion = Math.max(0, suspicion - 0.35f * dt);
             if (suspicion < 0.1f) warned = false;
         }
         if (suspicion >= 1 && !alarm) raiseAlarm("You've been spotted.");
@@ -2397,7 +2445,7 @@ final class CasinoWorld {
         p.punch = PUNCH_TIME * 0.5f;
         if (!hit) return;
         if (traffic.driving != null) {
-            traffic.damage(traffic.driving, 7, false);
+            traffic.damage(traffic.driving, 3, false);
             if (rnd.nextFloat() < 0.35f) hurtPlayer(10);
             return;
         }
@@ -3086,6 +3134,12 @@ final class CasinoWorld {
                 break;
             }
         }
+        // Snap in when something's in the way, but ease back out so it doesn't pump.
+        float since = Math.max(0, Math.min(0.1f, time - camDistAt));
+        camDistAt = time;
+        if (dist < camDistNow || camDistNow <= 0) camDistNow = dist;
+        else camDistNow += (dist - camDistNow) * Math.min(1, since * 3);
+        dist = camDistNow;
         float ex = tx - fx * cp * dist, ey = Math.min(ceil, ty + sp * dist),
                 ez = tz - fz * cp * dist;
         if (me.shake > 0) {
@@ -3208,9 +3262,18 @@ final class CasinoWorld {
 
     /** Seconds the camera stays where you dragged it before following the car again. */
     float lookT;
+    boolean running;
+    private float camDistNow, camDistAt;
+
+    static float angleDiff(float a, float b) {
+        float d = a - b;
+        while (d > PI) d -= 2 * PI;
+        while (d < -PI) d += 2 * PI;
+        return d;
+    }
 
     void orbit(float dYaw, float dPitch) {
-        if (traffic != null && traffic.driving != null) lookT = 1.5f;
+        lookT = traffic != null && traffic.driving != null ? 1.5f : 2.0f;
         camYaw += dYaw;
         camPitch = Math.max(0.05f, Math.min(1.1f, camPitch + dPitch));
     }
@@ -3423,8 +3486,8 @@ final class CasinoWorld {
         cp(s, -hl + 0.06f, y0 + 0.12f, 0, 0.14f, 0.26f, hw * 2 - 0.08f, TRIM, 0);
         cp(s, hl - 0.1f, y1 - 0.22f, 0, 0.04f, 0.14f, hw * 0.8f, 0xFF0E0E10, 0);
         for (int side = -1; side <= 1; side += 2) {
-            cp(s, hl - 0.11f, y1 - 0.16f, side * (hw - 0.26f), 0.05f, 0.12f, 0.34f,
-                    lights ? 0xFFFFF4D6 : 0xFF9A9A92, lights ? 1 : 0.1f);
+            cp(s, hl - 0.11f, y1 - 0.16f, side * (hw - 0.26f), 0.05f, 0.1f, 0.26f,
+                    lights ? 0xFFFFF8E8 : 0xFF9A9A92, lights ? 1 : 0.1f);
             cp(s, -hl + 0.11f, y1 - 0.14f, side * (hw - 0.24f), 0.05f, 0.12f, 0.3f,
                     0xFFE01818, lights ? 1 : 0.15f);
             // Dark wheel arches cut into the sides.
@@ -3497,8 +3560,13 @@ final class CasinoWorld {
                 wheel(s, i * wx, side * (hw - 0.06f), r, spin, side);
             }
         }
-        // Headlights throwing light on the road ahead.
-        if (lights) cp(s, hl + 2.6f, 0.012f, 0, 4.2f, 0.004f, hw * 2.2f, 0xFF3A3222, 1);
+        // Headlights throw soft pools of light on the road ahead (a negative radius).
+        if (lights) {
+            float c = (float) Math.cos(yaw), sn = (float) Math.sin(yaw);
+            for (float k : new float[]{hl + 1.6f, hl + 4.2f}) {
+                s.shadow(x + c * k, z - sn * k, -(k < hl + 2 ? 1.7f : 2.6f));
+            }
+        }
     }
 
     private void wheel(PartSink s, float x, float z, float r, float spin, int side) {

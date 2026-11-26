@@ -724,11 +724,12 @@ final class CasinoPlaces {
         w.solid(26, -6, 48, 4, h);
         m.floor(26 - T / 2, -6 - T / 2, 48 + T / 2, 14 + T / 2, h, 0xFF15110F, 0, 1);
         w.regions.add(new float[]{26, 4, 48, 14, 4.2f});
-        w.zones.add(new float[]{26, 4, 48, 14, 2});
+        // Open to the public: walk right in.
         m.floor(26, 4, 48, 14, 0, 0xFF2A1A12, 0, 1);
         m.ceiling(26, 4, 48, 14, 4.2f, 0xFF120D0C, 0);
         CasinoWorld.Door d = new CasinoWorld.Door("bar", "The Last Call", 37, 14, true, 1.2f, 4,
                 0xFF3A2414);
+        d.unlocked = true;
         w.doors.add(d);
         float fz = 14 + T / 2 + 0.02f;
         m.panel(37, fz, SOUTH, 5.2f, 3.1f, 3.9f, 0xFFFFFFFF, 1, CasinoArt.sign(CasinoArt.BAR));

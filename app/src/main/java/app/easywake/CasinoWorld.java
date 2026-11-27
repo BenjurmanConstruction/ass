@@ -554,6 +554,19 @@ final class CasinoWorld {
         // ---- The high-stakes pool table under its own lamp.
         poolTable(11.5f, -8.0f, 1);
 
+        // ---- A service bar on the west wall, where the cocktail waitress picks up drinks.
+        m.boxAA(X0 + 0.05f, 0, -1.0f, X0 + 0.85f, 1.05f, 1.6f, 0xFF2A1A12, 0);
+        m.boxAA(X0 + 0.02f, 1.05f, -1.05f, X0 + 0.9f, 1.1f, 1.65f, 0xFFC8A870, 0.15f);
+        for (int i = 0; i < 6; i++) {
+            float bz = -0.8f + i * 0.4f;
+            m.boxAA(X0 + 0.15f, 1.1f, bz, X0 + 0.27f, 1.42f, bz + 0.12f,
+                    new int[]{0xFF2A6A3A, 0xFFB8862A, 0xFF8A2A2A, 0xFFD8D8E8}[i % 4], 0.3f);
+        }
+        m.boxAA(X0 + 0.02f, 0.3f, -1.0f, X0 + 0.04f, 0.34f, 1.6f, 0xFFFF6A8A, 1);
+        solid(X0, -1.0f, X0 + 0.9f, 1.6f, 1.1f);
+        extraStaff.add(new float[]{-16.6f, 0.3f, WEST, STAFF_OUTFIT, 0});
+        extraStaffNames.add("Cocktail waitress");
+
         // ---- Video slots island: eight themed machines back to back, open to everyone.
         for (int i = 0; i < 4; i++) {
             float x = 7.4f + i * 2.1f;
@@ -674,6 +687,81 @@ final class CasinoWorld {
         CasinoPlaces.build(this);
         CasinoCity.build(this);
         groundStart = mesh.sortGround();
+        nav = new CasinoNav(WX0, WZ0, WX1, WZ1, walls);
+        for (Door d : doors) nav.doorway(d.x, d.z, d.alongX, d.w);
+    }
+
+    /** The walkable grid people find their way around with. */
+    CasinoNav nav;
+
+    /**
+     * Walks someone toward a point the smart way: straight if nothing's in the way, otherwise
+     * along a route round the obstacles, finding a new route if they stop getting closer.
+     */
+    void goTo(Person p, float tx, float tz, float dt) {
+        if (nav == null || nav.clear(p.x, p.z, tx, tz)) {
+            p.path = null;
+            step(p, tx, tz, dt);
+            return;
+        }
+        boolean moved = p.path != null && Math.hypot(p.ptx - tx, p.ptz - tz) > 1.2f;
+        p.repath -= dt;
+        if (p.path == null || moved || p.repath <= 0 && p.pathStuck > 1.0f) {
+            p.path = nav.find(p.x, p.z, tx, tz, 6000);
+            p.pathI = 0;
+            p.ptx = tx;
+            p.ptz = tz;
+            p.repath = 1.5f;
+            p.pathStuck = 0;
+            if (p.path == null) {
+                step(p, tx, tz, dt);
+                return;
+            }
+        }
+        // Skip ahead to the furthest waypoint we can already walk straight to.
+        while (p.pathI < p.path.length / 2 - 1
+                && nav.clear(p.x, p.z, p.path[p.pathI * 2 + 2], p.path[p.pathI * 2 + 3])) {
+            p.pathI++;
+        }
+        float wx = p.path[p.pathI * 2], wz = p.path[p.pathI * 2 + 1];
+        if (Math.hypot(wx - p.x, wz - p.z) < 0.3f && p.pathI < p.path.length / 2 - 1) {
+            p.pathI++;
+            wx = p.path[p.pathI * 2];
+            wz = p.path[p.pathI * 2 + 1];
+        }
+        float bx = p.x, bz = p.z;
+        step(p, wx, wz, dt);
+        float got = (float) Math.hypot(p.x - bx, p.z - bz);
+        p.pathStuck = got < p.speed * dt * 0.4f ? p.pathStuck + dt : 0;
+    }
+
+    /** People ease apart instead of walking through each other. */
+    private void crowd() {
+        for (int i = 0; i < people.size(); i++) {
+            Person a = people.get(i);
+            if (!a.active || a.down > 0 || a.ko || a.dead || a.fall > 0) continue;
+            for (int j = i + 1; j < people.size(); j++) {
+                Person b = people.get(j);
+                if (!b.active || b.down > 0 || b.ko || b.dead || b.fall > 0) continue;
+                if (a.sitting && b.sitting) continue;
+                float dx = b.x - a.x, dz = b.z - a.z;
+                float d2 = dx * dx + dz * dz;
+                float min = 0.62f;
+                if (d2 >= min * min || d2 < 1e-6f) continue;
+                float d = (float) Math.sqrt(d2);
+                float push = (min - d) * 0.5f;
+                float ux = dx / d, uz = dz / d;
+                // The player isn't shoved about; everyone else gives way.
+                // The player and anyone seated stay put; walkers give way.
+                boolean fa = a == player || a.sitting, fb = b == player || b.sitting;
+                float ka = fa ? 0 : (fb ? 1 : 0.5f);
+                float kb = fb ? 0 : (fa ? 1 : 0.5f);
+                a.x -= ux * push * 2 * ka;
+                a.z -= uz * push * 2 * ka;
+                b.x += ux * push * 2 * kb;
+                b.z += uz * push * 2 * kb;
+            }
+        }
     }
 
     /** First vertex of the ground layers at the end of the mesh. */
@@ -1045,6 +1133,25 @@ final class CasinoWorld {
         boolean fighter, startedIt, reported, robbed;
         int style;
         float power = 1, fightCool, cower, challengeT, comboAt; int combo;
+        /** A route being walked (x, z pairs), where it's headed, and how it's going. */
+        float[] path;
+        int pathI;
+        float ptx, ptz, repath, pathStuck;
+        /** How high the seat is (0.68 a stool, 0.45 a booth). */
+        float seatY = 0.68f;
+        /** A badly hurt fighter has made up their mind: run or fight on. */
+        boolean hurtDecided;
+        /** A glass in hand (its color), how long it lasts, and sipping. */
+        int carry;
+        float drinkT, sipT, sip;
+        /** Serving staff: where they pour, who they serve, and how far across the counter. */
+        float[] tap;
+        List<Person> patrons;
+        float reach;
+        int drinkColor, serveState;
+        float serveT;
+        Person serving;
+        String[] serveLines;
         final int id = nextPersonId++;
     }
 
@@ -1214,7 +1321,9 @@ final class CasinoWorld {
             if (i == 4) p.hat = true;
             seat(p, s[0], s[1], s[2]);
         }
-        for (float[] s : extraSeats) seat(newPerson(SEATED), s[0], s[1], s[2]);
+        for (float[] s : extraSeats) {
+            seat(newPerson(SEATED), s[0], s[1], s[2], s.length > 3 ? s[3] : 0.68f);
+        }
         staff(dealer, "Dealer", STAFF_OUTFIT);
         staff(croupier, "Croupier", STAFF_OUTFIT);
         staff(cashier, "Cashier", STAFF_OUTFIT);
@@ -1223,6 +1332,7 @@ final class CasinoWorld {
             Person p = staff(s, extraStaffNames.get(i), (int) s[3]);
             if (s.length > 4 && s[4] > 0) p.talk = CasinoPlaces.DICE_TALK;
         }
+        setupServers();
         // Security on patrol: one on the floor, one in the back.
         Person g1 = guard(CasinoPlaces.FLOOR_PATROL);
         Person g2 = guard(CasinoPlaces.BACK_PATROL);
@@ -1255,6 +1365,11 @@ final class CasinoWorld {
     }
 
     private void seat(Person p, float x, float z, float yaw) {
+        seat(p, x, z, yaw, 0.68f);
+    }
+
+    private void seat(Person p, float x, float z, float yaw, float seatY) {
+        p.seatY = seatY;
         p.homeX = p.x = x;
         p.homeZ = p.z = z;
         p.homeYaw = p.yaw = yaw;
@@ -1431,6 +1546,7 @@ final class CasinoWorld {
         updateSmoke(dt);
         updateBlood(dt);
         updateDoors(dt);
+        crowd();
 
         // ---- everyone else
         for (Person p : people) {
@@ -1516,6 +1632,11 @@ final class CasinoWorld {
                 copThink(p, dt);
                 continue;
             }
+            if (p.carry != 0 && p.sitting) drinking(p, dt);
+            if (p.patrons != null && p.kind == STAFF) {
+                serve(p, dt);
+                continue;
+            }
             switch (p.kind) {
                 case WANDER:
                     wander(p, dt);
@@ -1584,12 +1705,13 @@ final class CasinoWorld {
             return;
         }
         p.stuck += dt;
-        if (p.stuck > 1.2f) {
-            if (d > p.lastDist - 0.3f) pickTarget(p);
+        if (p.stuck > 4f) {
+            // Not getting anywhere: go somewhere else.
+            if (d > p.lastDist - 0.5f) pickTarget(p);
             p.lastDist = d;
             p.stuck = 0;
         }
-        step(p, p.tx, p.tz, dt);
+        goTo(p, p.tx, p.tz, dt);
     }
 
     /** Walks a loop of stops, waiting (and maybe sitting) at each. */
@@ -1600,7 +1722,8 @@ final class CasinoWorld {
             p.sitting = false;
             float sp = p.speed;
             if (p.kind == GUARD) p.speed = 1.25f;
-            step(p, s[0], s[1], dt, d > 1.0f);
+            if (d > 1.0f) goTo(p, s[0], s[1], dt);
+            else step(p, s[0], s[1], dt, false);
             p.speed = sp;
             p.wait = s[2];
             return;
@@ -1641,15 +1764,151 @@ final class CasinoWorld {
             if (d > 7) {
                 float sp = g.speed;
                 g.speed = 1.6f;
-                step(g, me.x, me.z, dt);
+                goTo(g, me.x, me.z, dt);
                 g.speed = sp;
             }
             return;
         }
         float sp = g.speed;
         g.speed = 3.45f;
-        step(g, me.x, me.z, dt);
+        goTo(g, me.x, me.z, dt);
         g.speed = sp;
+    }
+
+    // ================================================================== drinks
+
+    private static final String[] BAR_LINES = {"Here you go.", "On the house. Kidding.",
+            "Easy on that one.", "Fresh one."};
+    private static final String[] COFFEE_LINES = {"Refill, hon.", "Careful, it's hot.",
+            "There you go, sugar."};
+    private static final String[] ANOTHER = {"Another round!", "Same again?", "I'm empty here.",
+            "Barkeep!"};
+
+    /** Who pours where and whom they serve (staff named in CasinoPlaces, plus the casino's). */
+    private void setupServers() {
+        for (Person p : people) {
+            if (p.kind != STAFF || p.name == null) continue;
+            if (p.name.equals("Bartender")) {
+                serverFor(p, new float[]{37, 5.4f, SOUTH}, 26, 4, 48, 14, 2.3f, 0xFFE8A030,
+                        BAR_LINES);
+            } else if (p.name.equals("Waitress")) {
+                serverFor(p, new float[]{-12.5f, 39.4f, NORTH}, -21, 36, -9.5f, 37.4f, 1.9f,
+                        0xFF3A2414, COFFEE_LINES);
+            } else if (p.name.equals("Cocktail waitress")) {
+                serverFor(p, new float[]{-16.6f, 0.3f, WEST}, X0, Z0, X1, Z1, -0.85f, 0xFFFF6A8A,
+                        BAR_LINES);
+            }
+        }
+    }
+
+    private void serverFor(Person p, float[] tap, float x0, float z0, float x1, float z1,
+                           float reach, int color, String[] lines) {
+        p.tap = tap;
+        p.reach = reach;
+        p.drinkColor = color;
+        p.serveLines = lines;
+        p.patrons = new ArrayList<>();
+        for (Person q : people) {
+            if (q.kind == SEATED && q.homeX > x0 && q.homeX < x1 && q.homeZ > z0
+                    && q.homeZ < z1) {
+                p.patrons.add(q);
+                // Some already have a drink when you walk in.
+                if (rnd.nextBoolean()) {
+                    q.carry = color;
+                    q.drinkT = 10 + rnd.nextFloat() * 40;
+                }
+            }
+        }
+        if (p.patrons.isEmpty()) p.patrons = null;
+    }
+
+    /** Pour, carry it over, hand it across, head back. */
+    private void serve(Person p, float dt) {
+        p.sitting = false;
+        switch (p.serveState) {
+            case 0: { // back at the taps: pour if someone needs one
+                if (!walkTo(p, p.tap[0], p.tap[1], dt)) return;
+                p.yaw = turn(p.yaw, p.tap[2], dt * 6);
+                Person next = null;
+                for (Person q : p.patrons) {
+                    if (q.carry == 0 && q.sitting && q.down <= 0 && !q.ko && !q.dead) {
+                        next = q;
+                        break;
+                    }
+                }
+                p.serveT += dt;
+                if (next == null) {
+                    p.serveT = 0;
+                    return;
+                }
+                if (p.serveT > 2.0f) {
+                    p.serveT = 0;
+                    p.carry = p.drinkColor;
+                    p.serving = next;
+                    p.serveState = 1;
+                }
+                return;
+            }
+            case 1: { // carrying it over
+                Person q = p.serving;
+                if (q == null || !q.sitting || q.dead || q.ko || q.carry != 0) {
+                    p.serveState = 3;
+                    return;
+                }
+                float fx = (float) Math.sin(q.homeYaw), fz = (float) -Math.cos(q.homeYaw);
+                float sx = q.homeX + fx * p.reach, sz = q.homeZ + fz * p.reach;
+                if (p.reach < 0) {
+                    // Beside the guest rather than squarely behind them.
+                    sx += fz * 0.45f;
+                    sz -= fx * 0.45f;
+                }
+                if (!walkTo(p, sx, sz, dt)) return;
+                p.yaw = turn(p.yaw, (float) Math.atan2(q.x - p.x, -(q.z - p.z)), dt * 8);
+                p.serveT += dt;
+                if (p.serveT > 0.9f) {
+                    p.serveT = 0;
+                    q.carry = p.carry;
+                    q.drinkT = (p.reach < 0 ? 70 : 30) + rnd.nextFloat() * 30;
+                    q.sipT = 2;
+                    p.carry = 0;
+                    if (dist(p, player) < 10) say(p, p.serveLines);
+                    p.serveState = 3;
+                }
+                return;
+            }
+            default: // heading back
+                p.serving = null;
+                if (walkTo(p, p.tap[0], p.tap[1], dt)) p.serveState = 0;
+        }
+    }
+
+    /** Walks toward a point the smart way; true once there. */
+    private boolean walkTo(Person p, float x, float z, float dt) {
+        if (Math.hypot(x - p.x, z - p.z) < 0.25f) {
+            p.walk = Math.max(0, p.walk - dt * 5);
+            return true;
+        }
+        float sp = p.speed;
+        p.speed = 1.25f;
+        goTo(p, x, z, dt);
+        p.speed = sp;
+        return false;
+    }
+
+    /** A seated guest with a glass: a sip now and then, and a shout when it's empty. */
+    private void drinking(Person p, float dt) {
+        p.drinkT -= dt;
+        if (p.sip > 0) p.sip -= dt;
+        p.sipT -= dt;
+        if (p.sipT <= 0) {
+            p.sipT = 5 + rnd.nextFloat() * 7;
+            p.sip = 1.4f;
+        }
+        if (p.drinkT <= 0) {
+            p.carry = 0;
+            p.sip = 0;
+            if (dist(p, player) < 9 && rnd.nextFloat() < 0.6f) say(p, ANOTHER);
+        }
     }
 
     private void goHome(Person p, float dt) {
@@ -1961,7 +2220,7 @@ final class CasinoWorld {
     }
 
     void stepPerson(Person p, float tx, float tz, float dt) {
-        step(p, tx, tz, dt);
+        goTo(p, tx, tz, dt);
     }
 
     void raiseAlarmPublic(String why) {
@@ -2514,7 +2773,7 @@ final class CasinoWorld {
             if (d > 9) {
                 float sp = p.speed;
                 p.speed = 1.8f;
-                step(p, me.x, me.z, dt);
+                goTo(p, me.x, me.z, dt);
                 p.speed = sp;
             }
             return;
@@ -2529,7 +2788,7 @@ final class CasinoWorld {
         if (!lethal && d < 6 && rnd.nextFloat() < dt * 0.4f) {
             say(p, new String[]{"Police! Stop right there!", "On the ground!", "Freeze!"});
         }
-        step(p, me.x, me.z, dt);
+        goTo(p, me.x, me.z, dt);
     }
 
     private void copFires(Person p, float d) {
@@ -3848,13 +4107,19 @@ final class CasinoWorld {
         }
     }
 
+    /** For checks off the phone: draws one person into any sink. */
+    void drawPersonPublic(Person p, PartSink s) {
+        drawPerson(p, s);
+    }
+
     private void drawPerson(Person p, PartSink s) {
         float sc = p.scale;
         boolean sit = p.sitting && p.down <= 0 && !p.ko && !p.dead;
         s.shadow(p.x, p.z, 0.42f * sc * (1 + p.fall * 0.6f));
         Mat.identity(base);
         float bob = sit ? 0 : (float) Math.abs(Math.sin(p.phase)) * 0.04f * p.walk;
-        Mat.translate(base, p.x, (sit ? -0.22f : 0) + bob, p.z);
+        // Sitting: hips on the seat, wherever it is.
+        Mat.translate(base, p.x, (sit ? p.seatY + 0.06f - 0.86f * sc : 0) + bob, p.z);
         Mat.rotY(base, -p.yaw);
         Mat.scale(base, sc, sc, sc);
         if (p.fall > 0) {
@@ -3866,9 +4131,15 @@ final class CasinoWorld {
         float swing = (float) Math.sin(p.phase) * 0.5f * p.walk;
         float hip = 0.86f;
         for (int side = -1; side <= 1; side += 2) {
-            float a = sit ? 1.5f : swing * side;
-            float knee = sit ? -1.45f : Math.max(0, -(float) Math.sin(p.phase) * side) * 0.7f
-                    * p.walk;
+            // Seated: thighs forward along the seat, shins down to the floor (tucked back a
+            // little on a tall stool, where the feet don't reach).
+            // On a tall stool the thighs slope down so the feet still reach the floor.
+            // Hips at seat height; shins straight down; shoe soles on the floor.
+            float thigh = (float) Math.acos(Math.max(0.07f, Math.min(0.88f,
+                    ((p.seatY + 0.06f) / sc - 0.46f) / 0.43f)));
+            float a = sit ? thigh + 0.04f * side : swing * side;
+            float knee = sit ? thigh + 0.04f * side
+                    : Math.max(0, -(float) Math.sin(p.phase) * side) * 0.7f * p.walk;
             if (p.fall > 0) {
                 a = 0.15f * side;
                 knee = 0.1f;
@@ -3980,6 +4251,23 @@ final class CasinoWorld {
                     elbow = 1.7f;
                 }
             }
+            if (side == 1 && p.fall <= 0 && !gun) {
+                if (p.sip > 0 && sit) {
+                    // Glass up to the mouth.
+                    float k = Math.min(1, Math.min(p.sip, 1.4f - p.sip) * 4);
+                    a = 0.75f + (0.55f - 0.75f) * k;
+                    elbow = 0.6f + (2.35f - 0.6f) * k;
+                } else if (p.patrons != null && p.serveState == 0 && p.serveT > 0) {
+                    a = 1.15f;
+                    elbow = 0.55f + 0.25f * (float) Math.sin(p.serveT * 3);
+                } else if (p.patrons != null && p.serveState == 1 && p.serveT > 0) {
+                    a = 1.35f;
+                    elbow = 0.15f;
+                } else if (p.carry != 0 && !sit) {
+                    a = 0.55f;
+                    elbow = 1.25f;
+                }
+            }
             if (!gun && p.fall <= 0 && !sit && fightArm(p, side, armOut)) {
                 a = armOut[0];
                 elbow = armOut[1];
@@ -4017,6 +4305,14 @@ final class CasinoWorld {
             }
             if (held != null && held.melee && side == 1) {
                 limb(s, shoulder, 0, -0.43f, -0.03f, 0.03f, 0.16f, 0.05f, 0xFFC8CCD4);
+            }
+            if (p.carry != 0 && side == 1 && !gun) {
+                // The glass in hand.
+                copy(tmp, shoulder);
+                Mat.translate(tmp, 0, -0.4f, -0.08f);
+                Mat.rotX(tmp, -(a + elbow));
+                Mat.scale(tmp, 0.085f, 0.14f, 0.085f);
+                s.part(tmp, p.carry, 0.25f);
             }
             if (p.watch != 0 && side == -1) {
                 copy(tmp, shoulder);

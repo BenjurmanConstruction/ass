@@ -468,9 +468,9 @@ final class CasinoFight {
             p.fighter = false;
             return false;
         }
-        if (p.health < 22 && p.style != BRUISER && p.blockRoll != -5) {
-            // Hurt bad: some bail, the rest fight to the end.
-            p.blockRoll = -5;
+        if (p.health < 22 && p.style != BRUISER && !p.hurtDecided) {
+            // Hurt bad: some bail, the rest fight to the end (decided once).
+            p.hurtDecided = true;
             if (rnd.nextFloat() < 0.6f) {
                 if (rnd.nextFloat() < 0.5f) say(p, TAUNTS[p.style]);
             } else {

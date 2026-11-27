@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v37**.
+- Latest release: **v38**.
 
 ## Standing rules
 
@@ -304,6 +304,25 @@ player name and uninstall.
     - Suds Laundromat.
   - **Street furniture** halfway between lamps on every street except The Strip (planter trees, benches, bins, hydrant + newsbox, mailboxes), all solid.
   - New PLACES and walk areas.
+
+### v38: pathfinding, seating, serving staff (found with "Claude mode")
+- **Claude mode tools:** `tools/claude-mode/` holds off-device checks in the spirit of Breach House's Claude mode. Its README lists them: motion trace with stall map, reachability sweep, nav ASCII map, seated-feet check, serving trace, perf, renders.
+- **Pathfinding (`CasinoNav.java`):**
+  - 0.4 m grid over the whole map. Solids are grown by `BODY` 0.32, cells are blocked by center, doorways are carved open, and road cells cost 6×.
+  - A* with no corner cutting, a node cap, and string-pulled paths (40-cell window).
+  - `CasinoWorld.goTo` walks straight when clear, otherwise follows the route, and repaths when the target moves more than 1.2 m or it stops making progress.
+  - Used by wanderers, fighters (`stepPerson`), guard routes, guards chasing and cops on foot.
+  - `crowd()` eases people apart; the player and seated people don't move, walkers give way.
+  - **Results** (CM, 180 s): casino-floor bumps 11.7% → ~1%, city stalls over 1 s 97 → ~5. Every one of the 72 spots is reachable. Update cost ~0.25 ms.
+- **Seating:**
+  - Person `seatY` (stool 0.68, booth 0.45). Hips sit on the seat; the thigh angle is solved so the soles land on the floor, shins straight down. (Before, the knee bent the wrong way and the shins pointed out.)
+  - Diner booths rebuilt with a low seat and backrest, plus a second booth guest.
+  - TSit: every seated person's feet within 2 cm of the floor.
+- **Serving staff (`setupServers` / `serve` / `drinking`):**
+  - Staff pour at a tap, carry the glass, hand it across (bartender reach 2.3 m across the counter, diner waitress 1.9, casino cocktail waitress stands beside the guest), then return.
+  - Guests hold the glass, sip every 5–12 s, and shout for another when it's empty.
+  - New: casino service bar on the west wall with a "Cocktail waitress" serving every seated casino guest, and a diner "Waitress" with coffee.
+- **Fix:** the hurt-fighter "run or fight on" decision reused `blockRoll`, which blocking overwrote, so it re-rolled until they ran. It now has its own field (`hurtDecided`); KOs are back to normal.
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

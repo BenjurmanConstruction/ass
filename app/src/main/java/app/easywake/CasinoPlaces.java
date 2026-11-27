@@ -561,11 +561,17 @@ final class CasinoPlaces {
         // Booths on the east side.
         for (float z : new float[]{32.5f, 35.2f}) {
             m.boxAA(-9.0f, 0, z - 0.4f, -7.6f, 0.75f, z + 0.4f, 0xFFD8D8DC, 0);
-            m.boxAA(-6.88f, 0, z - 0.8f, -6.3f, 1.2f, z + 0.8f, 0xFFB83A3A, 0);
-            m.boxAA(-10.3f, 0, z - 0.8f, -9.7f, 1.2f, z + 0.8f, 0xFFB83A3A, 0);
+            // Benches: a low seat and a tall back on each side of the table.
+            m.boxAA(-7.45f, 0, z - 0.8f, -6.88f, 0.45f, z + 0.8f, 0xFFB83A3A, 0);
+            m.boxAA(-6.88f, 0, z - 0.8f, -6.4f, 1.25f, z + 0.8f, 0xFF9A2E2E, 0);
+            m.boxAA(-9.75f, 0, z - 0.8f, -9.15f, 0.45f, z + 0.8f, 0xFFB83A3A, 0);
+            m.boxAA(-10.25f, 0, z - 0.8f, -9.75f, 1.25f, z + 0.8f, 0xFF9A2E2E, 0);
             w.solid(-10.3f, z - 0.8f, -6.12f, z + 0.8f, 1.2f);
         }
-        w.extraSeats.add(new float[]{-7.0f, 32.5f, WEST});
+        w.extraSeats.add(new float[]{-7.15f, 32.5f, WEST, 0.45f});
+        w.extraSeats.add(new float[]{-9.45f, 35.2f, EAST, 0.45f});
+        w.extraStaff.add(new float[]{-12.5f, 39.4f, NORTH, CasinoWorld.STAFF_OUTFIT, 0});
+        w.extraStaffNames.add("Waitress");
         note(w, "napkin", "a napkin", -11.0f, 32.5f);
         chip(w, "midnight", -11.0f, 35.9f, 0.12f);
         w.lamps.add(new float[]{-17, 34, 3.5f, 0.34f, 1, 0.85f, 0.6f});

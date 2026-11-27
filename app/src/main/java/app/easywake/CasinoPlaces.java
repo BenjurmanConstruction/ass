@@ -26,6 +26,10 @@ final class CasinoPlaces {
             {-95, 53.4f, 95, 55.6f}, // Harbor Road
             {-49.8f, -60, -48.2f, 50}, // West Avenue
             {48.2f, -60, 49.8f, 50}, // East Avenue
+            {62, 30, 84, 34}, // Founders Park, north lawn
+            {62, 48, 84, 52}, // Founders Park, south lawn
+            {-50, -42.6f, 50, -40.4f}, // Shops on Back Street
+            {-84, 6, -60, 16}, // Gas 'N Go forecourt
     };
 
     /** Security's rounds: x, z, seconds to wait, facing, sit. */
@@ -122,6 +126,9 @@ final class CasinoPlaces {
             {"The Last Call", 26f, 4f, 48f, 14f}, {"Back alley", 18f, -28f, 26f, 14f},
             {"Parking lot", -48f, -14f, -18f, 14f}, {"Casino floor", -18f, -14f, 18f, 14f},
             {"Police HQ", 58f, -32f, 88f, 18f}, {"Spray Shop", -76f, 29f, -64f, 41f},
+            {"Founders Park", 58f, 26f, 88f, 56f}, {"Gas 'N Go", -88f, -6f, -58f, 18f},
+            {"Burger Barn", -46f, -55f, -32f, -40f}, {"Pixel Palace", -30f, -55f, -14f, -40f},
+            {"Suds Laundromat", -12f, -55f, -2f, -40f},
             {"The Strip", -48f, 14f, 48f, 30f}};
 
     static String placeName(float x, float z) {
@@ -736,7 +743,7 @@ final class CasinoPlaces {
         m.panel(31, fz - 0.01f, SOUTH, 4, 1.1f, 2.4f, 0xFF3A1810, 0.35f, null);
         m.panel(43, fz - 0.01f, SOUTH, 4, 1.1f, 2.4f, 0xFF3A1810, 0.35f, null);
         w.lamps.add(new float[]{37, 15.3f, 3, 0.4f, 1, 0.5f, 0.4f});
-        // Inside: the counter, a wall of bottles, a few tables. Closed for the night.
+        // Inside: the counter, a wall of bottles, a few tables, and the pool table.
         m.boxAA(30, 0, 7.0f, 44, 1.1f, 7.8f, 0xFF3A2114, 0);
         m.boxAA(29.9f, 1.1f, 6.95f, 44.1f, 1.16f, 7.85f, 0xFF1A0F0B, 0);
         w.solid(30, 7.0f, 44, 7.8f, 1.2f);
@@ -750,7 +757,7 @@ final class CasinoPlaces {
                         bottles[(i + r * 2) % bottles.length], 0.45f);
             }
         }
-        for (float x : new float[]{31, 37, 43}) {
+        for (float x : new float[]{30.6f, 34.4f}) {
             m.cylinder(x, 11.6f, 0.5f, 0.5f, 0.72f, 0.78f, 0xFF2A1810, 0xFF3A2114, 0, 14);
             m.cylinder(x, 11.6f, 0.06f, 0.06f, 0, 0.72f, 0xFF1A1A1E, 0, 0, 6);
             w.solid(x - 0.5f, 11.1f, x + 0.5f, 12.1f, 0.8f);
@@ -758,7 +765,13 @@ final class CasinoPlaces {
         loot(w, "register", "the register", 40, 8.4f, 0, 150);
         m.boxAA(39.7f, 1.16f, 7.1f, 40.3f, 1.45f, 7.6f, 0xFF2A2A30, 0);
         note(w, "tab", "a bar tab", 34, 8.4f);
-        chip(w, "lastcall", 43, 11.6f, 0.95f);
+        chip(w, "lastcall", 34.4f, 11.6f, 0.95f);
+        // The pool table in the back, and the people who keep the place going.
+        w.poolTable(42.4f, 11.2f, 0);
+        w.extraStaff.add(new float[]{37, 5.4f, SOUTH, CasinoWorld.STAFF_OUTFIT, 0});
+        w.extraStaffNames.add("Bartender");
+        w.extraSeats.add(new float[]{33.6f, 8.5f, NORTH});
+        w.extraSeats.add(new float[]{38.8f, 8.5f, NORTH});
         m.boxAA(26.12f, 0, 9.0f, 27.6f, 1.6f, 11.0f, 0xFFA8AAB0, 0);
         w.solid(26.12f, 9.0f, 27.6f, 11.0f, 1.6f);
         hide(w, "Beer cooler", 28.3f, 10, 2);

@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v36**.
+- Latest release: **v37**.
 
 ## Standing rules
 
@@ -277,6 +277,33 @@ player name and uninstall.
 - **Security is about half as fast:** guard trespass 0.4/s, view range 9 m, decay 0.35/s.
 - **Map labels** are placed so they never overlap, long names wrap, and each has a dark backing.
 - **Block Drop** pays Fun Coupons on every clear (a tenth of the points), shown live and on the game-over screen.
+
+### v37: real pool, video slots, bigger city
+- **Pool (`PoolGame.java` + `PoolActivity.java`)**
+  - 8-ball with real physics on a 9-ft table: 1 ms substeps, rolling friction plus cloth drag, 0.95 ball restitution, 0.78 cushions, pocket jaws as posts, side/corner capture radii.
+  - Balls are shaded per pixel as spheres. The number vector and stripe axis rotate as they roll.
+  - Rules: break, groups set on the first legal pot after the break, fouls (scratch, wrong ball first, no hit) give ball in hand, the 8 early or on a foul loses, the 8 on the break is spotted.
+  - **Controls:** touch the felt to aim, fine-aim strip below the table, pull the POWER bar down and release, spin ball (follow/draw), guide line with ghost ball plus object and cue paths.
+  - **AI (`PoolGame.plan`):** tries the top 12 unblocked ghost-ball shots × 3 powers × 3 spins on copies and scores by position. If nothing pots, it plays a safety (edges or one-rail kick). Aim wobble = (1−skill)·0.03 rad.
+  - **Opponents:** bar has Ray / Sally / Bob / Big Mo (stakes 50–500); casino has Vince / Duchess / Ice Man Ito / The Professor (stakes 500–5000). The stake goes in at the start; a win pays double; quitting forfeits. Practice is free.
+  - **Tables:** `CasinoWorld.poolTable(x, z, venue)`. Casino high-stakes table (blue felt) at (11.5, −8); The Last Call table at (42.4, 11.2), with a bartender and two regulars added. Spot key "pool".
+  - **Sounds:** `Sfx.CLACK`, `RAIL`, `POCKET`, `CUE`, plus `Sfx.play(ctx, id, volume)`. Fixed: `BLOCK` (v35) had no loudness entry and never played.
+  - **Tests:** /home/claude/work/casino/TP*.java.
+- **Video slots (`ThemeSlotMath.java` + `ThemeSlotActivity.java`)**
+  - Eight original themes on one 5×3 / 20-line engine (Fruit Fiesta is 3×3 / 5 lines). Features: sticky wilds, expanding wilds, wild ×2/×3, mystery symbols, pick-3-chests, free spins with multipliers.
+  - Every theme's `scale` is tuned to ~95% payback (TS.java, 1M spins).
+  - The win is credited when you spin (the balance display holds it back as `pending`).
+  - The island of 8 cabinets is at x 7..14, z −3, open to everyone, with a VIDEO SLOTS sign.
+- **Atlas is now 1024×4096.** Themed machine screens/toppers sit at y 2048+ (`CasinoArt.THEMED` = 12); signs ≥ 28 sit at y 2440+. Preview.java now reads the `ATLAS` / `ATLAS_H` constants.
+- **City:**
+  - **Founders Park** (block x 58..88, z 26..56): fountain, hedges, paths, trees, benches, park lights.
+  - **Gas 'N Go** (west block, z −6..18): canopy, pumps, shop, price sign. "Grab a snack" costs 10 FC and gives +35 health.
+  - **Shop row** north of Back Street:
+    - Burger Barn: "Eat a burger", 25 FC, full health.
+    - Pixel Palace: "Play Block Drop at the arcade" (extra `arcade` skips the skill-tree lock).
+    - Suds Laundromat.
+  - **Street furniture** halfway between lamps on every street except The Strip (planter trees, benches, bins, hydrant + newsbox, mailboxes), all solid.
+  - New PLACES and walk areas.
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

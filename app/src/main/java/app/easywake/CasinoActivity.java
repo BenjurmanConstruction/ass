@@ -348,6 +348,33 @@ public class CasinoActivity extends Activity {
             case "cashier":
                 i = new Intent(this, WalletActivity.class);
                 break;
+            case "burger":
+            case "snack": {
+                int cost = s.extra;
+                if (Wallet.coupons(this) < cost) {
+                    overlay.show("You need " + cost + " FC for that.");
+                    return;
+                }
+                Wallet.addCoupons(this, -cost);
+                synchronized (world) {
+                    world.health = Math.min(100, world.health + ("burger".equals(s.key) ? 100 : 35));
+                }
+                Sfx.play(this, Sfx.CHIPS);
+                overlay.show("burger".equals(s.key)
+                        ? "Double cheeseburger. Health topped up."
+                        : "Gas station hot dog. Questionable, but you feel better.");
+                return;
+            }
+            case "arcade":
+                i = new Intent(this, BlocksActivity.class).putExtra("arcade", true);
+                break;
+            case "themeslot":
+                i = new Intent(this, ThemeSlotActivity.class).putExtra("theme", s.extra);
+                break;
+            case "pool":
+                i = new Intent(this, PoolActivity.class)
+                        .putExtra("venue", s.extra == 1 ? "casino" : "bar");
+                break;
             default:
                 Class<?> c = Tree.screen(s.key);
                 if (c == null) return;

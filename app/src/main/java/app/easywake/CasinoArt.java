@@ -12,7 +12,7 @@ import java.util.Locale;
 final class CasinoArt {
     static final int ATLAS = 1024;
     /** The sheet is twice as tall as it is wide. */
-    static final int ATLAS_H = 2048;
+    static final int ATLAS_H = 4096;
     static final int CARPET = 256;
 
     /** Draws shapes and text in pixels on a sheet. */
@@ -63,14 +63,34 @@ final class CasinoArt {
 
     // ------------------------------------------------------------------ machines
 
-    static final int MACHINES = 12;
+    /** The original twelve, then the themed video slots (ThemeSlotMath) from 12 on. */
+    static final int THEMED = 12;
+    static final int MACHINES = THEMED + ThemeSlotMath.THEMES.length;
     static final int VIDEO_POKER = 11;
-    static final String[] MACHINE_NAMES = {"BLAZING BARS", "THUNDER PLAINS", "COIN VAULT",
-            "JACKPOT WHEEL", "GEM CASCADE", "JADE DRAGON LINK", "FORTUNE DRUMS",
-            "THUNDER WHEEL", "LUCKY 7s JACKPOT", "LUCKY SEVENS", "ROYAL RICHES", "VIDEO POKER"};
+    static final String[] MACHINE_NAMES = names();
     /** Each machine's glow color. */
-    static final int[] GLOW = {0xFFFF7043, 0xFFFFB300, 0xFFFFD54F, 0xFF4FC3F7, 0xFFE040FB,
-            0xFF4CE0A0, 0xFFFF8F00, 0xFF82B1FF, 0xFFFF1744, 0xFFFF5252, 0xFFB388FF, 0xFF40C4FF};
+    static final int[] GLOW = glows();
+
+    private static String[] names() {
+        String[] base = {"BLAZING BARS", "THUNDER PLAINS", "COIN VAULT",
+                "JACKPOT WHEEL", "GEM CASCADE", "JADE DRAGON LINK", "FORTUNE DRUMS",
+                "THUNDER WHEEL", "LUCKY 7s JACKPOT", "LUCKY SEVENS", "ROYAL RICHES", "VIDEO POKER"};
+        String[] out = new String[MACHINES];
+        System.arraycopy(base, 0, out, 0, THEMED);
+        for (int i = THEMED; i < MACHINES; i++) {
+            out[i] = ThemeSlotMath.THEMES[i - THEMED].name.toUpperCase(java.util.Locale.US);
+        }
+        return out;
+    }
+
+    private static int[] glows() {
+        int[] base = {0xFFFF7043, 0xFFFFB300, 0xFFFFD54F, 0xFF4FC3F7, 0xFFE040FB,
+                0xFF4CE0A0, 0xFFFF8F00, 0xFF82B1FF, 0xFFFF1744, 0xFFFF5252, 0xFFB388FF, 0xFF40C4FF};
+        int[] out = new int[MACHINES];
+        System.arraycopy(base, 0, out, 0, THEMED);
+        for (int i = THEMED; i < MACHINES; i++) out[i] = ThemeSlotMath.THEMES[i - THEMED].accent;
+        return out;
+    }
     /** Each machine's screen background, top and bottom. */
     private static final int[][] SCREEN = {{0xFF4A0E0E, 0xFF1A0505}, {0xFF3A2A0A, 0xFF120C02},
             {0xFF3A0A20, 0xFF14030A}, {0xFF0A2A4A, 0xFF030C18}, {0xFF2A0A4A, 0xFF0C0318},
@@ -78,12 +98,17 @@ final class CasinoArt {
             {0xFF4A0A0A, 0xFF180303}, {0xFF3A0A0A, 0xFF120303}, {0xFF22104A, 0xFF0A0418},
             {0xFF0A1E4A, 0xFF030918}};
 
+    /** The themed machines live in the lower half of the sheet, from y 2048. */
+    private static int machineTop(int m) {
+        return m < THEMED ? (m / 6) * 188 : 2048 + ((m - THEMED) / 6) * 188;
+    }
+
     static Region screen(int m) {
-        return new Region((m % 6) * 168 + 4, (m / 6) * 188 + 4, 160, 120);
+        return new Region((m % 6) * 168 + 4, machineTop(m) + 4, 160, 120);
     }
 
     static Region topper(int m) {
-        return new Region((m % 6) * 168 + 4, (m / 6) * 188 + 128, 160, 56);
+        return new Region((m % 6) * 168 + 4, machineTop(m) + 128, 160, 56);
     }
 
     // ------------------------------------------------------------------ signs
@@ -92,19 +117,24 @@ final class CasinoArt {
             "ROULETTE", "VIDEO POKER", "CASHIER", "CLASSIC SLOTS", "THE GILDED ACE",
             "LUCKY PAWN", "MIDNIGHT DINER", "STARLITE MOTEL", "THE LAST CALL", "HIGH LIMIT",
             "STAFF ONLY", "VACANCY", "VAULT", "SECURITY", "MANAGER", "OPEN 24 HRS", "GOLD RUSH",
-            "THREADS", "BULLSEYE RANGE", "GUNS & PAWN", "POLICE", "SPRAY SHOP"};
+            "THREADS", "BULLSEYE RANGE", "GUNS & PAWN", "POLICE", "SPRAY SHOP", "VIDEO SLOTS",
+            "BILLIARDS", "BURGER BARN", "PIXEL PALACE", "SUDS LAUNDROMAT", "GAS 'N GO",
+            "FOUNDERS PARK"};
     static final int PENNY = 0, PARLOR = 1, HOLDEM = 2, BLACKJACK = 3, ROULETTE = 4, POKER = 5,
             CASHIER = 6, CLASSIC = 7, GILDED = 8, PAWN = 9, DINER = 10, MOTEL = 11, BAR = 12,
             HIGH = 13, STAFF = 14, VACANCY = 15, VAULT = 16, SECURITY = 17, MANAGER = 18,
             OPEN = 19, GOLDRUSH = 20, THREADS = 21, RANGE = 22, GUNS = 23, POLICE = 24,
-            SPRAY = 25;
+            SPRAY = 25, VIDEO_SLOTS = 26, BILLIARDS = 27, BURGER = 28, ARCADE = 29, LAUNDRY = 30,
+            GAS = 31, PARK = 32;
     private static final int[] SIGN_COLOR = {0xFF4CE0A0, 0xFFFFB300, 0xFFE6B869, 0xFFE6B869,
             0xFFE6B869, 0xFF40C4FF, 0xFFE6B869, 0xFFFF5252, 0xFFFFC94A, 0xFF69F0AE, 0xFFFF6FA8,
             0xFF6EC8FF, 0xFFFF4A3A, 0xFFD6A8FF, 0xFFFFFFFF, 0xFFFF3B30, 0xFFC0C4CC, 0xFF9AA4B4,
             0xFFE6B869, 0xFFFF6FA8, 0xFFFFD24A, 0xFF4AE0D0, 0xFFFF6A2A, 0xFFFF4A3A,
-            0xFF6A9AFF, 0xFF6CFF8A};
+            0xFF6A9AFF, 0xFF6CFF8A, 0xFFFF6AD5, 0xFF6CFFB0, 0xFFFFB84A, 0xFF8A6AFF, 0xFF8AF0FF,
+            0xFFFF5A3A, 0xFF8AE07A};
 
     static Region sign(int i) {
+        if (i >= 28) return new Region((i % 2) * 512 + 4, 2440 + ((i - 28) / 2) * 100, 504, 92);
         if (i >= 8) return new Region((i % 2) * 512 + 4, 1024 + ((i - 8) / 2) * 100, 504, 92);
         return new Region((i % 2) * 512 + 4, 384 + (i / 2) * 100, 504, 92);
     }
@@ -135,6 +165,10 @@ final class CasinoArt {
 
     private static void paintScreen(Painter p, int m) {
         Region r = screen(m);
+        if (m >= THEMED) {
+            paintThemed(p, m, r);
+            return;
+        }
         p.vgradient(r.x, r.y, r.w, r.h, SCREEN[m][0], SCREEN[m][1]);
         int glow = GLOW[m];
         if (m == VIDEO_POKER) {
@@ -181,6 +215,29 @@ final class CasinoArt {
         p.text(m >= 5 && m <= 8 ? "CREDITS 2,500" : "WIN 0", r.x + 8, r.y + r.h - 12, 10,
                 0xFFFFE082, true, 0);
         p.text("SPIN", r.x + r.w - 8, r.y + r.h - 12, 10, glow, true, 2);
+    }
+
+    /** A themed video slot's screen: its own colors and a grid of its symbols. */
+    private static void paintThemed(Painter p, int m, Region r) {
+        ThemeSlotMath.Theme th = ThemeSlotMath.THEMES[m - THEMED];
+        p.vgradient(r.x, r.y, r.w, r.h, th.top, th.bottom);
+        int cols = th.cols();
+        float gx = r.x + 8, gy = r.y + 8, gw = r.w - 16, gh = r.h - 34;
+        float cw = gw / cols, ch = gh / 3;
+        p.rect(gx, gy, gw, gh, 0x66000000);
+        int seed = m * 7919 + 13;
+        for (int c = 0; c < cols; c++) {
+            if (c > 0) p.rect(gx + c * cw - 0.5f, gy, 1, gh, 0x33FFFFFF);
+            for (int rr = 0; rr < 3; rr++) {
+                seed = seed * 1103515245 + 12345;
+                int k = ((seed >>> 16) & 0x7fff) % 8;
+                p.text(th.sym[k], gx + (c + 0.5f) * cw, gy + (rr + 0.5f) * ch,
+                        Math.min(cw, ch) * 0.7f, 0xFFFFFFFF, false, 1);
+            }
+        }
+        p.rect(r.x, r.y + r.h - 24, r.w, 24, 0xFF05060A);
+        p.text("WIN 0", r.x + 8, r.y + r.h - 12, 10, 0xFFFFE082, true, 0);
+        p.text("SPIN", r.x + r.w - 8, r.y + r.h - 12, 10, th.accent, true, 2);
     }
 
     /** A small reel symbol: a 7, a bar, a cherry, a gem, a bell or a coin. */

@@ -87,7 +87,7 @@ public class BlocksActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        if (!Tree.owned(this, "blocks")) {
+        if (!Tree.owned(this, "blocks") && !getIntent().getBooleanExtra("arcade", false)) {
             Toast.makeText(this, "Unlock Block Drop in the skill tree first.",
                     Toast.LENGTH_LONG).show();
             finish();

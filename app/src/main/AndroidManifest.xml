@@ -159,6 +159,18 @@
             android:taskAffinity="" />
 
         <activity
+            android:name=".ThemeSlotActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
+            android:name=".PoolActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".BlocksActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

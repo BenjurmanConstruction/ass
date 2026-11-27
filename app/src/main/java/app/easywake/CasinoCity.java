@@ -84,6 +84,12 @@ final class CasinoCity {
                     police(w, x0, z0, x1, z1);
                 } else if (i == 0 && j == 2) {
                     sprayShop(w, x0, z0, x1, z1, r);
+                } else if (i == 2 && j == 2) {
+                    park(w, x0, z0, x1, z1);
+                } else if (i == 0 && j == 1) {
+                    gasStation(w, x0, z0, x1, z1, r);
+                } else if (i == 1 && j == 0) {
+                    shopRow(w, x0, z0, x1, z1, r);
                 } else {
                     buildings(w, r, x0 + WALK, z0 + WALK, x1 - WALK, z1 - WALK);
                 }
@@ -91,6 +97,7 @@ final class CasinoCity {
         }
         skyline(w, r);
         lamps(w);
+        streetFurniture(w);
     }
 
     private static void ground(CasinoWorld.Mesh m, float x0, float z0, float x1, float z1,
@@ -274,6 +281,321 @@ final class CasinoCity {
     }
 
     // ---------------------------------------------------------------- landmarks
+
+    /** Founders Park: lawns, paths crossing at a fountain, trees, benches and park lights. */
+    private static void park(CasinoWorld w, float x0, float z0, float x1, float z1) {
+        CasinoWorld.Mesh m = w.mesh;
+        float gx0 = x0 + WALK, gz0 = z0 + WALK, gx1 = x1 - WALK, gz1 = z1 - WALK;
+        float cx = (gx0 + gx1) / 2, cz = (gz0 + gz1) / 2;
+        m.floor(gx0, gz0, gx1, gz1, 0.012f, 0xFF2E5A2A, 0, 1);
+        GROUND.add(new float[]{gx0, gz0, gx1, gz1, 0xFF2E5A2A});
+        // Low hedge border with gaps where the paths come in.
+        int hedge = 0xFF1E4A22;
+        float g = 1.4f;
+        m.boxAA(gx0, 0, gz0, cx - g, 0.7f, gz0 + 0.5f, hedge, 0);
+        m.boxAA(cx + g, 0, gz0, gx1, 0.7f, gz0 + 0.5f, hedge, 0);
+        m.boxAA(gx0, 0, gz1 - 0.5f, cx - g, 0.7f, gz1, hedge, 0);
+        m.boxAA(cx + g, 0, gz1 - 0.5f, gx1, 0.7f, gz1, hedge, 0);
+        m.boxAA(gx0, 0, gz0 + 0.5f, gx0 + 0.5f, 0.7f, cz - g, hedge, 0);
+        m.boxAA(gx0, 0, cz + g, gx0 + 0.5f, 0.7f, gz1 - 0.5f, hedge, 0);
+        m.boxAA(gx1 - 0.5f, 0, gz0 + 0.5f, gx1, 0.7f, cz - g, hedge, 0);
+        m.boxAA(gx1 - 0.5f, 0, cz + g, gx1, 0.7f, gz1 - 0.5f, hedge, 0);
+        w.solid(gx0, gz0, cx - g, gz0 + 0.5f, 0.7f);
+        w.solid(cx + g, gz0, gx1, gz0 + 0.5f, 0.7f);
+        w.solid(gx0, gz1 - 0.5f, cx - g, gz1, 0.7f);
+        w.solid(cx + g, gz1 - 0.5f, gx1, gz1, 0.7f);
+        w.solid(gx0, gz0 + 0.5f, gx0 + 0.5f, cz - g, 0.7f);
+        w.solid(gx0, cz + g, gx0 + 0.5f, gz1 - 0.5f, 0.7f);
+        w.solid(gx1 - 0.5f, gz0 + 0.5f, gx1, cz - g, 0.7f);
+        w.solid(gx1 - 0.5f, cz + g, gx1, gz1 - 0.5f, 0.7f);
+        // Paths: a cross and a ring round the fountain.
+        int path = 0xFF8A7E68;
+        m.floor(cx - 1.2f, gz0, cx + 1.2f, gz1, 0.024f, path, 0, 1);
+        m.floor(gx0, cz - 1.2f, gx1, cz + 1.2f, 0.024f, path, 0, 1);
+        m.floor(cx - 5.5f, cz - 5.5f, cx + 5.5f, cz + 5.5f, 0.036f, path, 0, 1);
+        // The fountain: a wide basin, water, and two tiers spilling over.
+        m.cylinder(cx, cz, 3.6f, 3.6f, 0, 0.6f, 0xFF8A8478, 0xFF9A9488, 0, 24);
+        m.cylinder(cx, cz, 3.25f, 3.25f, 0.6f, 0.62f, 0xFF2A6AA8, 0xFF3A8AD8, 0.35f, 24);
+        m.cylinder(cx, cz, 0.35f, 0.35f, 0.6f, 1.9f, 0xFF9A9488, 0xFF9A9488, 0, 10);
+        m.cylinder(cx, cz, 1.5f, 1.5f, 1.6f, 1.85f, 0xFF8A8478, 0xFF3A8AD8, 0.3f, 16);
+        m.cylinder(cx, cz, 0.18f, 0.18f, 1.85f, 2.8f, 0xFF9A9488, 0xFF9A9488, 0, 8);
+        m.cylinder(cx, cz, 0.7f, 0.7f, 2.6f, 2.75f, 0xFF8A8478, 0xFF3A8AD8, 0.3f, 12);
+        m.cylinder(cx, cz, 0.12f, 0.06f, 2.75f, 3.4f, 0xFFB8E0FF, 0xFFB8E0FF, 0.6f, 8);
+        w.solid(cx - 3.4f, cz - 3.4f, cx + 3.4f, cz + 3.4f, 0.62f);
+        w.lamps.add(new float[]{cx, cz, 1.2f, 0.3f, 0.5f, 0.75f, 1f});
+        // Trees on the lawns, clear of the paths.
+        Random r = new Random(404);
+        int planted = 0;
+        for (int k = 0; k < 80 && planted < 18; k++) {
+            float tx = gx0 + 2 + r.nextFloat() * (gx1 - gx0 - 4);
+            float tz = gz0 + 2 + r.nextFloat() * (gz1 - gz0 - 4);
+            if (Math.abs(tx - cx) < 3 || Math.abs(tz - cz) < 3) continue;
+            if (Math.hypot(tx - cx, tz - cz) < 8) continue;
+            tree(w, tx, tz, 0.8f + r.nextFloat() * 0.5f, false);
+            planted++;
+        }
+        // Benches facing the fountain, and lights along the paths.
+        bench(w, cx, cz - 6.6f, true);
+        bench(w, cx, cz + 6.6f, true);
+        bench(w, cx - 6.6f, cz, false);
+        bench(w, cx + 6.6f, cz, false);
+        for (float k : new float[]{-1, 1}) {
+            parkLight(w, cx + 1.8f, cz + k * 9);
+            parkLight(w, cx - 1.8f, cz + k * 9);
+            parkLight(w, cx + k * 9, cz + 1.8f);
+            parkLight(w, cx + k * 9, cz - 1.8f);
+        }
+        // The sign at the south gate, facing Harbor Road.
+        m.boxAA(cx - 2.4f, 0, gz1 + 0.2f, cx + 2.4f, 0.4f, gz1 + 0.6f, 0xFF5A5448, 0);
+        m.boxAA(cx - 2.3f, 0.4f, gz1 + 0.35f, cx + 2.3f, 1.4f, gz1 + 0.45f, 0xFF0A0A0E, 0);
+        m.panel(cx, gz1 + 0.47f, SOUTH, 4.4f, 0.45f, 1.35f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.PARK));
+        w.solid(cx - 2.4f, gz1 + 0.2f, cx + 2.4f, gz1 + 0.6f, 1.4f);
+    }
+
+    private static void parkLight(CasinoWorld w, float x, float z) {
+        CasinoWorld.Mesh m = w.mesh;
+        m.cylinder(x, z, 0.06f, 0.06f, 0, 3.0f, 0xFF1A1A1E, 0xFF1A1A1E, 0, 6);
+        m.boxAA(x - 0.2f, 3.0f, z - 0.2f, x + 0.2f, 3.4f, z + 0.2f, 0xFFFFE6B0, 1);
+        m.boxAA(x - 0.24f, 3.4f, z - 0.24f, x + 0.24f, 3.48f, z + 0.24f, 0xFF1A1A1E, 0);
+        w.lamps.add(new float[]{x, z, 3.2f, 0.45f, 1.0f, 0.85f, 0.6f});
+        w.solid(x - 0.08f, z - 0.08f, x + 0.08f, z + 0.08f, 3.4f);
+    }
+
+    /** A tree: trunk and a stack of leafy blocks. In a sidewalk planter if asked. */
+    static void tree(CasinoWorld w, float x, float z, float size, boolean planter) {
+        CasinoWorld.Mesh m = w.mesh;
+        if (planter) {
+            m.boxAA(x - 0.5f, 0, z - 0.5f, x + 0.5f, 0.38f, z + 0.5f, 0xFF5A5650, 0);
+            m.boxAA(x - 0.42f, 0.38f, z - 0.42f, x + 0.42f, 0.4f, z + 0.42f, 0xFF2A1E14, 0);
+            w.solid(x - 0.5f, z - 0.5f, x + 0.5f, z + 0.5f, 0.4f);
+        } else {
+            w.solid(x - 0.15f, z - 0.15f, x + 0.15f, z + 0.15f, 3);
+        }
+        float s = size;
+        m.boxAA(x - 0.11f * s, 0, z - 0.11f * s, x + 0.11f * s, 2.3f * s, z + 0.11f * s,
+                0xFF4A3220, 0);
+        int[] greens = {0xFF2A5A26, 0xFF336A2C, 0xFF24502A};
+        m.boxAA(x - 1.0f * s, 1.9f * s, z - 1.0f * s, x + 1.0f * s, 3.0f * s, z + 1.0f * s,
+                greens[0], 0);
+        m.boxAA(x - 0.75f * s, 3.0f * s, z - 0.8f * s, x + 0.8f * s, 3.7f * s, z + 0.75f * s,
+                greens[1], 0);
+        m.boxAA(x - 0.45f * s, 3.7f * s, z - 0.4f * s, x + 0.4f * s, 4.2f * s, z + 0.45f * s,
+                greens[2], 0);
+    }
+
+    /** A wooden bench; alongX means the seat runs east-west. */
+    static void bench(CasinoWorld w, float x, float z, boolean alongX) {
+        CasinoWorld.Mesh m = w.mesh;
+        float hl = 0.8f, hd = 0.22f;
+        float ax = alongX ? hl : hd, az = alongX ? hd : hl;
+        int wood = 0xFF6A4628, iron = 0xFF1A1A1E;
+        m.boxAA(x - ax, 0.42f, z - az, x + ax, 0.48f, z + az, wood, 0);
+        if (alongX) {
+            m.boxAA(x - ax, 0.48f, z + az - 0.06f, x + ax, 0.95f, z + az, wood, 0);
+            m.boxAA(x - ax + 0.05f, 0, z - az, x - ax + 0.1f, 0.42f, z + az, iron, 0);
+            m.boxAA(x + ax - 0.1f, 0, z - az, x + ax - 0.05f, 0.42f, z + az, iron, 0);
+        } else {
+            m.boxAA(x + ax - 0.06f, 0.48f, z - az, x + ax, 0.95f, z + az, wood, 0);
+            m.boxAA(x - ax, 0, z - az + 0.05f, x + ax, 0.42f, z - az + 0.1f, iron, 0);
+            m.boxAA(x - ax, 0, z + az - 0.1f, x + ax, 0.42f, z + az - 0.05f, iron, 0);
+        }
+        w.solid(x - ax, z - az, x + ax, z + az, 0.5f);
+    }
+
+    /** Gas 'N Go facing The Strip, with buildings behind it. */
+    private static void gasStation(CasinoWorld w, float x0, float z0, float x1, float z1,
+                                   Random r) {
+        CasinoWorld.Mesh m = w.mesh;
+        buildings(w, r, x0 + WALK, z0 + WALK, x1 - WALK, -10);
+        float lz0 = -6, lz1 = z1;
+        m.floor(x0 + 1, lz0, x1 - 1, lz1, 0.012f, 0xFF232326, 0, 1);
+        // The shop.
+        float sx0 = x0 + 2, sx1 = x0 + 11, sz0 = lz0 + 0.5f, sz1 = lz0 + 8;
+        m.boxAA(sx0, 0, sz0, sx1, 4, sz1, 0xFFD8D4CC, 0);
+        m.boxAA(sx0 - 0.2f, 4, sz0 - 0.2f, sx1 + 0.2f, 4.4f, sz1 + 0.2f, 0xFFE03A2A, 0.2f);
+        m.panel((sx0 + sx1) / 2, sz1 + 0.03f, SOUTH, sx1 - sx0 - 1.5f, 0.6f, 2.6f,
+                0xFFBFE6FF, 0.5f, null);
+        m.panel(sx0 + 1.6f, sz1 + 0.05f, SOUTH, 1.2f, 0, 2.3f, 0xFF8AB0C8, 0.4f, null);
+        m.panel((sx0 + sx1) / 2, sz1 + 0.25f, SOUTH, 6, 2.9f, 3.9f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.GAS));
+        w.solid(sx0, sz0, sx1, sz1, 4.4f);
+        // The canopy over two pump islands.
+        float cx0 = x0 + 14, cx1 = x1 - 3, cz0 = lz0 + 6, cz1 = lz1 - 4;
+        m.boxAA(cx0, 4.6f, cz0, cx1, 5.2f, cz1, 0xFFF2F0EA, 0);
+        m.boxAA(cx0 - 0.05f, 4.9f, cz0 - 0.05f, cx1 + 0.05f, 5.2f, cz1 + 0.05f, 0xFFE03A2A,
+                0.3f);
+        for (float px : new float[]{cx0 + 3, cx1 - 3}) {
+            for (float pz : new float[]{cz0 + 2, cz1 - 2}) {
+                m.boxAA(px - 0.2f, 0, pz - 0.2f, px + 0.2f, 4.6f, pz + 0.2f, 0xFFE8E6E0, 0);
+                w.solid(px - 0.2f, pz - 0.2f, px + 0.2f, pz + 0.2f, 4.6f);
+            }
+            // Island with two pumps.
+            m.boxAA(px - 0.6f, 0, cz0 + 3, px + 0.6f, 0.18f, cz1 - 3, 0xFF8A8680, 0);
+            for (float pz : new float[]{cz0 + 4.2f, cz1 - 4.2f}) {
+                m.boxAA(px - 0.35f, 0.18f, pz - 0.5f, px + 0.35f, 1.7f, pz + 0.5f, 0xFFE03A2A, 0);
+                m.boxAA(px - 0.37f, 1.0f, pz - 0.3f, px + 0.37f, 1.5f, pz + 0.3f, 0xFF1A2A3A,
+                        0.6f);
+                m.boxAA(px - 0.36f, 1.7f, pz - 0.52f, px + 0.36f, 1.85f, pz + 0.52f,
+                        0xFFF2F0EA, 0.3f);
+            }
+            w.solid(px - 0.6f, cz0 + 3, px + 0.6f, cz1 - 3, 1.85f);
+        }
+        // Lights under the canopy.
+        for (float lx = cx0 + 2; lx < cx1 - 1; lx += 4) {
+            for (float lz = cz0 + 2; lz < cz1 - 1; lz += 4) {
+                m.boxAA(lx - 0.5f, 4.58f, lz - 0.5f, lx + 0.5f, 4.6f, lz + 0.5f, 0xFFFFFFFF, 1);
+            }
+        }
+        w.lamps.add(new float[]{(cx0 + cx1) / 2, (cz0 + cz1) / 2, 4.5f, 0.9f, 1.0f, 1.0f, 0.95f});
+        // The price board by the road.
+        float bx = x1 - 2.5f, bz = lz1 - 1.2f;
+        m.boxAA(bx - 0.1f, 0, bz - 0.1f, bx + 0.1f, 4, bz + 0.1f, 0xFF3A3A40, 0);
+        m.boxAA(bx - 1.3f, 4, bz - 0.15f, bx + 1.3f, 5.4f, bz + 0.15f, 0xFF0A0A0E, 0);
+        m.panel(bx, bz + 0.17f, SOUTH, 2.5f, 4.05f, 5.35f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.GAS));
+        w.solid(bx - 0.1f, bz - 0.1f, bx + 0.1f, bz + 0.1f, 4);
+        CasinoWorld.Spot snack = new CasinoWorld.Spot("Grab a snack (10 FC)", "snack", 10, null,
+                sx0 + 1.6f, sz1 + 1.1f, NORTH);
+        w.spots.add(snack);
+    }
+
+    /** North of Back Street: Burger Barn, Pixel Palace arcade and Suds laundromat. */
+    private static void shopRow(CasinoWorld w, float x0, float z0, float x1, float z1,
+                                Random r) {
+        CasinoWorld.Mesh m = w.mesh;
+        float front = z1 - WALK;
+        float back = front - 12;
+        storefront(w, r, -46, back, -32, front, 0xFF7A2A1A, CasinoArt.BURGER, 0xFFFFD27A);
+        storefront(w, r, -30, back, -14, front, 0xFF1A1A3A, CasinoArt.ARCADE, 0xFF8A6AFF);
+        storefront(w, r, -12, back, -2, front, 0xFF2A4A5A, CasinoArt.LAUNDRY, 0xFFBFF0FF);
+        buildings(w, r, 0, z0 + WALK, x1 - WALK, front);
+        w.spots.add(new CasinoWorld.Spot("Eat a burger (25 FC)", "burger", 25, null, -39,
+                front + 1.2f, NORTH));
+        w.spots.add(new CasinoWorld.Spot("Play Block Drop at the arcade", "arcade", 0, null,
+                -22, front + 1.2f, NORTH));
+        // Booths and a counter seen through the burger joint's window.
+        for (float bx = -44.5f; bx < -40; bx += 1.7f) {
+            m.boxAA(bx, 0, front - 1.4f, bx + 1.2f, 0.75f, front - 0.6f, 0xFFC83A2A, 0);
+        }
+        m.boxAA(-38.5f, 0, front - 3.5f, -33, 1.1f, front - 2.9f, 0xFFE8E0D0, 0);
+        // Arcade cabinets glowing in the window.
+        int[] glow = {0xFFFF4AD5, 0xFF4AE0FF, 0xFFFFE04A, 0xFF6CFF8A, 0xFFFF6A4A};
+        for (int i = 0; i < 5; i++) {
+            float ax = -28.6f + i * 2.6f;
+            m.boxAA(ax, 0, front - 1.6f, ax + 0.8f, 1.9f, front - 1.0f, 0xFF15151E, 0);
+            m.boxAA(ax + 0.1f, 1.0f, front - 1.02f, ax + 0.7f, 1.6f, front - 0.99f, glow[i], 1);
+        }
+        // Washers in a row.
+        for (float lx = -11.2f; lx < -3; lx += 1.1f) {
+            m.boxAA(lx, 0, front - 1.2f, lx + 0.9f, 0.95f, front - 0.5f, 0xFFF2F2F2, 0);
+            m.boxAA(lx + 0.2f, 0.3f, front - 0.49f, lx + 0.7f, 0.8f, front - 0.47f, 0xFF4A8AC8,
+                    0.5f);
+        }
+    }
+
+    /** A shop with a big lit window you can see into, an awning and a sign. */
+    private static void storefront(CasinoWorld w, Random r, float x0, float z0, float x1,
+                                   float z1, int col, int sign, int light) {
+        CasinoWorld.Mesh m = w.mesh;
+        float h = 7;
+        // The building, hollow at the front so the window shows the shop.
+        m.boxAA(x0, 0, z0, x1, h, z1 - 4, col, 0);
+        m.boxAA(x0, 3.4f, z1 - 4, x1, h, z1, col, 0);
+        m.boxAA(x0, 0, z1 - 4, x0 + 0.3f, 3.4f, z1, col, 0);
+        m.boxAA(x1 - 0.3f, 0, z1 - 4, x1, 3.4f, z1, col, 0);
+        m.floor(x0 + 0.3f, z1 - 4, x1 - 0.3f, z1, 0.03f, 0xFF3A3632, 0, 1);
+        m.boxAA(x0 - 0.15f, h, z0 - 0.15f, x1 + 0.15f, h + 0.35f, z1 + 0.15f,
+                CasinoWorld.shade(col, 0.8f), 0);
+        // Window glass (glowing faintly) and a door.
+        m.panel((x0 + x1) / 2 + 0.8f, z1 + 0.02f, SOUTH, x1 - x0 - 2.6f, 0.4f, 3.2f,
+                CasinoWorld.shade(light, 0.5f), 0.55f, null);
+        m.panel(x0 + 1.0f, z1 + 0.02f, SOUTH, 1.2f, 0, 2.5f, 0xFF15110E, 0, null);
+        w.lamps.add(new float[]{(x0 + x1) / 2, z1 - 2, 3, 0.55f,
+                ((light >> 16) & 255) / 255f, ((light >> 8) & 255) / 255f, (light & 255) / 255f});
+        // Awning and sign.
+        m.boxAA(x0 + 0.2f, 3.5f, z1, x1 - 0.2f, 3.6f, z1 + 1.2f, CasinoWorld.shade(col, 1.3f),
+                0.1f);
+        m.boxAA(x0 + 1, 4.2f, z1 - 0.05f, x1 - 1, 5.6f, z1 + 0.05f, 0xFF0A0A0E, 0);
+        m.panel((x0 + x1) / 2, z1 + 0.07f, SOUTH, x1 - x0 - 2.2f, 4.25f, 5.55f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(sign));
+        w.solid(x0, z0, x1, z1 - 0.1f, h);
+        windows(m, r, x0, x1, z0 - 0.04f, NORTH, h, true);
+    }
+
+    /**
+     * Trees, benches, bins, hydrants and newspaper boxes along the curbs, halfway between the
+     * street lamps and clear of crossings and The Strip's shopfronts.
+     */
+    private static void streetFurniture(CasinoWorld w) {
+        int n = 0;
+        for (int j = 0; j < ST_Z.length; j++) {
+            if (j == 2) continue;
+            for (float x = X_MIN + 14; x < X_MAX - 4; x += 16) {
+                if (clearOfAvenues(x)) furniture(w, x, ST_Z[j] - HALF - 0.55f, true, n++);
+                if (clearOfAvenues(x - 8)) furniture(w, x - 8, ST_Z[j] + HALF + 0.55f, true,
+                        n++);
+            }
+        }
+        for (float ax : AVE_X) {
+            for (int j = 0; j + 1 < ST_Z.length; j++) {
+                for (float z = ST_Z[j] + 18; z < ST_Z[j + 1] - 8; z += 16) {
+                    furniture(w, ax - HALF - 0.55f, z, false, n++);
+                    if (z - 8 > ST_Z[j] + 8) furniture(w, ax + HALF + 0.55f, z - 8, false, n++);
+                }
+            }
+        }
+    }
+
+    private static void furniture(CasinoWorld w, float x, float z, boolean alongX, int n) {
+        CasinoWorld.Mesh m = w.mesh;
+        // Only on real sidewalks, and never in the mouth of the back alley.
+        if (x < X_MIN || x > X_MAX || z < Z_MIN || z > Z_MAX) return;
+        if (x > 16 && x < 28 && z > -33 && z < -29) return;
+        switch (n % 6) {
+            case 0:
+            case 3:
+                tree(w, x, z, 0.75f, true);
+                break;
+            case 1:
+                bench(w, x, z, alongX);
+                break;
+            case 2: {
+                m.cylinder(x, z, 0.28f, 0.28f, 0, 0.9f, 0xFF2A4A32, 0xFF15151A, 0, 10);
+                m.cylinder(x, z, 0.3f, 0.3f, 0.9f, 0.98f, 0xFF1A2A1E, 0xFF1A2A1E, 0, 10);
+                w.solid(x - 0.28f, z - 0.28f, x + 0.28f, z + 0.28f, 1);
+                break;
+            }
+            case 4: {
+                m.cylinder(x, z, 0.15f, 0.15f, 0, 0.6f, 0xFFC8282A, 0xFFC8282A, 0, 8);
+                m.cylinder(x, z, 0.11f, 0.05f, 0.6f, 0.75f, 0xFFC8282A, 0xFFC8282A, 0, 8);
+                if (alongX) {
+                    m.boxAA(x - 0.24f, 0.36f, z - 0.05f, x + 0.24f, 0.46f, z + 0.05f,
+                            0xFFE0C04A, 0);
+                } else {
+                    m.boxAA(x - 0.05f, 0.36f, z - 0.24f, x + 0.05f, 0.46f, z + 0.24f,
+                            0xFFE0C04A, 0);
+                }
+                w.solid(x - 0.15f, z - 0.15f, x + 0.15f, z + 0.15f, 0.75f);
+                // A newspaper box beside it.
+                float ox = alongX ? 1.0f : 0, oz = alongX ? 0 : 1.0f;
+                m.boxAA(x + ox - 0.24f, 0, z + oz - 0.22f, x + ox + 0.24f, 1.0f, z + oz + 0.22f,
+                        0xFF2A5AA8, 0);
+                m.boxAA(x + ox - 0.2f, 0.55f, z + oz - 0.23f, x + ox + 0.2f, 0.85f,
+                        z + oz + 0.23f, 0xFFDDE6F0, 0.2f);
+                w.solid(x + ox - 0.24f, z + oz - 0.22f, x + ox + 0.24f, z + oz + 0.22f, 1);
+                break;
+            }
+            default: {
+                // A mailbox.
+                m.boxAA(x - 0.25f, 0, z - 0.25f, x + 0.25f, 0.15f, z + 0.25f, 0xFF1A2A5A, 0);
+                m.boxAA(x - 0.24f, 0.15f, z - 0.24f, x + 0.24f, 1.05f, z + 0.24f, 0xFF1E3A8A, 0);
+                m.cylinder(x, z, 0.24f, 0.24f, 1.05f, 1.2f, 0xFF1E3A8A, 0xFF1E3A8A, 0, 10);
+                w.solid(x - 0.25f, z - 0.25f, x + 0.25f, z + 0.25f, 1.2f);
+                break;
+            }
+        }
+    }
 
     private static void police(CasinoWorld w, float x0, float z0, float x1, float z1) {
         CasinoWorld.Mesh m = w.mesh;

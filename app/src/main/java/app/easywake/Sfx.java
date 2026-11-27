@@ -33,7 +33,9 @@ final class Sfx {
     /** A car blowing up. */
     static final int BOOM = 14;
     static final int BLOCK = 15;
-    private static final int COUNT = 16;
+    /** Pool: two balls meeting, a ball off a cushion, a ball dropping, the cue's tip. */
+    static final int CLACK = 16, RAIL = 17, POCKET = 18, CUE = 19;
+    private static final int COUNT = 20;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
@@ -69,6 +71,17 @@ final class Sfx {
         int m = mode(c);
         if (m == OFF) return false;
         return m == ALL || id == WIN || id == BIG_WIN || id == JACKPOT || id == LOSE;
+    }
+
+    /** Plays a sound at a volume from 0 to 1. */
+    static synchronized void play(Context c, int id, float volume) {
+        play(c, id);
+        try {
+            AudioTrack t = TRACKS[id];
+            if (t != null) t.setVolume(Math.max(0.05f, Math.min(1, volume)));
+        } catch (Exception ignored) {
+            // Volume isn't essential.
+        }
     }
 
     /** Plays a sound from its start, if game sounds are switched on. */
@@ -176,6 +189,40 @@ final class Sfx {
                 bell(b, 0, 620, 0.08, 0.25);
                 break;
             }
+            case CLACK: {
+                // Hard phenolic balls: a bright, very short knock with a high ring.
+                b = new float[(int) (0.12 * SR)];
+                Random r = new Random(16);
+                burst(b, r, 0, 0.006, 1.0, 0.1);
+                bell(b, 0, 2900, 0.05, 0.5);
+                bell(b, 0, 4300, 0.03, 0.25);
+                break;
+            }
+            case RAIL: {
+                b = new float[(int) (0.14 * SR)];
+                Random r = new Random(17);
+                thump(b, r, 0, 0.5);
+                burst(b, r, 0, 0.02, 0.25, 0.85);
+                break;
+            }
+            case POCKET: {
+                // A drop into the pocket and a little roll in the leather.
+                b = new float[(int) (0.45 * SR)];
+                Random r = new Random(18);
+                thump(b, r, 0, 0.7);
+                burst(b, r, 0.05, 0.05, 0.3, 0.7);
+                burst(b, r, 0.12, 0.25, 0.18, 0.92);
+                bell(b, 0.02, 420, 0.08, 0.15);
+                break;
+            }
+            case CUE: {
+                b = new float[(int) (0.1 * SR)];
+                Random r = new Random(19);
+                burst(b, r, 0, 0.008, 0.8, 0.35);
+                bell(b, 0, 900, 0.04, 0.35);
+                bell(b, 0, 1800, 0.025, 0.15);
+                break;
+            }
             case CLICK: {
                 b = new float[(int) (0.05 * SR)];
                 Random r = new Random(11);
@@ -226,7 +273,7 @@ final class Sfx {
         for (float v : b) peak = Math.max(peak, Math.abs(v));
         // Kept well under full volume: these sit behind the game, not on top of it.
         float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f, 0.3f,
-                0.5f, 0.2f, 0.35f, 0.55f, 0.4f, 0.7f};
+                0.5f, 0.2f, 0.35f, 0.55f, 0.4f, 0.7f, 0.45f, 0.6f, 0.3f, 0.55f, 0.4f};
         float scale = loudness[id] / peak;
         short[] out = new short[b.length];
         for (int i = 0; i < b.length; i++) out[i] = (short) (b[i] * scale * 32767);

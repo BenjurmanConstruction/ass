@@ -551,6 +551,30 @@ final class CasinoWorld {
         m.panel(4 + 2 * 1.9f, wz + 0.05f, SOUTH, 4.6f, 3.0f, 3.5f, 0xFFFFFFFF, 1,
                 CasinoArt.sign(CasinoArt.PARLOR));
 
+        // ---- The high-stakes pool table under its own lamp.
+        poolTable(11.5f, -8.0f, 1);
+
+        // ---- Video slots island: eight themed machines back to back, open to everyone.
+        for (int i = 0; i < 4; i++) {
+            float x = 7.4f + i * 2.1f;
+            int a = CasinoArt.THEMED + i, b2 = CasinoArt.THEMED + 4 + i;
+            cabinet(x, -3.4f, NORTH, a, true);
+            spots.add(new Spot(ThemeSlotMath.THEMES[i].name, "themeslot", i, null, x, -4.7f,
+                    SOUTH));
+            cabinet(x, -2.6f, SOUTH, b2, true);
+            spots.add(new Spot(ThemeSlotMath.THEMES[4 + i].name, "themeslot", 4 + i, null, x,
+                    -1.3f, NORTH));
+        }
+        solid(6.7f, -3.75f, 14.4f, -2.25f, 2.4f);
+        m.boxAA(6.6f, 0, -3.05f, 14.5f, 0.1f, -2.95f, 0xFFFF6AD5, 0.9f);
+        // A sign hung over the island.
+        m.boxAA(8.9f, 3.3f, -3.06f, 12.9f, 4.1f, -2.94f, 0xFF050507, 0);
+        m.panel(10.9f, -3.08f, NORTH, 3.8f, 3.35f, 4.05f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.VIDEO_SLOTS));
+        m.panel(10.9f, -2.92f, SOUTH, 3.8f, 3.35f, 4.05f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.VIDEO_SLOTS));
+        m.boxAA(10.88f, 4.1f, -3.01f, 10.92f, CEIL, -2.99f, 0xFF2A2A2A, 0);
+
         // ---- Classic slots island (Lucky Sevens faces south, Royal Riches north).
         cabinet(-2.6f, -8.0f, SOUTH, 9, false);
         cabinet(-1.4f, -8.0f, SOUTH, 9, false);
@@ -782,6 +806,81 @@ final class CasinoWorld {
         m.box(x - fx * 0.12f, z - fz * 0.12f, yaw, 0.3f, 0.08f, 1.2f, 1.62f, CABINET, 0);
         m.panel(x - fx * 0.035f, z - fz * 0.035f, yaw, 0.52f, 1.23f, 1.6f, 0xFFFFFFFF, 0.92f,
                 CasinoArt.screen(CasinoArt.VIDEO_POKER));
+    }
+
+    /**
+     * A nine-foot pool table, long side along x, with a lamp over it and a rack set up.
+     * venue: 0 a bar game, 1 the casino's high-stakes table.
+     */
+    void poolTable(float x, float z, int venue) {
+        Mesh m = mesh;
+        float hx = 1.42f, hz = 0.78f;
+        int wood = venue == 1 ? 0xFF3A1A10 : 0xFF5A3418;
+        int felt = venue == 1 ? 0xFF1A3A7A : 0xFF167A44;
+        // Legs and body.
+        for (float sx : new float[]{-1, 1}) {
+            for (float sz : new float[]{-1, 1}) {
+                m.boxAA(x + sx * (hx - 0.22f) - 0.1f, 0, z + sz * (hz - 0.2f) - 0.1f,
+                        x + sx * (hx - 0.22f) + 0.1f, 0.6f, z + sz * (hz - 0.2f) + 0.1f, wood, 0);
+            }
+        }
+        m.boxAA(x - hx + 0.06f, 0.55f, z - hz + 0.06f, x + hx - 0.06f, 0.74f, z + hz - 0.06f,
+                wood, 0);
+        // Rails, then the felt sitting between them.
+        float r = 0.13f;
+        m.boxAA(x - hx, 0.74f, z - hz, x + hx, 0.84f, z - hz + r, wood, 0);
+        m.boxAA(x - hx, 0.74f, z + hz - r, x + hx, 0.84f, z + hz, wood, 0);
+        m.boxAA(x - hx, 0.74f, z - hz + r, x - hx + r, 0.84f, z + hz - r, wood, 0);
+        m.boxAA(x + hx - r, 0.74f, z - hz + r, x + hx, 0.84f, z + hz - r, wood, 0);
+        m.boxAA(x - hx + r, 0.74f, z - hz + r, x + hx - r, 0.8f, z + hz - r, felt, 0.08f);
+        // Diamonds on the rails.
+        for (int i = 1; i < 8; i++) {
+            if (i == 4) continue;
+            float dx = x - hx + 2 * hx * i / 8f;
+            m.boxAA(dx - 0.02f, 0.842f, z - hz + 0.05f, dx + 0.02f, 0.846f, z - hz + 0.08f,
+                    0xFFF2E6C8, 0.3f);
+            m.boxAA(dx - 0.02f, 0.842f, z + hz - 0.08f, dx + 0.02f, 0.846f, z + hz - 0.05f,
+                    0xFFF2E6C8, 0.3f);
+        }
+        // Pockets.
+        float[][] pk = {{-hx + r, -hz + r}, {0, -hz + r}, {hx - r, -hz + r}, {-hx + r, hz - r},
+                {0, hz - r}, {hx - r, hz - r}};
+        for (float[] p : pk) {
+            m.boxAA(x + p[0] - 0.07f, 0.79f, z + p[1] - 0.07f, x + p[0] + 0.07f, 0.805f,
+                    z + p[1] + 0.07f, 0xFF050505, 0);
+        }
+        // A racked triangle of balls and the cue ball.
+        int[] cols = {0xFFF5C518, 0xFF1E4FD8, 0xFFD62828, 0xFF6A2C91, 0xFFF77F00, 0xFF1B7F3B,
+                0xFF7A1E1E, 0xFF141414};
+        int k = 0;
+        float bs = 0.06f;
+        for (int row = 0; row < 5; row++) {
+            for (int j = 0; j <= row; j++) {
+                float bx = x + 0.55f + row * bs * 0.87f, bz = z + (j - row / 2f) * bs;
+                m.boxAA(bx - 0.028f, 0.8f, bz - 0.028f, bx + 0.028f, 0.856f, bz + 0.028f,
+                        cols[k++ % cols.length], 0.15f);
+            }
+        }
+        m.boxAA(x - 0.75f, 0.8f, z - 0.028f, x - 0.694f, 0.856f, z + 0.028f, 0xFFF4F1E8, 0.2f);
+        // Two cues leaning on the table.
+        m.boxAA(x + hx + 0.02f, 0.05f, z - 0.35f, x + hx + 0.05f, 1.45f, z - 0.32f,
+                0xFFC99A5A, 0);
+        m.boxAA(x + hx + 0.02f, 0.05f, z + 0.32f, x + hx + 0.05f, 1.45f, z + 0.35f,
+                0xFFC99A5A, 0);
+        // The lamp: a long shade hanging on two rods.
+        m.boxAA(x - 1.0f, 2.55f, z - 0.2f, x + 1.0f, 2.72f, z + 0.2f,
+                venue == 1 ? 0xFF1A1A30 : 0xFF1E3A22, 0);
+        m.boxAA(x - 0.95f, 2.54f, z - 0.17f, x + 0.95f, 2.55f, z + 0.17f, 0xFFFFF0C8, 1);
+        m.boxAA(x - 0.62f, 2.72f, z - 0.015f, x - 0.6f, 4.2f, z + 0.015f, 0xFF2A2A2A, 0);
+        m.boxAA(x + 0.6f, 2.72f, z - 0.015f, x + 0.62f, 4.2f, z + 0.015f, 0xFF2A2A2A, 0);
+        lamps.add(new float[]{x, z, 2.5f, 0.4f, 1, 0.9f, 0.7f});
+        solid(x - hx, z - hz, x + hx, z + hz, 0.9f);
+        Spot s = new Spot(venue == 1 ? "Eight-ball (high stakes)" : "Eight-ball", "pool",
+                venue, null, x, z + hz + 0.55f, NORTH);
+        spots.add(s);
+        Spot s2 = new Spot(venue == 1 ? "Eight-ball (high stakes)" : "Eight-ball", "pool",
+                venue, null, x, z - hz - 0.55f, SOUTH);
+        spots.add(s2);
     }
 
     void stool(float x, float z, int seat) {

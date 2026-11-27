@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v40**.
+- Latest release: **v41**.
 
 ## Standing rules
 
@@ -357,6 +357,21 @@ player name and uninstall.
 - **Car glass:** `SEE_GLASS` 0x6A1A2838 (tinted, see-through) for the windshield, back and side windows. Cracked windshields are `BROKEN_GLASS` (mostly opaque). Smashed side windows aren't drawn at all.
 - **Interior:** cabin floor, front seats with headrests, rear bench (not on pickups), dashboard with gauges that glow while the car runs, and a steering wheel on the left.
 - **Driver:** shown when an AI drives or you do: your shirt or jacket, skin and hair; AI drivers get stable random looks from `c.id`; cops wear uniforms and caps and have a partner. They sit low enough to stay under the roof (`hy = min(y1 + 0.42, top − 0.14)`).
+
+### v41: real rims, Spray Shop Customs, lock-up garages
+- **Rims:** the tire is 4 turned slabs (16-sided). The rim face has a lip, a dish, spokes and a hub cap. Six styles (`Car.rim`, `RIMS` colors): steel (bolt holes), five-spoke alloy, chrome six-spoke, gold mesh (10), black with a red lip, spinners (keep turning on `time`).
+- **Car mods** (`CasinoTraffic.Car`):
+  - Looks: `rim`, `neon` (strips under the car plus a see-through glow on the road), `tint` (0 clear, 1 dark, 2 limo), `stripes` (hood, roof, trunk), `spoiler`, `lowered` (−0.07 m).
+  - Performance: `engine` 0–3 (+18% acceleration and +10% top speed per stage), `armor` 0–3 (−22% damage per level).
+  - `Car.save()` / `Car.load()` turn a car into a line of text.
+- **Spray Shop Customs** (`CasinoActivity.offerSpray` / `customize` / `pick`):
+  - Opens whenever you stop in the booth (`sprayReady` no longer needs stars or damage).
+  - Menu: hide-from-cops respray (300), repair (100, `traffic.fix`), paint (12 colors, 150), rims (100–1500), neon (6 colors, 600), tint (200 / 400), spoiler (500), stripes (300), lowered (400), engine (1000 / 2500 / 5000), armor (1500 / 3000 / 6000).
+  - The menu comes back after each job until "Drive away".
+- **Lock-up garages** (`CasinoCity.lockUps`):
+  - Block x −88..−58, z −58..−40, facing Back Street; four bays (`CasinoCity.BAYS`) with sign 33 GARAGE. Spot "garage" buys it for 5,000 FC (flag `own:garage`).
+  - `world.garageSave()` / `loadGarage()`: the Activity saves the bay contents to Prefs `casinoGarage` whenever they change (checked every 90 frames) and reloads them at start, nose out.
+  - Test: `tools/claude-mode/TGarage` (save, reload, match).
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

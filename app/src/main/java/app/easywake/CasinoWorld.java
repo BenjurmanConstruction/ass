@@ -694,6 +694,44 @@ final class CasinoWorld {
     /** The walkable grid people find their way around with. */
     CasinoNav nav;
 
+    // ---------------------------------------------------------------- the lock-up garages
+
+    /** What's parked in each bay ("-" for empty), for saving. */
+    String garageSave() {
+        StringBuilder sb = new StringBuilder();
+        for (float[] b : CasinoCity.BAYS) {
+            CasinoTraffic.Car in = null;
+            for (CasinoTraffic.Car c : traffic.cars) {
+                if (c == traffic.driving || c.wrecked || c.fire >= 0 || c.driver) continue;
+                if (c.x > b[0] && c.x < b[2] && c.z > b[1] && c.z < b[3]) {
+                    in = c;
+                    break;
+                }
+            }
+            if (sb.length() > 0) sb.append(';');
+            sb.append(in == null ? "-" : in.save());
+        }
+        return sb.toString();
+    }
+
+    /** Puts saved cars back in their bays, nose out. */
+    void loadGarage(String saved) {
+        if (saved == null) return;
+        String[] parts = saved.split(";");
+        for (int i = 0; i < parts.length && i < CasinoCity.BAYS.length; i++) {
+            if (parts[i].equals("-")) continue;
+            CasinoTraffic.Car c = CasinoTraffic.Car.load(parts[i]);
+            if (c == null) continue;
+            float[] b = CasinoCity.BAYS[i];
+            c.x = (b[0] + b[2]) / 2;
+            c.z = (b[1] + b[3]) / 2;
+            c.h = PI;
+            c.prevH = c.h;
+            c.role = CasinoTraffic.PARKED;
+            traffic.cars.add(c);
+        }
+    }
+
     /**
      * Walks someone toward a point the smart way: straight if nothing's in the way, otherwise
      * along a route round the obstacles, finding a new route if they stop getting closer.
@@ -3848,7 +3886,7 @@ final class CasinoWorld {
         Mat.translate(carBase, x, 0, z);
         Mat.rotY(carBase, yaw);
         copy(car, carBase);
-        Mat.translate(car, 0, c.bounce, 0);
+        Mat.translate(car, 0, c.bounce - (c.lowered ? 0.07f : 0), 0);
         Mat.rotX(car, -c.roll);
         Mat.rotZ(car, c.pitch);
         s.shadow(x, z, 2.3f);
@@ -4054,10 +4092,10 @@ final class CasinoWorld {
             if (gone) continue;
             float roofF0 = cf - slope, roofB0 = suv || pickup ? cb : cb + slope;
             cp(s, (roofF0 + roofB0) / 2, (y1 + top) / 2, side * (gw / 2 + 0.005f),
-                    roofF0 - roofB0, top - y1 - 0.06f, 0.02f, SEE_GLASS, 0.12f);
+                    roofF0 - roofB0, top - y1 - 0.06f, 0.02f, glass(c), 0.12f);
         }
-        slab(s, cf, y1, cf - slope, top, gw, 0.06f, c.glassF ? BROKEN_GLASS : SEE_GLASS,
-                c.glassF ? 0.15f : 0.12f);
+        slab(s, cf, y1, cf - slope, top, gw, 0.06f, c.glassF ? BROKEN_GLASS
+                : (c.tint == 2 ? glass(null) : glass(c)), c.glassF ? 0.15f : 0.12f);
         if (c.glassF) {
             // Spiderweb cracks.
             slab(s, cf - 0.02f, y1 + 0.05f, cf - slope + 0.1f, top - 0.05f, 0.03f, 0.07f,
@@ -4066,7 +4104,7 @@ final class CasinoWorld {
                     0xFFC8D4DC, 0.1f);
         }
         if (!suv && !pickup) {
-            slab(s, cb + slope, top, cb, y1, gw, 0.06f, c.glassB ? BROKEN_GLASS : SEE_GLASS,
+            slab(s, cb + slope, top, cb, y1, gw, 0.06f, c.glassB ? BROKEN_GLASS : glass(c),
                     0.12f);
         }
         float roofF = cf - slope, roofB = suv || pickup ? cb : cb + slope;
@@ -4099,6 +4137,44 @@ final class CasinoWorld {
             cp(s, bf, y1 + 0.2f, 0, 0.1f, 0.36f, hw * 2 - 0.1f, col, 0);
         }
 
+        // ---- Customs: stripes, spoiler, neon.
+        if (c.stripes != 0) {
+            for (int k = -1; k <= 1; k += 2) {
+                float sz = k * 0.15f;
+                stripeSlab(s, cf, hoodY + 0.023f, hoodF, hoodY - 0.037f, sz, c.stripes);
+                cp(s, (roofF + roofB) / 2, top + 0.081f, sz, roofF - roofB, 0.01f, 0.14f,
+                        c.stripes, 0);
+                if (!pickup && !suv) {
+                    stripeSlab(s, cb - 0.05f, hoodY + 0.023f, back + 0.12f, hoodY - 0.017f, sz,
+                            c.stripes);
+                }
+            }
+        }
+        if (c.spoiler && !pickup) {
+            float sx = back + 0.22f, sy = hoodY + (suv ? 0.62f : 0.02f);
+            for (int k = -1; k <= 1; k += 2) {
+                cp(s, sx + 0.04f, sy + 0.13f, k * (hw - 0.3f), 0.06f, 0.24f, 0.05f, TRIM, 0);
+            }
+            cp(s, sx, sy + 0.27f, 0, 0.36f, 0.04f, hw * 2 - 0.06f, c.stripes != 0 ? c.stripes : TRIM,
+                    0);
+            for (int k = -1; k <= 1; k += 2) {
+                cp(s, sx, sy + 0.32f, k * (hw - 0.03f), 0.4f, 0.14f, 0.03f, TRIM, 0);
+            }
+        }
+        if (c.neon != 0 && !c.wrecked) {
+            int n = c.neon | 0xFF000000;
+            for (int side = -1; side <= 1; side += 2) {
+                cp(s, mid, y0 - 0.06f, side * (hw - 0.12f), blen - 0.5f, 0.03f, 0.05f, n, 1);
+            }
+            cp(s, front - 0.3f, y0 - 0.06f, 0, 0.05f, 0.03f, hw * 2 - 0.4f, n, 1);
+            cp(s, back + 0.3f, y0 - 0.06f, 0, 0.05f, 0.03f, hw * 2 - 0.4f, n, 1);
+            // The glow on the road under it.
+            copy(tmp, carBase);
+            Mat.translate(tmp, mid, 0.025f, 0);
+            Mat.scale(tmp, blen + 1.0f, 0.005f, hw * 2 + 1.0f);
+            s.part(tmp, (c.neon & 0x00FFFFFF) | 0x50000000, 1);
+        }
+
         // Wheels on the road (not riding the body's lean); fronts steer, smashed corners splay.
         float[] keep = car.clone();
         copy(car, carBase);
@@ -4109,7 +4185,7 @@ final class CasinoWorld {
                 float splay = dent[side > 0 ? CasinoTraffic.RIGHT : CasinoTraffic.LEFT] > 0.75f
                         || (i > 0 ? crushF : crushB) > 0.4f ? 0.18f * side : 0;
                 wheel(s, wxi, side * (hw - 0.06f), r, c.spin, side, i > 0 ? c.steerVis : 0,
-                        splay);
+                        splay, c.rim);
             }
         }
         System.arraycopy(keep, 0, car, 0, 16);
@@ -4123,28 +4199,90 @@ final class CasinoWorld {
         }
     }
 
+    /** Rim colors by style: face, spokes, lip. */
+    private static final int[][] RIMS = {
+            {0xFF4A4E54, 0xFF6A6E74, 0xFF7A7E84},   // steel
+            {0xFF1E2024, 0xFFC8CCD4, 0xFFD8DCE2},   // five-spoke alloy
+            {0xFF8A8E96, 0xFFF2F4F8, 0xFFFFFFFF},   // chrome
+            {0xFF6A5218, 0xFFE0B84A, 0xFFF0CC5A},   // gold mesh
+            {0xFF0C0C0E, 0xFF1A1A1E, 0xFFD02020},   // black with a red lip
+            {0xFF8A8E96, 0xFFF2F4F8, 0xFFFFFFFF}};  // spinners
+
+    /**
+     * A wheel: a round tire (four turned slabs make a 16-sided disc), then the rim on its outer
+     * face: a lip, a dish and spokes in the chosen style. Spinners keep turning when you stop.
+     */
     private void wheel(PartSink s, float x, float z, float r, float spin, int side, float steer,
-                       float splay) {
-        float a = r * 0.95f;
-        for (int k = 0; k < 3; k++) {
-            copy(tmp, car);
-            Mat.translate(tmp, x, r, z);
-            if (steer != 0) Mat.rotY(tmp, -steer);
-            if (splay != 0) Mat.rotX(tmp, splay);
-            Mat.rotZ(tmp, spin + k * PI / 3);
-            Mat.scale(tmp, 2 * a, 2 * a * 0.5774f, 0.26f);
-            s.part(tmp, TIRE, 0);
+                       float splay, int style) {
+        style = Math.max(0, Math.min(RIMS.length - 1, style));
+        int[] rc = RIMS[style];
+        for (int k = 0; k < 4; k++) {
+            wheelPart(s, x, z, r, steer, splay, 0, spin + k * PI / 8, 0, 2 * r * 0.92f,
+                    2 * r * 0.92f * 0.4142f, 0.26f, TIRE, 0);
+        }
+        float face = side * 0.131f, rr = r * 0.66f;
+        float shine = style == RIM_CHROME_I || style == RIM_SPIN_I ? 0.35f
+                : (style == 3 ? 0.25f : 0.05f);
+        // Lip (ring) and dish.
+        for (int k = 0; k < 2; k++) {
+            wheelPart(s, x, z, r, steer, splay, face, spin + k * PI / 4 + PI / 8, 0,
+                    2 * rr, 2 * rr * 0.4142f, 0.012f, rc[2], shine);
         }
         for (int k = 0; k < 2; k++) {
-            copy(tmp, car);
-            Mat.translate(tmp, x, r, z);
-            if (steer != 0) Mat.rotY(tmp, -steer);
-            if (splay != 0) Mat.rotX(tmp, splay);
-            Mat.translate(tmp, 0, 0, side * 0.135f);
-            Mat.rotZ(tmp, spin + k * PI / 2);
-            Mat.scale(tmp, a * 1.2f, a * 0.22f, 0.02f);
-            s.part(tmp, RIM, 0.05f);
+            wheelPart(s, x, z, r, steer, splay, face + side * 0.006f, spin + k * PI / 4, 0,
+                    2 * rr * 0.86f, 2 * rr * 0.86f * 0.4142f, 0.012f, rc[0], shine * 0.5f);
         }
+        float turn = style == RIM_SPIN_I ? time * 9 : spin;
+        int spokes = style == RIM_STEEL_I ? 0 : (style == 3 ? 10 : (style == RIM_CHROME_I ? 6
+                : (style == RIM_SPIN_I ? 3 : 5)));
+        float sw = style == 3 ? 0.035f : (style == RIM_SPIN_I ? 0.2f : 0.075f);
+        for (int k = 0; k < spokes; k++) {
+            float a = turn + k * 2 * PI / spokes;
+            wheelPart(s, x, z, r, steer, splay, face + side * 0.012f, a, rr * 0.45f,
+                    rr * 0.85f, rr * sw * 2.2f, 0.014f, rc[1], shine);
+        }
+        if (style == RIM_STEEL_I) {
+            // Steel wheels: four bolt holes.
+            for (int k = 0; k < 4; k++) {
+                wheelPart(s, x, z, r, steer, splay, face + side * 0.012f, spin + k * PI / 2,
+                        rr * 0.5f, 0.05f, 0.05f, 0.01f, 0xFF16181A, 0);
+            }
+        }
+        // Hub cap.
+        wheelPart(s, x, z, r, steer, splay, face + side * 0.018f, turn, 0, rr * 0.34f,
+                rr * 0.34f, 0.016f, rc[2], shine + 0.1f);
+    }
+
+    private static final int RIM_STEEL_I = 0, RIM_CHROME_I = 2, RIM_SPIN_I = 5;
+
+    /** One piece of a wheel, at the hub, turned by a and pushed out along the spoke by off. */
+    private void wheelPart(PartSink s, float x, float z, float r, float steer, float splay,
+                           float face, float a, float off, float w, float h, float d, int color,
+                           float glow) {
+        copy(tmp, car);
+        Mat.translate(tmp, x, r, z);
+        if (steer != 0) Mat.rotY(tmp, -steer);
+        if (splay != 0) Mat.rotX(tmp, splay);
+        Mat.translate(tmp, 0, 0, face);
+        Mat.rotZ(tmp, a);
+        if (off != 0) Mat.translate(tmp, off, 0, 0);
+        Mat.scale(tmp, w, h, d);
+        s.part(tmp, color, glow);
+    }
+
+    /** Glass for this car's tint (null: the darkest). */
+    private static int glass(CasinoTraffic.Car c) {
+        int t = c == null ? 2 : c.tint;
+        return t == 0 ? SEE_GLASS : (t == 1 ? 0xB0101820 : 0xEA06080C);
+    }
+
+    /** A racing stripe lying along a sloped panel, off to one side. */
+    private void stripeSlab(PartSink s, float x0, float y0, float x1, float y1, float z, int c) {
+        copy(tmp, car);
+        Mat.translate(tmp, (x0 + x1) / 2, (y0 + y1) / 2, z);
+        Mat.rotZ(tmp, (float) Math.atan2(y1 - y0, x1 - x0));
+        Mat.scale(tmp, (float) Math.hypot(x1 - x0, y1 - y0), 0.012f, 0.14f);
+        s.part(tmp, c, 0);
     }
 
     /** A box on the car, in the car's own coordinates. */

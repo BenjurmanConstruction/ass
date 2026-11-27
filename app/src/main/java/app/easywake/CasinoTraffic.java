@@ -58,7 +58,44 @@ final class CasinoTraffic {
         boolean bumperF, bumperB = false, lightL, lightR, glassF, glassB, glassL, glassR;
         /** Seconds since last scraped (for sparks). */
         float scrapeT;
+        // ---- Spray Shop Customs
+        /** Rim style (RIM_*), neon color (0 none), tint 0..2, stripe color (0 none). */
+        int rim, neon, tint, stripes;
+        boolean spoiler, lowered;
+        /** Engine and armor upgrades, 0..3. */
+        int engine, armor;
+
+        /** The car as a line of text, for the garage save. */
+        String save() {
+            return type + "," + color + "," + rim + "," + neon + "," + tint + "," + stripes + ","
+                    + (spoiler ? 1 : 0) + "," + (lowered ? 1 : 0) + "," + engine + "," + armor;
+        }
+
+        static Car load(String s) {
+            String[] f = s.split(",");
+            if (f.length < 10) return null;
+            try {
+                Car c = new Car();
+                c.type = Integer.parseInt(f[0]);
+                c.color = Integer.parseInt(f[1]);
+                c.rim = Integer.parseInt(f[2]);
+                c.neon = Integer.parseInt(f[3]);
+                c.tint = Integer.parseInt(f[4]);
+                c.stripes = Integer.parseInt(f[5]);
+                c.spoiler = f[6].equals("1");
+                c.lowered = f[7].equals("1");
+                c.engine = Integer.parseInt(f[8]);
+                c.armor = Integer.parseInt(f[9]);
+                if (c.type == POLICE) c.type = SEDAN;
+                return c;
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
     }
+
+    static final int RIM_STEEL = 0, RIM_ALLOY = 1, RIM_CHROME = 2, RIM_GOLD = 3, RIM_BLACK = 4,
+            RIM_SPINNER = 5;
 
     static final int FRONT = 0, BACK = 1, LEFT = 2, RIGHT = 3;
     private static final int TRIM_COLOR = 0xFF2A2A2E;
@@ -203,7 +240,7 @@ final class CasinoTraffic {
         boolean inBooth = d != null && d.x > b[0] && d.x < b[2] && d.z > b[1] && d.z < b[3];
         if (!inBooth) sprayUsed = false;
         sprayReady = inBooth && !sprayUsed && Math.abs(d.speed) < 1.5f
-                && (stars() > 0 || d.health < 100) && d.fire < 0;
+                && d.fire < 0;
         // Keep the streets busy: replace wrecks and stolen cars with fresh traffic.
         int live = 0;
         for (Car c : cars) if (c.role == TRAFFIC && c.driver && !c.wrecked) live++;
@@ -256,7 +293,8 @@ final class CasinoTraffic {
         steer = Math.abs(steer) < 0.1f ? 0 : (steer - Math.signum(steer) * 0.1f) / 0.9f;
         if (throttle > 0) {
             if (c.speed < -0.5f) c.speed += 18 * dt;
-            else c.speed += 9 * throttle * dt * (1 - c.speed / MAX_SPEED * 0.6f);
+            else c.speed += 9 * (1 + 0.18f * c.engine) * throttle * dt
+                    * (1 - c.speed / (MAX_SPEED * (1 + 0.1f * c.engine)) * 0.6f);
         } else if (throttle < 0) {
             if (c.speed > 0.5f) c.speed -= 20 * -throttle * dt;
             else c.speed -= 6 * -throttle * dt;
@@ -264,7 +302,7 @@ final class CasinoTraffic {
             float d = Math.min(Math.abs(c.speed), 2.5f * dt);
             c.speed -= Math.signum(c.speed) * d;
         }
-        c.speed = Math.max(-REVERSE, Math.min(MAX_SPEED, c.speed));
+        c.speed = Math.max(-REVERSE, Math.min(MAX_SPEED * (1 + 0.1f * c.engine), c.speed));
         float v = Math.abs(c.speed);
         // Turns sharp at city speeds, a bit wider when you're flying.
         float rate = 2.7f * Math.min(1, v / 2.5f) / (1 + v * 0.028f);
@@ -757,7 +795,7 @@ final class CasinoTraffic {
         float side = dirX * fx(c.h + 1.5708f) + dirZ * fz(c.h + 1.5708f);
         int where = Math.abs(along) > Math.abs(side) * 1.2f ? (along > 0 ? FRONT : BACK)
                 : (side > 0 ? RIGHT : LEFT);
-        float add = amount / 55f;
+        float add = amount * (1 - 0.22f * c.armor) / 55f;
         c.dent[where] = Math.min(1, c.dent[where] + add);
         if (where == FRONT || where == BACK) {
             // Corners take some of it too.
@@ -890,6 +928,12 @@ final class CasinoTraffic {
         for (float[] k : skids) k[4] += dt;
     }
 
+    /** A repair job at the shop: dents out, glass and lights replaced, bumpers back on. */
+    void fix(Car c) {
+        repair(c);
+        c.fire = -1;
+    }
+
     /** The spray shop fixes the body too. */
     private static void repair(Car c) {
         java.util.Arrays.fill(c.dent, 0);
@@ -899,6 +943,7 @@ final class CasinoTraffic {
 
     void damage(Car c, float amount, boolean byPlayer) {
         if (c.wrecked || amount <= 0) return;
+        amount *= 1 - 0.22f * c.armor;
         c.health -= amount;
         if (byPlayer) c.playerDamaged = true;
         if (c.health <= 0 && c.fire < 0) {

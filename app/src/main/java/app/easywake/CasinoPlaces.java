@@ -129,6 +129,7 @@ final class CasinoPlaces {
             {"Founders Park", 58f, 26f, 88f, 56f}, {"Gas 'N Go", -88f, -6f, -58f, 18f},
             {"Burger Barn", -46f, -55f, -32f, -40f}, {"Pixel Palace", -30f, -55f, -14f, -40f},
             {"Suds Laundromat", -12f, -55f, -2f, -40f},
+            {"Lock-up garages", -88f, -58f, -60f, -40f},
             {"The Strip", -48f, 14f, 48f, 30f}};
 
     static String placeName(float x, float z) {

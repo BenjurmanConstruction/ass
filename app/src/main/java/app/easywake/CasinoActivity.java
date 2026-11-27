@@ -50,13 +50,270 @@ public class CasinoActivity extends Activity {
     private volatile float stickX, stickY;
     private final Random rnd = new Random();
 
+    static final String GARAGE = "casinoGarage";
+    private String lastGarage = "";
+    private int garageTick;
     static final String FLAGS = "casinoFlags", PICKS = "lockpicks", STYLE = "casinoStyle",
             WEAPON = "casinoWeapon";
     private MapView mapView;
     private volatile boolean sprayAsked;
 
     /** Parked in the spray booth: pay to repaint, repair and lose the cops. */
+    // ---------------------------------------------------------------- the garage
+
+    private static final int GARAGE_PRICE = 5000;
+
+    private void garage() {
+        stickX = stickY = 0;
+        boolean owned;
+        synchronized (world) {
+            owned = world.flags.contains("own:garage");
+        }
+        if (owned) {
+            new AlertDialog.Builder(this).setTitle("Your lock-up garages")
+                    .setMessage("Four bays, all yours. Park a car inside one and get out: it'll "
+                            + "be waiting there next time, paint and mods and all. Hop in any "
+                            + "time to take it out.")
+                    .setPositiveButton("Nice", null).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Lock-up garages: for sale")
+                .setMessage(String.format(Locale.US, "Four bays to keep your rides in. Cars "
+                        + "you park inside stay there, even after you close the game. "
+                        + "%,d FC. You have %,d.", GARAGE_PRICE, Wallet.coupons(this)))
+                .setPositiveButton("Buy it", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        if (!pay(GARAGE_PRICE)) return;
+                        synchronized (world) {
+                            world.flags.add("own:garage");
+                            lastGarage = world.garageSave();
+                        }
+                        saveFlags();
+                        Prefs.putString(CasinoActivity.this, GARAGE, lastGarage);
+                        overlay.show("The garages are yours. Park something nice in there.");
+                    }
+                }).setNegativeButton("Not now", null).show();
+    }
+
+    // ---------------------------------------------------------------- Spray Shop Customs
+
+    private static final String[] PAINT_NAMES = {"Candy Red", "Midnight Blue", "Lime Green",
+            "Hot Pink", "Gold Flake", "Pearl White", "Matte Black", "Royal Purple",
+            "Sunset Orange", "Teal", "Gunmetal", "Sky Blue"};
+    private static final int[] PAINTS = {0xFFC81E2A, 0xFF1A2A6A, 0xFF7AD82A, 0xFFF04AA8,
+            0xFFD8A830, 0xFFF2F0EA, 0xFF141416, 0xFF5A2A8A, 0xFFF07A1E, 0xFF1E8A8A, 0xFF4A4E56,
+            0xFF6AB8F0};
+    private static final String[] RIM_NAMES = {"Steel", "Five-spoke alloy", "Chrome",
+            "Gold mesh", "Black & red", "Spinners"};
+    private static final int[] RIM_PRICES = {100, 400, 800, 1200, 700, 1500};
+    private static final String[] NEON_NAMES = {"None", "Ice blue", "Hot pink", "Toxic green",
+            "Purple", "Red", "Gold"};
+    private static final int[] NEONS = {0, 0xFF30E0FF, 0xFFFF40C0, 0xFF60FF40, 0xFFA040FF,
+            0xFFFF3030, 0xFFFFC030};
+    private static final String[] STRIPE_NAMES = {"None", "White", "Black", "Red", "Gold",
+            "Blue"};
+    private static final int[] STRIPES = {0, 0xFFF2F2F2, 0xFF141416, 0xFFC81E2A, 0xFFD8A830,
+            0xFF2A5AD8};
+
+    /** The custom shop menu; it comes back after each job until you drive off. */
     private void offerSpray() {
+        stickX = stickY = 0;
+        final CasinoTraffic.Car car;
+        synchronized (world) {
+            car = world.traffic.driving;
+        }
+        if (car == null) return;
+        final String[] items = {
+                String.format(Locale.US, "Hide from the cops: respray & fix (%,d FC)",
+                        CasinoTraffic.SPRAY_COST),
+                "Repair the body and engine (100 FC)",
+                "Paint (150 FC)",
+                "Rims",
+                "Neon underglow (600 FC)",
+                "Window tint (200-400 FC)",
+                car.spoiler ? "Remove spoiler" : "Spoiler (500 FC)",
+                "Racing stripes (300 FC)",
+                car.lowered ? "Raise it back up" : "Lower it (400 FC)",
+                car.engine < 3 ? String.format(Locale.US, "Engine stage %d (%,d FC)",
+                        car.engine + 1, ENGINE_PRICES[car.engine]) : "Engine: maxed out",
+                car.armor < 3 ? String.format(Locale.US, "Armor level %d (%,d FC)",
+                        car.armor + 1, ARMOR_PRICES[car.armor]) : "Armor: maxed out",
+                "Drive away"};
+        new AlertDialog.Builder(this)
+                .setTitle(String.format(Locale.US, "Spray Shop Customs  (%,d FC)",
+                        Wallet.coupons(this)))
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        customize(car, which);
+                    }
+                })
+                .setCancelable(false).show();
+    }
+
+    private static final int[] ENGINE_PRICES = {1000, 2500, 5000};
+    private static final int[] ARMOR_PRICES = {1500, 3000, 6000};
+
+    private void customize(final CasinoTraffic.Car car, int which) {
+        switch (which) {
+            case 0:
+                if (pay(CasinoTraffic.SPRAY_COST)) {
+                    synchronized (world) {
+                        world.traffic.respray();
+                    }
+                    overlay.show("Fresh paint. Nobody's looking for you.");
+                }
+                break;
+            case 1:
+                if (pay(100)) {
+                    synchronized (world) {
+                        car.health = 100;
+                        world.traffic.fix(car);
+                    }
+                    overlay.show("Good as new.");
+                }
+                break;
+            case 2:
+                pick("Paint", PAINT_NAMES, null, new Pick() {
+                    @Override
+                    public void chose(int i) {
+                        if (pay(150)) set(new Runnable() {
+                            @Override
+                            public void run() {
+                                car.color = PAINTS[i];
+                            }
+                        });
+                    }
+                });
+                return;
+            case 3:
+                pick("Rims", RIM_NAMES, RIM_PRICES, new Pick() {
+                    @Override
+                    public void chose(final int i) {
+                        if (pay(RIM_PRICES[i])) set(new Runnable() {
+                            @Override
+                            public void run() {
+                                car.rim = i;
+                            }
+                        });
+                    }
+                });
+                return;
+            case 4:
+                pick("Neon underglow", NEON_NAMES, null, new Pick() {
+                    @Override
+                    public void chose(final int i) {
+                        if (i == 0 || pay(600)) set(new Runnable() {
+                            @Override
+                            public void run() {
+                                car.neon = NEONS[i];
+                            }
+                        });
+                    }
+                });
+                return;
+            case 5:
+                pick("Window tint", new String[]{"Clear", "Dark (200 FC)", "Limo (400 FC)"},
+                        null, new Pick() {
+                            @Override
+                            public void chose(final int i) {
+                                if (i == 0 || pay(i == 1 ? 200 : 400)) set(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        car.tint = i;
+                                    }
+                                });
+                            }
+                        });
+                return;
+            case 6:
+                if (car.spoiler || pay(500)) {
+                    synchronized (world) {
+                        car.spoiler = !car.spoiler;
+                    }
+                }
+                break;
+            case 7:
+                pick("Racing stripes", STRIPE_NAMES, null, new Pick() {
+                    @Override
+                    public void chose(final int i) {
+                        if (i == 0 || pay(300)) set(new Runnable() {
+                            @Override
+                            public void run() {
+                                car.stripes = STRIPES[i];
+                            }
+                        });
+                    }
+                });
+                return;
+            case 8:
+                if (car.lowered || pay(400)) {
+                    synchronized (world) {
+                        car.lowered = !car.lowered;
+                    }
+                }
+                break;
+            case 9:
+                if (car.engine < 3 && pay(ENGINE_PRICES[car.engine])) {
+                    synchronized (world) {
+                        car.engine++;
+                    }
+                    overlay.show("Engine stage " + car.engine + ": faster off the line, higher top end.");
+                }
+                break;
+            case 10:
+                if (car.armor < 3 && pay(ARMOR_PRICES[car.armor])) {
+                    synchronized (world) {
+                        car.armor++;
+                    }
+                    overlay.show("Armor level " + car.armor + ": takes a lot more punishment.");
+                }
+                break;
+            default:
+                synchronized (world) {
+                    world.traffic.skipSpray();
+                }
+                return;
+        }
+        offerSpray();
+    }
+
+    private interface Pick {
+        void chose(int i);
+    }
+
+    private void pick(String title, String[] names, int[] prices, final Pick p) {
+        String[] items = names.clone();
+        if (prices != null) {
+            for (int i = 0; i < items.length; i++) {
+                items[i] = String.format(Locale.US, "%s (%,d FC)", names[i], prices[i]);
+            }
+        }
+        new AlertDialog.Builder(this).setTitle(title)
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        p.chose(which);
+                        offerSpray();
+                    }
+                })
+                .setNegativeButton("Back", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        offerSpray();
+                    }
+                }).setCancelable(false).show();
+    }
+
+    private void set(Runnable r) {
+        synchronized (world) {
+            r.run();
+        }
+        Sfx.play(this, Sfx.CLICK);
+    }
+
+    private void oldSpray() {
         stickX = stickY = 0;
         final int cost = CasinoTraffic.SPRAY_COST;
         new AlertDialog.Builder(this).setTitle("Spray Shop")
@@ -106,6 +363,10 @@ public class CasinoActivity extends Activity {
         CasinoWeapons.Gun eq = CasinoWeapons.find(Prefs.getString(this, WEAPON));
         if (eq != null && world.flags.contains("own:" + eq.id)) world.equip(eq);
         world.worn = CasinoShop.parseWorn(Prefs.getString(this, STYLE));
+        if (world.flags.contains("own:garage")) {
+            world.loadGarage(Prefs.getString(this, GARAGE));
+            lastGarage = world.garageSave();
+        }
         world.ownClothes();
         if (Prefs.getInt(this, PICKS, -1) < 0) Prefs.putInt(this, PICKS, 5);
 
@@ -351,6 +612,9 @@ public class CasinoActivity extends Activity {
             case "cashier":
                 i = new Intent(this, WalletActivity.class);
                 break;
+            case "garage":
+                garage();
+                return;
             case "burger":
             case "snack": {
                 int cost = s.extra;
@@ -1598,6 +1862,19 @@ public class CasinoActivity extends Activity {
                     ride.handbrake = overlay.hbPointer >= 0;
                 } else {
                     Sfx.engine(CasinoActivity.this, false, 0, 0);
+                }
+                // Keep the garage's contents saved as cars come and go.
+                if (++garageTick % 90 == 0 && world.flags.contains("own:garage")) {
+                    final String gs = world.garageSave();
+                    if (!gs.equals(lastGarage)) {
+                        lastGarage = gs;
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Prefs.putString(CasinoActivity.this, GARAGE, gs);
+                            }
+                        });
+                    }
                 }
                 finished = world.contractDone;
                 rangeOver = world.rangeDone;

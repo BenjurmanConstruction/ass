@@ -90,6 +90,8 @@ final class CasinoCity {
                     gasStation(w, x0, z0, x1, z1, r);
                 } else if (i == 1 && j == 0) {
                     shopRow(w, x0, z0, x1, z1, r);
+                } else if (i == 0 && j == 0) {
+                    lockUps(w, x0, z0, x1, z1, r);
                 } else {
                     buildings(w, r, x0 + WALK, z0 + WALK, x1 - WALK, z1 - WALK);
                 }
@@ -458,6 +460,57 @@ final class CasinoCity {
         CasinoWorld.Spot snack = new CasinoWorld.Spot("Grab a snack (10 FC)", "snack", 10, null,
                 sx0 + 1.6f, sz1 + 1.1f, NORTH);
         w.spots.add(snack);
+    }
+
+    /** The lock-up garages' bays: x0, z0, x1, z1 (cars parked inside are kept). */
+    static final float[][] BAYS = {{-85.4f, -55.2f, -80.6f, -44.2f}, {-79.4f, -55.2f, -74.6f, -44.2f},
+            {-73.4f, -55.2f, -68.6f, -44.2f}, {-67.4f, -55.2f, -62.6f, -44.2f}};
+
+    /** Four garage bays facing Back Street, for sale. */
+    private static void lockUps(CasinoWorld w, float x0, float z0, float x1, float z1, Random r) {
+        CasinoWorld.Mesh m = w.mesh;
+        float gx0 = -86, gx1 = -62, gz0 = -56, gz1 = -43.5f, h = 4.6f;
+        int brick = 0xFF5A3A2E;
+        // Back and end walls, the roof, and the dividers between bays.
+        m.boxAA(gx0, 0, gz0, gx1, h, gz0 + 0.4f, brick, 0);
+        w.solid(gx0, gz0, gx1, gz0 + 0.4f, h);
+        m.boxAA(gx0, 0, gz0, gx0 + 0.4f, h, gz1, brick, 0);
+        w.solid(gx0, gz0, gx0 + 0.4f, gz1, h);
+        m.boxAA(gx1 - 0.4f, 0, gz0, gx1, h, gz1, brick, 0);
+        w.solid(gx1 - 0.4f, gz0, gx1, gz1, h);
+        m.boxAA(gx0 - 0.2f, h, gz0 - 0.2f, gx1 + 0.2f, h + 0.4f, gz1 + 0.3f, 0xFF3A2A22, 0);
+        for (int k = 1; k < 4; k++) {
+            float dx = gx0 + k * 6;
+            m.boxAA(dx - 0.2f, 0, gz0, dx + 0.2f, h, gz1, brick, 0);
+            w.solid(dx - 0.2f, gz0, dx + 0.2f, gz1, h);
+        }
+        m.floor(gx0 + 0.4f, gz0 + 0.4f, gx1 - 0.4f, gz1, 0.02f, 0xFF3A3A3E, 0, 1);
+        w.regions.add(new float[]{gx0, gz0, gx1, gz1, h});
+        for (int k = 0; k < 4; k++) {
+            float bx = gx0 + k * 6 + 3;
+            // Roll-up door, rolled up, and a number over each bay.
+            m.boxAA(bx - 2.6f, 3.7f, gz1 - 0.3f, bx + 2.6f, h, gz1 + 0.05f, 0xFF8A8E94, 0);
+            for (float y = 3.75f; y < h; y += 0.15f) {
+                m.boxAA(bx - 2.6f, y, gz1 + 0.05f, bx + 2.6f, y + 0.02f, gz1 + 0.07f, 0xFF6A6E74, 0);
+            }
+            m.boxAA(bx - 0.3f, 3.2f, gz1 - 0.02f, bx + 0.3f, 3.6f, gz1 + 0.02f, 0xFFFFC84A, 0.5f);
+            // A strip light inside, a workbench and some tires on the back wall.
+            m.boxAA(bx - 1.2f, h - 0.08f, (gz0 + gz1) / 2 - 0.1f, bx + 1.2f, h - 0.04f,
+                    (gz0 + gz1) / 2 + 0.1f, 0xFFF2F4FF, 1);
+            w.lamps.add(new float[]{bx, (gz0 + gz1) / 2, h - 0.3f, 0.55f, 0.9f, 0.95f, 1f});
+            m.boxAA(bx - 2.4f, 0, gz0 + 0.4f, bx - 0.8f, 0.9f, gz0 + 1.0f, 0xFF5A3A22, 0);
+            m.cylinder(bx + 1.8f, gz0 + 0.8f, 0.36f, 0.36f, 0, 0.26f, 0xFF121214, 0xFF121214, 0, 10);
+            m.cylinder(bx + 1.8f, gz0 + 0.8f, 0.36f, 0.36f, 0.26f, 0.52f, 0xFF121214, 0xFF121214, 0, 10);
+        }
+        // The sign over the front.
+        m.boxAA(-80, h + 0.4f, gz1 + 0.1f, -68, h + 1.6f, gz1 + 0.3f, 0xFF0A0A0E, 0);
+        m.panel(-74, gz1 + 0.32f, SOUTH, 11.6f, h + 0.45f, h + 1.55f, 0xFFFFFFFF, 1,
+                CasinoArt.sign(CasinoArt.GARAGE));
+        // The forecourt.
+        m.floor(gx0, gz1, gx1, z1, 0.012f, 0xFF26262A, 0, 1);
+        buildings(w, r, gx1 + 1.5f, z0 + WALK, x1 - WALK, z1 - WALK);
+        w.spots.add(new CasinoWorld.Spot("Lock-up garages", "garage", 0, null, -74, -41.6f,
+                NORTH));
     }
 
     /** North of Back Street: Burger Barn, Pixel Palace arcade and Suds laundromat. */

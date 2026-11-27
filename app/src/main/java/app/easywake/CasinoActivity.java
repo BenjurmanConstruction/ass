@@ -1451,7 +1451,7 @@ public class CasinoActivity extends Activity {
             "precision mediump float;\n"
                     + "uniform sampler2D uAtlas; uniform sampler2D uCarpet;\n"
                     + "uniform sampler2D uLight; uniform vec4 uLightBox;\n"
-                    + "uniform vec3 uEye; uniform float uTime;\n"
+                    + "uniform vec3 uEye; uniform float uTime; uniform float uAlpha;\n"
                     + "varying vec3 vWorld; varying vec3 vNormal; varying vec3 vColor;\n"
                     + "varying vec2 vUv; varying float vEmit; varying float vTex;\n"
                     + "void main() {\n"
@@ -1475,7 +1475,7 @@ public class CasinoActivity extends Activity {
                     + "  float fog = clamp((d - mix(14.0, 10.0, inside)) / mix(45.0, 30.0, inside),\n"
                     + "      0.0, 1.0) * 0.8;\n"
                     + "  vec3 fogCol = mix(vec3(0.02, 0.025, 0.045), vec3(0.035, 0.028, 0.026), inside);\n"
-                    + "  gl_FragColor = vec4(mix(col, fogCol, fog), 1.0);\n"
+                    + "  gl_FragColor = vec4(mix(col, fogCol, fog), uAlpha);\n"
                     + "}\n";
 
     private static final String SHADOW_VERTEX =
@@ -1494,6 +1494,10 @@ public class CasinoActivity extends Activity {
     private final class Renderer implements GLSurfaceView.Renderer {
         private int prog, shadowProg;
         private int staticVbo, cubeVbo, diskVbo, staticCount, cubeCount, diskCount, groundStart;
+        private static final int SEE_MAX = 512;
+        private final float[] seeM = new float[SEE_MAX * 16], seeG = new float[SEE_MAX];
+        private final int[] seeC = new int[SEE_MAX];
+        private int seeN;
         private int atlasTex, carpetTex, lightTex;
         private final float[] view = new float[16], proj = new float[16], vp = new float[16],
                 ident = new float[16], eye = new float[3];
@@ -1672,7 +1676,9 @@ public class CasinoActivity extends Activity {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
 
             final int uModel = loc(prog, "uModel"), uTint = loc(prog, "uTint"),
-                    uGlow = loc(prog, "uGlow");
+                    uGlow = loc(prog, "uGlow"), uAlpha = loc(prog, "uAlpha");
+            GLES20.glUniform1f(uAlpha, 1);
+            seeN = 0;
             GLES20.glUniformMatrix4fv(uModel, 1, false, ident, 0);
             GLES20.glUniform3f(uTint, 1, 1, 1);
             GLES20.glUniform1f(uGlow, 0);
@@ -1690,6 +1696,16 @@ public class CasinoActivity extends Activity {
                 world.drawPeople(new CasinoWorld.PartSink() {
                     @Override
                     public void part(float[] model, int color, float glow) {
+                        if ((color >>> 24) < 255) {
+                            // See-through (car glass): drawn after everything solid.
+                            if (seeN < SEE_MAX) {
+                                System.arraycopy(model, 0, seeM, seeN * 16, 16);
+                                seeC[seeN] = color;
+                                seeG[seeN] = glow;
+                                seeN++;
+                            }
+                            return;
+                        }
                         GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
                         GLES20.glUniform3f(uTint, ((color >> 16) & 255) / 255f,
                                 ((color >> 8) & 255) / 255f, (color & 255) / 255f);
@@ -1707,6 +1723,23 @@ public class CasinoActivity extends Activity {
                         shadowCount[0] = i + 1;
                     }
                 });
+            }
+            if (seeN > 0) {
+                GLES20.glEnable(GLES20.GL_BLEND);
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                GLES20.glDepthMask(false);
+                for (int i = 0; i < seeN; i++) {
+                    int color = seeC[i];
+                    GLES20.glUniformMatrix4fv(uModel, 1, false, seeM, i * 16);
+                    GLES20.glUniform3f(uTint, ((color >> 16) & 255) / 255f,
+                            ((color >> 8) & 255) / 255f, (color & 255) / 255f);
+                    GLES20.glUniform1f(uGlow, seeG[i]);
+                    GLES20.glUniform1f(uAlpha, (color >>> 24) / 255f);
+                    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, cubeCount);
+                }
+                GLES20.glUniform1f(uAlpha, 1);
+                GLES20.glDepthMask(true);
+                GLES20.glDisable(GLES20.GL_BLEND);
             }
             GLES20.glUniform1f(uGlow, 0);
 

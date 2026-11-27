@@ -3830,7 +3830,12 @@ final class CasinoWorld {
      * One car. Its own front is +x; yaw turns it (0 drives east, PI west, -PI/2 faces south).
      */
     private final float[] carBase = new float[16];
-    private static final int BROKEN_GLASS = 0xFF8A9CA8, SHATTERED = 0xFF0C0C0E;
+    /** Car glass you can see through (alpha in the top byte), cracked glass, the cabin. */
+    private static final int BROKEN_GLASS = 0xC08A9CA8, SEE_GLASS = 0x6A1A2838,
+            CABIN = 0xFF1C1A1C, SEAT = 0xFF2E2A2A;
+    private static final int[] DRIVER_SHIRTS = {0xFF7A3A2A, 0xFF2A4A6A, 0xFFD8D8DC, 0xFF3A5A3A,
+            0xFF5A3A6A, 0xFFB8862A, 0xFF2A2A30};
+    private static final int[] DRIVER_SKIN = {0xFFE8B898, 0xFFC08A62, 0xFF8A5A3A, 0xFF5A3A28};
 
     /**
      * A car, alive: the body rides on its springs (dive, squat, lean, bounce) while the wheels
@@ -3975,19 +3980,84 @@ final class CasinoWorld {
         float roofSag = Math.max(dent[CasinoTraffic.LEFT], dent[CasinoTraffic.RIGHT]) > 0.7f
                 ? 0.08f : 0;
         top -= roofSag;
-        // Side glass (black and empty once smashed).
+        // The cabin you see through the glass: floor, seats, dash, wheel, whoever's driving.
+        float cabF = cf - 0.05f, cabB = suv || pickup ? cb + 0.05f : cb + 0.15f;
+        cp(s, (cabF + cabB) / 2, y1 - 0.01f, 0, cabF - cabB, 0.02f, gw - 0.04f, CABIN, 0);
+        float frontSeat = cf - 0.95f, rearSeat = pickup ? 99 : cb + (suv ? 0.75f : 0.55f);
+        for (int side = -1; side <= 1; side += 2) {
+            float sz = side * gw * 0.24f;
+            cp(s, frontSeat - 0.1f, y1 + 0.16f, sz, 0.1f, 0.38f, gw * 0.36f, SEAT, 0);
+            cp(s, frontSeat - 0.11f, y1 + 0.42f, sz, 0.09f, 0.12f, gw * 0.2f, SEAT, 0);
+        }
+        if (rearSeat < 50) {
+            cp(s, rearSeat - 0.1f, y1 + 0.13f, 0, 0.1f, 0.32f, gw - 0.1f, SEAT, 0);
+            for (int side = -1; side <= 1; side += 2) {
+                cp(s, rearSeat - 0.11f, y1 + 0.36f, side * gw * 0.26f, 0.08f, 0.1f, gw * 0.18f,
+                        SEAT, 0);
+            }
+        }
+        // Dashboard with glowing gauges, and the wheel on the driver's (left) side.
+        boolean running = lights;
+        cp(s, cf - 0.12f, y1 + 0.05f, 0, 0.26f, 0.12f, gw - 0.04f, CABIN, 0);
+        cp(s, cf - 0.245f, y1 + 0.08f, -gw * 0.24f, 0.01f, 0.05f, 0.18f,
+                running ? 0xFF6AE0FF : 0xFF203038, running ? 0.9f : 0);
+        cp(s, cf - 0.245f, y1 + 0.08f, gw * 0.05f, 0.01f, 0.04f, 0.12f,
+                running ? 0xFFFFA040 : 0xFF302018, running ? 0.7f : 0);
+        copy(tmp, car);
+        Mat.translate(tmp, cf - 0.38f, y1 + 0.15f, -gw * 0.24f);
+        Mat.rotZ(tmp, 1.15f);
+        Mat.scale(tmp, 0.34f, 0.03f, 0.34f);
+        s.part(tmp, 0xFF101012, 0);
+        boolean someone = c.driver || traffic.driving == c;
+        if (someone && !c.wrecked) {
+            int shirt, skin, hat = 0;
+            if (traffic.driving == c) {
+                shirt = player.jacket != 0 ? player.jacket : player.shirt;
+                skin = player.skin;
+                hat = player.hair;
+            } else if (c.role == CasinoTraffic.COP) {
+                shirt = 0xFF1E2A4A;
+                skin = DRIVER_SKIN[c.id % DRIVER_SKIN.length];
+                hat = 0xFF141A2A;
+            } else {
+                shirt = DRIVER_SHIRTS[c.id % DRIVER_SHIRTS.length];
+                skin = DRIVER_SKIN[(c.id / 3) % DRIVER_SKIN.length];
+            }
+            float dz = -gw * 0.24f, dx = frontSeat + 0.08f;
+            // Sitting low in the seat: shoulders just over the door, head under the roof.
+            float hy = Math.min(y1 + 0.42f, top - 0.14f);
+            cp(s, dx, hy - 0.3f, dz, 0.24f, 0.4f, 0.4f, shirt, 0);
+            cp(s, dx + 0.02f, hy, dz, 0.24f, 0.22f, 0.22f, skin, 0);
+            cp(s, dx - 0.01f, hy + 0.12f, dz, 0.25f, 0.04f, 0.23f,
+                    hat != 0 ? hat : 0xFF2A1E14, 0);
+            // Arms reaching for the wheel.
+            for (int side = -1; side <= 1; side += 2) {
+                copy(tmp, car);
+                Mat.translate(tmp, 0, 0, dz + side * 0.17f);
+                float ax0 = dx + 0.02f, ay0 = hy - 0.16f, ax1 = cf - 0.4f, ay1 = y1 + 0.16f;
+                Mat.translate(tmp, (ax0 + ax1) / 2, (ay0 + ay1) / 2, 0);
+                Mat.rotZ(tmp, (float) Math.atan2(ay1 - ay0, ax1 - ax0));
+                Mat.scale(tmp, (float) Math.hypot(ax1 - ax0, ay1 - ay0), 0.09f, 0.09f);
+                s.part(tmp, shirt, 0);
+            }
+            if (c.role == CasinoTraffic.COP) {
+                // A partner riding shotgun.
+                cp(s, dx, hy - 0.3f, -dz, 0.24f, 0.4f, 0.4f, shirt, 0);
+                cp(s, dx + 0.02f, hy, -dz, 0.24f, 0.22f, 0.22f,
+                        DRIVER_SKIN[(c.id + 1) % DRIVER_SKIN.length], 0);
+                cp(s, dx - 0.01f, hy + 0.12f, -dz, 0.25f, 0.04f, 0.23f, hat, 0);
+            }
+        }
+        // Side glass: tinted and see-through; once it's smashed there's nothing there.
         for (int side = -1; side <= 1; side += 2) {
             boolean gone = side < 0 ? c.glassL : c.glassR;
+            if (gone) continue;
             float roofF0 = cf - slope, roofB0 = suv || pickup ? cb : cb + slope;
             cp(s, (roofF0 + roofB0) / 2, (y1 + top) / 2, side * (gw / 2 + 0.005f),
-                    roofF0 - roofB0, top - y1 - 0.06f, 0.02f, gone ? SHATTERED : GLASS,
-                    gone ? 0 : 0.08f);
+                    roofF0 - roofB0, top - y1 - 0.06f, 0.02f, SEE_GLASS, 0.12f);
         }
-        cp(s, (cf - slope + cb + (suv || pickup ? 0 : slope)) / 2, (y1 + top) / 2, 0,
-                (cf - slope) - (cb + (suv || pickup ? 0 : slope)), top - y1, gw - 0.02f,
-                0xFF101014, 0);
-        slab(s, cf, y1, cf - slope, top, gw, 0.06f, c.glassF ? BROKEN_GLASS : GLASS,
-                c.glassF ? 0.15f : 0.08f);
+        slab(s, cf, y1, cf - slope, top, gw, 0.06f, c.glassF ? BROKEN_GLASS : SEE_GLASS,
+                c.glassF ? 0.15f : 0.12f);
         if (c.glassF) {
             // Spiderweb cracks.
             slab(s, cf - 0.02f, y1 + 0.05f, cf - slope + 0.1f, top - 0.05f, 0.03f, 0.07f,
@@ -3996,8 +4066,8 @@ final class CasinoWorld {
                     0xFFC8D4DC, 0.1f);
         }
         if (!suv && !pickup) {
-            slab(s, cb + slope, top, cb, y1, gw, 0.06f, c.glassB ? BROKEN_GLASS : GLASS,
-                    0.06f);
+            slab(s, cb + slope, top, cb, y1, gw, 0.06f, c.glassB ? BROKEN_GLASS : SEE_GLASS,
+                    0.12f);
         }
         float roofF = cf - slope, roofB = suv || pickup ? cb : cb + slope;
         cp(s, (roofF + roofB) / 2, top + 0.04f, 0, roofF - roofB + 0.06f, 0.08f, gw + 0.06f,

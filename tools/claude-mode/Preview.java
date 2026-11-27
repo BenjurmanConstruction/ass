@@ -115,8 +115,13 @@ public class Preview {
         drawMesh(m.data, m.floats, null, -1, 0);
         final float[] cube = cube();
         final java.util.List<float[]> shadows = new java.util.ArrayList<>();
+        final java.util.List<Object[]> see = new java.util.ArrayList<>();
         w.drawPeople(new CasinoWorld.PartSink() {
             public void part(float[] model, int color, float glow) {
+                if ((color >>> 24) < 255) {
+                    see.add(new Object[]{model.clone(), color, glow});
+                    return;
+                }
                 drawMesh(cube, cube.length, model, color, glow);
             }
 
@@ -124,6 +129,11 @@ public class Preview {
                 shadows.add(new float[]{sx, sz, r});
             }
         });
+        for (Object[] o : see) {
+            alpha = ((Integer) o[1] >>> 24) / 255f;
+            drawMesh(cube, cube.length, (float[]) o[0], (Integer) o[1] | 0xFF000000, (Float) o[2]);
+        }
+        alpha = 1;
         for (float[] s : shadows) shadow(s[0], s[1], s[2]);
         BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, W, H, px, 0, W);
@@ -176,6 +186,8 @@ public class Preview {
     static final int S = CasinoWorld.Mesh.STRIDE;
 
     /** Draws triangles. model may be null; tint multiplies the color when >= 0. */
+    static float alpha = 1;
+
     static void drawMesh(float[] d, int n, float[] model, int tint, float glow) {
         float tr = 1, tg = 1, tb = 1;
         if (tint != -1) {
@@ -280,6 +292,15 @@ public class Preview {
                 float depth = 1 / iw;
                 int idx = y * W + x;
                 if (depth >= zb[idx]) continue;
+                if (alpha < 1) {
+                    // See-through: blend over what's there, leave the depth alone.
+                    int c0 = px[idx], c1 = shade(at);
+                    int r0 = (c0 >> 16) & 255, g0 = (c0 >> 8) & 255, b0 = c0 & 255;
+                    int r1 = (c1 >> 16) & 255, g1 = (c1 >> 8) & 255, b1 = c1 & 255;
+                    px[idx] = 0xFF000000 | ((int) (r0 + (r1 - r0) * alpha) << 16)
+                            | ((int) (g0 + (g1 - g0) * alpha) << 8) | (int) (b0 + (b1 - b0) * alpha);
+                    continue;
+                }
                 zb[idx] = depth;
                 for (int k = 0; k < nA; k++) {
                     at[k] = (a[k] * w0 * iwa + b[k] * w1 * iwb + c[k] * w2 * iwc) / iw;

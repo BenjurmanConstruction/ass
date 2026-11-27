@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v39**.
+- Latest release: **v40**.
 
 ## Standing rules
 
@@ -351,6 +351,12 @@ player name and uninstall.
   - Skid marks (`traffic.skids`, up to 600) and a tire-screech sound (`Sfx.SKID`, bit 512).
 - **Engine sound:** `Sfx.engine(ctx, on, rpm, volume)` is a looping 0.2 s four-cylinder note whose playback rate follows the revs through 5 gears; it pauses in onPause.
 - **Checks:** `tools/claude-mode/CarFilm` (clean vs crashed renders) and `TDrive` (pitch, roll, slide, steer numbers). T16 corners pass at 8, 12 and 16 m/s.
+
+### v40: see-through car windows with interiors
+- **See-through parts:** a `PartSink.part` color whose alpha (top byte) is under 255 is deferred and drawn after all solid parts, blended, with no depth write (`seeM` / `seeC` / `seeG` in the Renderer, `uAlpha` in the fragment shader). Preview.java does the same, so renders match.
+- **Car glass:** `SEE_GLASS` 0x6A1A2838 (tinted, see-through) for the windshield, back and side windows. Cracked windshields are `BROKEN_GLASS` (mostly opaque). Smashed side windows aren't drawn at all.
+- **Interior:** cabin floor, front seats with headrests, rear bench (not on pickups), dashboard with gauges that glow while the car runs, and a steering wheel on the left.
+- **Driver:** shown when an AI drives or you do: your shirt or jacket, skin and hair; AI drivers get stable random looks from `c.id`; cops wear uniforms and caps and have a partner. They sit low enough to stay under the roof (`hy = min(y1 + 0.42, top − 0.14)`).
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

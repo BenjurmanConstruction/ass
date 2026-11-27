@@ -19,7 +19,7 @@ Knowledge Points (KP) that unlock things on a skill tree.
 - Download link: `https://github.com/BenjurmanConstruction/ass/releases/download/vN/EasyWake-vN.apk`
 - Install on my Samsung: turn Auto Blocker off, install over the old app, turn it back on.
 - Commit with a message ending in `[skip ci]` to push without making a new release.
-- Latest release: **v38**.
+- Latest release: **v39**.
 
 ## Standing rules
 
@@ -323,6 +323,34 @@ player name and uninstall.
   - Guests hold the glass, sip every 5–12 s, and shout for another when it's empty.
   - New: casino service bar on the west wall with a "Cocktail waitress" serving every seated casino guest, and a diner "Waitress" with coffee.
 - **Fix:** the hurt-fighter "run or fight on" decision reused `blockRoll`, which blocking overwrote, so it re-rolled until they ran. It now has its own field (`hurtDecided`); KOs are back to normal.
+
+### v39: joystick fix, cars that look alive, real destruction
+- **Joystick:**
+  - `STICK_RING` 74 dp ring centered low in the corner; full speed at `STICK_FULL` 40 dp of travel (an inner ring shows it); dead zone 8%, then a 0.85 power curve.
+  - You only grab it in the lower-left area (x < 42%, y > 42% of height), so your thumb never reaches the minimap.
+- **Cars come alive (`CasinoTraffic.alive`):**
+  - Pitch (±0.07 rad from acceleration), roll (±0.1 rad from speed × yaw rate), spring bounce.
+  - Front wheels steer from the yaw rate (`steerVis`, up to ~32°).
+  - Brake lights, reverse lights, AI turn signals.
+  - Exhaust puffs (`CasinoWorld.exhaust`).
+  - `drawCar(s, Car, ...)` keeps the body on its springs (`car` matrix) and the wheels on the road (`carBase`).
+- **Bodies:** shoulder line, rocker strip, door seams and handles, two-level wheel arches, mirrors, plates, tailpipe, a roof lip, separate side glass.
+- **Destruction:**
+  - `impact(car, amount, byPlayer, dirX, dirZ, speed)` dents front / back / left / right (`dent[]` 0..1). Hooked into wall hits, car-on-car hits and blasts.
+  - Ends crumple shorter, the hood buckles into a peak, side panels cave in and show bare scrapes.
+  - Headlights break (light pools dim or go out).
+  - Windshield spiderwebs; side glass shatters to black; bumpers come off as debris.
+  - Sparks at impacts and along scrapes.
+  - Debris (`traffic.debris`) bounces and settles, then clears after 45 s.
+  - Radiator steam below 65 health, smoke below 35.
+  - Explosions throw the shell up and blow off the hood and doors.
+  - The spray shop repairs everything (`repair`).
+- **Handling:**
+  - Lateral slip when the turn asks for more than 11 m/s² of grip (3.5 with the handbrake).
+  - New DRIFT (handbrake) button above BRAKE.
+  - Skid marks (`traffic.skids`, up to 600) and a tire-screech sound (`Sfx.SKID`, bit 512).
+- **Engine sound:** `Sfx.engine(ctx, on, rpm, volume)` is a looping 0.2 s four-cylinder note whose playback rate follows the revs through 5 gears; it pauses in onPause.
+- **Checks:** `tools/claude-mode/CarFilm` (clean vs crashed renders) and `TDrive` (pitch, roll, slide, steer numbers). T16 corners pass at 8, 12 and 16 m/s.
 
 ## Ideas not built yet
 - Queued (user asked): a real fight system (melee: blocks, combos, fighters who fight

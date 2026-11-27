@@ -35,7 +35,9 @@ final class Sfx {
     static final int BLOCK = 15;
     /** Pool: two balls meeting, a ball off a cushion, a ball dropping, the cue's tip. */
     static final int CLACK = 16, RAIL = 17, POCKET = 18, CUE = 19;
-    private static final int COUNT = 20;
+    /** Tires screeching. */
+    static final int SKID = 20;
+    private static final int COUNT = 21;
 
     private static final int SR = 22050;
     private static final AudioTrack[] TRACKS = new AudioTrack[COUNT];
@@ -117,6 +119,68 @@ final class Sfx {
         }
     }
 
+    // ---- the engine: one looping sound whose speed follows the revs
+
+    private static AudioTrack engine;
+
+    /** A rough four-cylinder note: harmonics of a 50 Hz firing pulse that loop seamlessly. */
+    private static short[] engineLoop() {
+        int n = SR / 5; // 0.2 s: every partial below fits a whole number of cycles
+        short[] out = new short[n];
+        Random r = new Random(77);
+        float lp = 0;
+        for (int i = 0; i < n; i++) {
+            double t = i / (double) SR;
+            double v = 0;
+            double[] amp = {1, 0.7, 0.55, 0.3, 0.22, 0.15, 0.1};
+            for (int k = 0; k < amp.length; k++) {
+                v += amp[k] * Math.sin(2 * Math.PI * 50 * (k + 1) * t + k * 0.7);
+            }
+            // Firing thumps.
+            double ph = (t * 50) % 1;
+            v += 0.9 * Math.exp(-ph * 9) - 0.2;
+            lp += (r.nextFloat() * 2 - 1 - lp) * 0.08f;
+            v = v * 0.22 + lp * 0.35;
+            out[i] = (short) Math.max(-32767, Math.min(32767, v * 9000));
+        }
+        return out;
+    }
+
+    /** Runs, retunes or stops the engine. rpm 0..1, volume 0..1. */
+    static synchronized void engine(Context c, boolean on, float rpm, float volume) {
+        try {
+            if (!on || !allowed(c, CLICK)) {
+                if (engine != null && engine.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                    engine.pause();
+                }
+                return;
+            }
+            if (engine == null) {
+                short[] data = engineLoop();
+                engine = new AudioTrack.Builder()
+                        .setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_GAME)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build())
+                        .setAudioFormat(new AudioFormat.Builder()
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(SR)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                .build())
+                        .setBufferSizeInBytes(data.length * 2)
+                        .setTransferMode(AudioTrack.MODE_STATIC)
+                        .build();
+                engine.write(data, 0, data.length);
+                engine.setLoopPoints(0, data.length, -1);
+            }
+            engine.setPlaybackRate((int) (SR * (0.55f + Math.max(0, Math.min(1, rpm)) * 1.25f)));
+            engine.setVolume(Math.max(0, Math.min(1, volume)));
+            if (engine.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) engine.play();
+        } catch (Exception e) {
+            engine = null;
+        }
+    }
+
     static synchronized void stop(int id) {
         try {
             AudioTrack t = TRACKS[id];
@@ -128,6 +192,10 @@ final class Sfx {
     static synchronized void stopAll() {
         // Stops whatever is still ringing, on every sound.
         for (int i = 0; i < COUNT; i++) stop(i);
+        try {
+            if (engine != null && engine.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) engine.pause();
+        } catch (Exception ignored) {
+        }
     }
 
     /** A button that switches game sounds on and off. */
@@ -187,6 +255,20 @@ final class Sfx {
                 thump(b, r, 0, 0.5);
                 burst(b, r, 0, 0.02, 0.6, 0.15);
                 bell(b, 0, 620, 0.08, 0.25);
+                break;
+            }
+            case SKID: {
+                // A rubber squeal: a wavering high tone over hiss.
+                b = new float[(int) (0.35 * SR)];
+                Random r = new Random(20);
+                for (int i = 0; i < b.length; i++) {
+                    double t = i / (double) SR;
+                    double env = Math.min(1, t / 0.03) * Math.min(1, (0.35 - t) / 0.08);
+                    double f = 1150 + 90 * Math.sin(t * 2 * Math.PI * 23);
+                    b[i] = (float) (env * (0.35 * Math.sin(2 * Math.PI * f * t)
+                            + 0.15 * Math.sin(2 * Math.PI * f * 2.01 * t)
+                            + 0.12 * (r.nextFloat() * 2 - 1)));
+                }
                 break;
             }
             case CLACK: {
@@ -273,7 +355,7 @@ final class Sfx {
         for (float v : b) peak = Math.max(peak, Math.abs(v));
         // Kept well under full volume: these sit behind the game, not on top of it.
         float[] loudness = {0.3f, 0.45f, 0.5f, 0.55f, 0.25f, 0.3f, 0.35f, 0.3f, 0.3f,
-                0.5f, 0.2f, 0.35f, 0.55f, 0.4f, 0.7f, 0.45f, 0.6f, 0.3f, 0.55f, 0.4f};
+                0.5f, 0.2f, 0.35f, 0.55f, 0.4f, 0.7f, 0.45f, 0.6f, 0.3f, 0.55f, 0.4f, 0.35f};
         float scale = loudness[id] / peak;
         short[] out = new short[b.length];
         for (int i = 0; i < b.length; i++) out[i] = (short) (b[i] * scale * 32767);

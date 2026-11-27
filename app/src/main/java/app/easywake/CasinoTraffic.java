@@ -41,7 +41,32 @@ final class CasinoTraffic {
         float knocked;
         /** A cruiser that lost you and is checking the area. */
         boolean searching;
+
+        // ---- looking alive
+        /** Front wheels' steering angle as drawn, body roll (lean), pitch (dive) and bounce. */
+        float steerVis, roll, pitch, bounce, bounceV;
+        float prevSpeed, prevH;
+        /** Brake lights, reversing, indicator (-1 left, 1 right) and the engine shake. */
+        float brake;
+        boolean reversing;
+        int blink;
+        /** Sliding sideways (m/s) and the handbrake. */
+        float slip;
+        boolean handbrake;
+        // ---- damage you can see, 0..1 per side: front, back, left, right
+        final float[] dent = new float[4];
+        boolean bumperF, bumperB = false, lightL, lightR, glassF, glassB, glassL, glassR;
+        /** Seconds since last scraped (for sparks). */
+        float scrapeT;
     }
+
+    static final int FRONT = 0, BACK = 1, LEFT = 2, RIGHT = 3;
+    private static final int TRIM_COLOR = 0xFF2A2A2E;
+
+    /** Bits flying off cars: x, y, z, vx, vy, vz, spin, spinV, w, h, d, color, life. */
+    final List<float[]> debris = new ArrayList<>();
+    /** Skid marks on the road: x0, z0, x1, z1, age. */
+    final List<float[]> skids = new ArrayList<>();
 
     private static int nextId;
 
@@ -166,7 +191,9 @@ final class CasinoTraffic {
                 move(c, dt);
             }
             burn(c, dt);
+            alive(c, dt);
         }
+        updateDebris(dt);
         collideCars();
         hitPeople();
         police(dt);
@@ -211,8 +238,8 @@ final class CasinoTraffic {
     }
 
     private void move(Car c, float dt) {
-        c.x += fx(c.h) * c.speed * dt;
-        c.z += fz(c.h) * c.speed * dt;
+        c.x += fx(c.h) * c.speed * dt + fx(c.h + 1.5708f) * c.slip * dt;
+        c.z += fz(c.h) * c.speed * dt + fz(c.h + 1.5708f) * c.slip * dt;
         c.spin -= c.speed * dt / 0.34f;
         hitWalls(c);
     }
@@ -241,13 +268,25 @@ final class CasinoTraffic {
         float v = Math.abs(c.speed);
         // Turns sharp at city speeds, a bit wider when you're flying.
         float rate = 2.7f * Math.min(1, v / 2.5f) / (1 + v * 0.028f);
-        c.h += steer * Math.signum(c.speed) * rate * dt;
+        steerIn = steer;
+        // Handbrake: the back end lets go, so it swings round and slides.
+        if (c.handbrake && v > 3) {
+            rate *= 1.7f;
+            c.speed -= Math.signum(c.speed) * 5 * dt;
+        }
+        float yaw = steer * Math.signum(c.speed) * rate;
+        c.h += yaw * dt;
+        // More turn than the tires can hold turns into a slide (the body keeps going sideways).
+        float grip = c.handbrake ? 3.5f : 11f;
+        float demand = Math.abs(c.speed * yaw);
+        if (demand > grip) c.slip -= Math.signum(c.speed * yaw) * (demand - grip) * dt * 0.8f;
+        c.slip -= c.slip * Math.min(1, dt * (c.handbrake ? 0.8f : 2.6f));
         // Cranking the wheel at speed scrubs speed off, so corners actually make it round.
         if (Math.abs(steer) > 0.45f && v > 10) {
             c.speed -= Math.signum(c.speed) * 8 * Math.abs(steer) * dt;
         }
         // Let go of the wheel near a road's direction and the car straightens up onto it.
-        if (steer == 0 && v > 2) {
+        if (steer == 0 && v > 2 && !c.handbrake && Math.abs(c.slip) < 1) {
             float axis = Math.round(c.h / (PI_F / 2)) * (PI_F / 2);
             float d = CasinoWorld.angleDiff(axis, c.h);
             if (Math.abs(d) < 0.35f) c.h += d * Math.min(1, dt * 3.5f);
@@ -516,7 +555,12 @@ final class CasinoTraffic {
         float v = Math.abs(c.speed);
         if (into > 0.5f) {
             // Head-on: bounce back and take damage.
-            if (v > 8) damage(c, (v - 8) * (c == driving ? 0.8f : 0.6f), c == driving);
+            if (v > 8) {
+                impact(c, (v - 8) * (c == driving ? 0.8f : 0.6f), c == driving, -pushX / pl,
+                        -pushZ / pl, v);
+            } else if (v > 3) {
+                kick(c, v * 0.02f);
+            }
             if (c == driving && v > 6) {
                 w.player.shake = Math.min(0.6f, v * 0.03f);
                 w.sounds |= 1;
@@ -526,6 +570,7 @@ final class CasinoTraffic {
             // A scrape: keep sliding along it.
             c.speed *= 0.93f;
             if (v > 14 && c == driving) damage(c, v * 0.004f, true);
+            if (v > 5) scrape(c, -pushX / pl, -pushZ / pl, v);
         }
     }
 
@@ -556,8 +601,8 @@ final class CasinoTraffic {
                         if (rel > (mineHit ? 6 : 8)) {
                             boolean mine = p == driving || q == driving;
                             float k = mine ? 0.55f : 0.4f;
-                            damage(p, rel * k, mine);
-                            damage(q, rel * k, mine);
+                            impact(p, rel * k, mine, dx, dz, rel);
+                            impact(q, rel * k, mine, -dx, -dz, rel);
                             if (mine) {
                                 w.player.shake = Math.min(0.5f, rel * 0.03f);
                                 w.sounds |= 1;
@@ -633,6 +678,225 @@ final class CasinoTraffic {
         c.stuck = 0;
     }
 
+    // ================================================================== looking alive
+
+    /** Suspension, steering, lights and exhaust, every frame for every car. */
+    private void alive(Car c, float dt) {
+        if (dt <= 0) return;
+        float acc = (c.speed - c.prevSpeed) / dt;
+        float yawRate = CasinoWorld.angleDiff(c.h, c.prevH) / dt;
+        c.prevSpeed = c.speed;
+        c.prevH = c.h;
+        // Nose dips when braking, squats when you floor it; leans out of turns.
+        float tp = Math.max(-0.07f, Math.min(0.07f, acc * 0.009f));
+        float tr = Math.max(-0.1f, Math.min(0.1f, c.speed * yawRate * 0.011f));
+        if (c.wrecked) {
+            tp = 0;
+            tr = 0;
+        }
+        c.pitch += (tp - c.pitch) * Math.min(1, dt * 7);
+        c.roll += (tr - c.roll) * Math.min(1, dt * 6);
+        // A springy bounce after bumps.
+        c.bounceV += (-c.bounce * 160 - c.bounceV * 9) * dt;
+        c.bounce += c.bounceV * dt;
+        // Front wheels follow the turn (worked out from how it's turning).
+        float wantSteer = Math.abs(c.speed) > 0.3f
+                ? Math.max(-0.55f, Math.min(0.55f, yawRate / Math.max(1, Math.abs(c.speed)) * 2.6f
+                * Math.signum(c.speed))) : c.steerVis;
+        if (c == driving && Math.abs(c.speed) < 0.3f) wantSteer = steerIn * 0.55f;
+        c.steerVis += (wantSteer - c.steerVis) * Math.min(1, dt * 10);
+        c.brake = Math.max(0, c.brake - dt * 3);
+        if (acc < -3 && c.speed > 0.5f || c.handbrake) c.brake = 1;
+        c.reversing = c.speed < -0.3f;
+        // Turn signals: AI cars blink into their turns.
+        c.blink = c.turning && c.bez != null ? (yawRate > 0.05f ? 1 : yawRate < -0.05f ? -1 : c.blink)
+                : 0;
+        // Exhaust: a puff now and then, more when the gas goes down.
+        if ((c.driver || c == driving) && !c.wrecked && rnd.nextFloat() < dt * (acc > 2 ? 9 : 1.2f)
+                && !w.far(c.x, c.z)) {
+            float bx = c.x - fx(c.h) * 2.3f, bz = c.z - fz(c.h) * 2.3f;
+            w.exhaust(bx, bz);
+        }
+        if (c.scrapeT > 0) c.scrapeT -= dt;
+        // Skid marks when sliding or locking up.
+        if (c == driving && (Math.abs(c.slip) > 1.6f || c.handbrake && Math.abs(c.speed) > 4
+                || acc < -14 && Math.abs(c.speed) > 6)) {
+            for (int side = -1; side <= 1; side += 2) {
+                float rx = c.x - fx(c.h) * 1.4f + fx(c.h + 1.5708f) * 0.8f * side;
+                float rz = c.z - fz(c.h) * 1.4f + fz(c.h + 1.5708f) * 0.8f * side;
+                skids.add(new float[]{rx, rz, rx - fx(c.h) * 0.5f, rz - fz(c.h) * 0.5f, 0});
+            }
+            while (skids.size() > 600) skids.remove(0);
+            w.sounds |= 512;
+        }
+    }
+
+    /** The steering you're holding (for the wheels when parked). */
+    float steerIn;
+
+    /** A knock to the suspension. */
+    private static void kick(Car c, float amount) {
+        c.bounceV -= amount * 6;
+    }
+
+    /**
+     * Damage with a direction (toward what was hit, world space): the side that hit dents,
+     * lights and glass break, bumpers come off, sparks and bits fly.
+     */
+    void impact(Car c, float amount, boolean byPlayer, float dirX, float dirZ, float speed) {
+        if (c.wrecked) {
+            kick(c, 0.2f);
+            return;
+        }
+        damage(c, amount, byPlayer);
+        float l = (float) Math.hypot(dirX, dirZ);
+        if (l < 1e-4f) return;
+        dirX /= l;
+        dirZ /= l;
+        float along = dirX * fx(c.h) + dirZ * fz(c.h);
+        float side = dirX * fx(c.h + 1.5708f) + dirZ * fz(c.h + 1.5708f);
+        int where = Math.abs(along) > Math.abs(side) * 1.2f ? (along > 0 ? FRONT : BACK)
+                : (side > 0 ? RIGHT : LEFT);
+        float add = amount / 55f;
+        c.dent[where] = Math.min(1, c.dent[where] + add);
+        if (where == FRONT || where == BACK) {
+            // Corners take some of it too.
+            int s2 = side > 0 ? RIGHT : LEFT;
+            c.dent[s2] = Math.min(1, c.dent[s2] + add * 0.3f);
+        }
+        kick(c, Math.min(1.2f, speed * 0.05f));
+        float hx = c.x + dirX * (where < 2 ? 2.2f : 0.9f), hz = c.z + dirZ * (where < 2 ? 2.2f : 0.9f);
+        // Sparks at the point of impact.
+        int n = (int) Math.min(18, 4 + speed);
+        for (int i = 0; i < n; i++) {
+            w.sparks.add(new float[]{hx, 0.6f + rnd.nextFloat() * 0.4f, hz,
+                    -dirX * 4 + (rnd.nextFloat() - 0.5f) * 6, 1 + rnd.nextFloat() * 3,
+                    -dirZ * 4 + (rnd.nextFloat() - 0.5f) * 6, 0.35f + rnd.nextFloat() * 0.3f});
+        }
+        float dmg = c.dent[where];
+        int col = c.color;
+        if (where == FRONT) {
+            if (dmg > 0.3f && !c.lightL && rnd.nextBoolean()) {
+                c.lightL = true;
+                glassBits(hx, hz, 0xFFE8EEF0, 4);
+            }
+            if (dmg > 0.3f && !c.lightR && rnd.nextBoolean()) {
+                c.lightR = true;
+                glassBits(hx, hz, 0xFFE8EEF0, 4);
+            }
+            if (dmg > 0.5f && !c.glassF) {
+                c.glassF = true;
+                glassBits(hx, hz, 0xFF9AB8C8, 10);
+            }
+            if (dmg > 0.6f && !c.bumperF) {
+                c.bumperF = true;
+                flyOff(c, hx, hz, dirX, dirZ, 1.8f, 0.22f, 0.24f, 0xFF2A2A2E, speed);
+            }
+        } else if (where == BACK) {
+            if (dmg > 0.5f && !c.glassB) {
+                c.glassB = true;
+                glassBits(hx, hz, 0xFF9AB8C8, 8);
+            }
+            if (dmg > 0.55f && !c.bumperB) {
+                c.bumperB = true;
+                flyOff(c, hx, hz, dirX, dirZ, 1.8f, 0.22f, 0.24f, 0xFF2A2A2E, speed);
+            }
+        } else {
+            boolean left = where == LEFT;
+            if (dmg > 0.45f && !(left ? c.glassL : c.glassR)) {
+                if (left) c.glassL = true;
+                else c.glassR = true;
+                glassBits(hx, hz, 0xFF9AB8C8, 8);
+            }
+            if (dmg > 0.7f && rnd.nextFloat() < 0.5f) {
+                // A strip of trim or a mirror.
+                flyOff(c, hx, hz, dirX, dirZ, 0.25f, 0.12f, 0.2f, col, speed);
+            }
+        }
+        // A few flakes of paint on any decent hit.
+        if (speed > 6) {
+            for (int i = 0; i < 3; i++) {
+                flyOff(c, hx, hz, dirX, dirZ, 0.12f + rnd.nextFloat() * 0.15f, 0.03f,
+                        0.1f + rnd.nextFloat() * 0.1f, col, speed * 0.6f);
+            }
+        }
+    }
+
+    /** Scraping along a wall: a trail of sparks. */
+    private void scrape(Car c, float dirX, float dirZ, float v) {
+        if (c.scrapeT > 0) return;
+        c.scrapeT = 0.05f;
+        float hx = c.x + dirX * 0.95f, hz = c.z + dirZ * 0.95f;
+        for (int i = 0; i < 3; i++) {
+            w.sparks.add(new float[]{hx, 0.45f, hz, -fx(c.h) * v * 0.3f + (rnd.nextFloat() - 0.5f) * 2,
+                    1 + rnd.nextFloat() * 2, -fz(c.h) * v * 0.3f + (rnd.nextFloat() - 0.5f) * 2,
+                    0.3f});
+        }
+        int s = Math.abs(dirX * fx(c.h + 1.5708f) + dirZ * fz(c.h + 1.5708f)) > 0
+                && dirX * fx(c.h + 1.5708f) + dirZ * fz(c.h + 1.5708f) > 0 ? RIGHT : LEFT;
+        c.dent[s] = Math.min(1, c.dent[s] + 0.004f);
+    }
+
+    private void flyOff(Car c, float x, float z, float dirX, float dirZ, float sw, float sh,
+                        float sd, int color, float speed) {
+        float v = Math.min(9, 2 + speed * 0.35f);
+        debris.add(new float[]{x, 0.6f, z, -dirX * v * 0.6f + (rnd.nextFloat() - 0.5f) * 3,
+                2 + rnd.nextFloat() * 3, -dirZ * v * 0.6f + (rnd.nextFloat() - 0.5f) * 3,
+                rnd.nextFloat() * 6, (rnd.nextFloat() - 0.5f) * 14, sw, sh, sd, color, 0,
+                c.h});
+        while (debris.size() > 80) debris.remove(0);
+    }
+
+    private void glassBits(float x, float z, int color, int n) {
+        for (int i = 0; i < n; i++) {
+            debris.add(new float[]{x, 0.9f, z, (rnd.nextFloat() - 0.5f) * 4,
+                    1 + rnd.nextFloat() * 2.5f, (rnd.nextFloat() - 0.5f) * 4,
+                    rnd.nextFloat() * 6, (rnd.nextFloat() - 0.5f) * 20, 0.06f, 0.015f, 0.05f,
+                    color, 0, rnd.nextFloat() * 6});
+        }
+        while (debris.size() > 80) debris.remove(0);
+    }
+
+    /** Bits fly, bounce and come to rest; they stay a while, then go. */
+    private void updateDebris(float dt) {
+        for (int i = debris.size() - 1; i >= 0; i--) {
+            float[] b = debris.get(i);
+            b[12] += dt;
+            if (b[12] > 45) {
+                debris.remove(i);
+                continue;
+            }
+            if (b[1] <= b[9] / 2 + 0.005f && Math.abs(b[4]) < 0.3f && Math.hypot(b[3], b[5]) < 0.3f) {
+                b[3] = b[4] = b[5] = 0;
+                b[7] = 0;
+                continue;
+            }
+            b[4] -= 9.8f * dt;
+            b[0] += b[3] * dt;
+            b[1] += b[4] * dt;
+            b[2] += b[5] * dt;
+            b[6] += b[7] * dt;
+            float floor = b[9] / 2 + 0.005f;
+            if (b[1] < floor) {
+                b[1] = floor;
+                b[4] = -b[4] * 0.3f;
+                b[3] *= 0.6f;
+                b[5] *= 0.6f;
+                b[7] *= 0.5f;
+                // Settle flat once it stops hopping.
+                if (Math.abs(b[4]) < 0.6f) b[6] = Math.round(b[6] / 3.1416f) * 3.1416f;
+            }
+        }
+        for (float[] k : skids) k[4] += dt;
+    }
+
+    /** The spray shop fixes the body too. */
+    private static void repair(Car c) {
+        java.util.Arrays.fill(c.dent, 0);
+        c.bumperF = c.bumperB = c.lightL = c.lightR = false;
+        c.glassF = c.glassB = c.glassL = c.glassR = false;
+    }
+
     void damage(Car c, float amount, boolean byPlayer) {
         if (c.wrecked || amount <= 0) return;
         c.health -= amount;
@@ -646,7 +910,9 @@ final class CasinoTraffic {
 
     private void burn(Car c, float dt) {
         if (c.fire < 0 || c.wrecked) {
-            if (c.health < 35 && !c.wrecked && rnd.nextFloat() < dt * 6) {
+            // Steam from the radiator once it's hurt, thick smoke when it's badly hurt.
+            float rate = c.health < 35 ? 7 : (c.health < 65 ? 2 : 0);
+            if (!c.wrecked && rate > 0 && rnd.nextFloat() < dt * rate) {
                 w.smoke(c.x + fx(c.h) * 1.6f, 1.0f, c.z + fz(c.h) * 1.6f, false);
             }
             return;
@@ -665,10 +931,27 @@ final class CasinoTraffic {
         c.age = 0;
         w.sounds |= 128;
         w.blast(c.x, c.z, c.playerDamaged);
+        // The shell jumps, everything that can come off does.
+        c.bounceV = 7;
+        java.util.Arrays.fill(c.dent, 0.85f);
+        c.glassF = c.glassB = c.glassL = c.glassR = c.lightL = c.lightR = true;
+        int col = c.color;
+        for (int i = 0; i < 4; i++) {
+            float a = rnd.nextFloat() * 6.283f;
+            float dx = (float) Math.cos(a), dz = (float) Math.sin(a);
+            flyOff(c, c.x, c.z, -dx, -dz, i == 0 ? 1.4f : 1.1f, 0.06f, i == 0 ? 1.3f : 0.9f,
+                    i < 2 ? col : 0xFF1E1A18, 24);
+        }
+        if (!c.bumperF) {
+            c.bumperF = true;
+            flyOff(c, c.x + fx(c.h) * 2.2f, c.z + fz(c.h) * 2.2f, -fx(c.h), -fz(c.h), 1.8f,
+                    0.22f, 0.24f, TRIM_COLOR, 20);
+        }
+        glassBits(c.x, c.z, 0xFF9AB8C8, 14);
         for (Car o : cars) {
             if (o == c) continue;
             float d = (float) Math.hypot(o.x - c.x, o.z - c.z);
-            if (d < 5) damage(o, (5 - d) * 9, c.playerDamaged);
+            if (d < 5) impact(o, (5 - d) * 9, c.playerDamaged, c.x - o.x, c.z - o.z, 12);
         }
         if (c == driving) w.exitCar(true);
     }
@@ -739,6 +1022,7 @@ final class CasinoTraffic {
         d.color = c;
         if (d.type == POLICE) d.type = SEDAN;
         d.health = 100;
+        repair(d);
         clearHeat();
         reset();
     }
@@ -1039,10 +1323,28 @@ final class CasinoTraffic {
         for (Car c : cars) {
             if (w.far(c.x, c.z)) continue;
             int col = c.wrecked ? 0xFF1E1A18 : c.color;
-            w.drawCar(s, c.x, c.z, CasinoWorld.PI / 2 - c.h, col,
-                    c.type == POLICE ? SEDAN : c.type, c.spin,
+            w.drawCar(s, c, col, c.type == POLICE ? SEDAN : c.type,
                     !c.wrecked && (c.driver || c == driving));
             if (c.type == POLICE && !c.wrecked) w.drawPoliceBits(s, c.siren);
+        }
+        float[] m = new float[16];
+        for (float[] b : debris) {
+            if (w.far(b[0], b[2])) continue;
+            CasinoWorld.Mat.identity(m);
+            CasinoWorld.Mat.translate(m, b[0], b[1], b[2]);
+            CasinoWorld.Mat.rotY(m, b[13]);
+            CasinoWorld.Mat.rotX(m, b[6]);
+            CasinoWorld.Mat.scale(m, b[8], b[9], b[10]);
+            s.part(m, (int) b[11], 0);
+        }
+        for (float[] k : skids) {
+            if (w.far(k[0], k[1])) continue;
+            float dx = k[2] - k[0], dz = k[3] - k[1];
+            CasinoWorld.Mat.identity(m);
+            CasinoWorld.Mat.translate(m, (k[0] + k[2]) / 2, 0.012f, (k[1] + k[3]) / 2);
+            CasinoWorld.Mat.rotY(m, (float) Math.atan2(dx, dz));
+            CasinoWorld.Mat.scale(m, 0.22f, 0.004f, (float) Math.hypot(dx, dz) + 0.05f);
+            s.part(m, k[4] < 20 ? 0xFF0A0A0C : 0xFF141416, 0);
         }
     }
 }

@@ -142,8 +142,11 @@ public class CasinoActivity extends Activity {
         overlay.refreshJackpots = true;
     }
 
+    private long skidAt;
+
     @Override
     protected void onPause() {
+        Sfx.engine(this, false, 0, 0);
         gl.onPause();
         super.onPause();
     }
@@ -1577,6 +1580,21 @@ public class CasinoActivity extends Activity {
                 flash = world.traffic.flash;
                 world.traffic.flash = null;
                 sounds = world.sounds;
+                // The engine: revs climb through the gears and drop at each shift.
+                CasinoTraffic.Car ride = world.traffic.driving;
+                if (ride != null && !ride.wrecked && ride.fire < 0) {
+                    float v = Math.abs(ride.speed);
+                    float[] gears = {0, 7, 13, 19, 25, 40};
+                    int g = 0;
+                    while (g < gears.length - 2 && v > gears[g + 1]) g++;
+                    float rpm = 0.15f + 0.85f * (v - gears[g]) / (gears[g + 1] - gears[g]);
+                    if (v < 0.5f) rpm = overlay.gasPointer >= 0 ? 0.55f : 0.12f;
+                    float load = overlay.gasPointer >= 0 ? 0.6f : 0.35f;
+                    Sfx.engine(CasinoActivity.this, true, rpm, load);
+                    ride.handbrake = overlay.hbPointer >= 0;
+                } else {
+                    Sfx.engine(CasinoActivity.this, false, 0, 0);
+                }
                 finished = world.contractDone;
                 rangeOver = world.rangeDone;
                 world.camera(glW / (float) Math.max(1, glH), view, proj, eye);
@@ -1610,6 +1628,11 @@ public class CasinoActivity extends Activity {
                         if ((sounds & 128) != 0) Sfx.play(CasinoActivity.this, Sfx.BOOM);
                         else if ((sounds & 1) != 0) Sfx.play(CasinoActivity.this, Sfx.PUNCH);
                         else if ((sounds & 256) != 0) Sfx.play(CasinoActivity.this, Sfx.BLOCK);
+                        long now = System.currentTimeMillis();
+                        if ((sounds & 512) != 0 && now - skidAt > 320) {
+                            skidAt = now;
+                            Sfx.play(CasinoActivity.this, Sfx.SKID, 0.7f);
+                        }
                         else if ((sounds & 2) != 0) Sfx.play(CasinoActivity.this, Sfx.WHOOSH);
                         if (finished) contractFinished();
                         if (rangeOver) rangeFinished();
@@ -1963,8 +1986,9 @@ public class CasinoActivity extends Activity {
         private float stickCx, stickCy, stickPx, stickPy, lookX, lookY;
         private final RectF fireBtn = new RectF(), aimBtn = new RectF(), reloadBtn = new RectF(),
                 gunBtn = new RectF();
-        private int firePointer = -1, blockPointer = -1, gasPointer = -1, brakePointer = -1;
-        private final RectF gasBtn = new RectF(), brakeBtn = new RectF();
+        private int firePointer = -1, blockPointer = -1, gasPointer = -1, brakePointer = -1,
+                hbPointer = -1;
+        private final RectF gasBtn = new RectF(), brakeBtn = new RectF(), hbBtn = new RectF();
         private final RectF kickBtn = new RectF(), blockBtn = new RectF(), dodgeBtn = new RectF();
         private final RectF punchBtn = new RectF(), shootBtn = new RectF(),
                 backBtn = new RectF(), phoneBtn = new RectF(), jobsBtn = new RectF(),
@@ -2125,19 +2149,27 @@ public class CasinoActivity extends Activity {
                 if (!label.isEmpty()) c.drawText(label, cx, cy + rh + 16 * d, paint);
             }
 
-            // The stick stays put in the bottom-left corner.
-            stickCx = 104 * d;
-            stickCy = h - 104 * d;
+            // The stick sits low in the bottom-left corner. Its ring is big, but full speed
+            // (and running) comes well inside it, so your thumb never has to climb.
+            stickCx = STICK_RING * d + 14 * d;
+            stickCy = h - STICK_RING * d - 12 * d;
             boolean inCar;
             synchronized (world) {
                 inCar = world.traffic.driving != null;
             }
             paint.setColor(stickId >= 0 ? 0x33FFFFFF : 0x22FFFFFF);
-            c.drawCircle(stickCx, stickCy, 62 * d, paint);
+            c.drawCircle(stickCx, stickCy, STICK_RING * d, paint);
+            // The inner ring: push to here for full speed.
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(1.5f * d);
+            paint.setColor(0x33FFFFFF);
+            c.drawCircle(stickCx, stickCy, STICK_FULL * d, paint);
+            paint.setStyle(Paint.Style.FILL);
             if (inCar) {
                 // Steering only: a left/right bar.
                 paint.setColor(0x22FFFFFF);
-                c.drawRect(stickCx - 62 * d, stickCy - 6 * d, stickCx + 62 * d, stickCy + 6 * d, paint);
+                c.drawRect(stickCx - STICK_RING * d, stickCy - 6 * d, stickCx + STICK_RING * d,
+                        stickCy + 6 * d, paint);
             }
             paint.setColor(stickId >= 0 ? 0x99FFFFFF : 0x44FFFFFF);
             c.drawCircle(stickId >= 0 ? stickPx : stickCx,
@@ -2248,6 +2280,14 @@ public class CasinoActivity extends Activity {
                 c.drawRoundRect(gasBtn, 18 * d, 18 * d, paint);
                 paint.setColor(brakePointer >= 0 ? 0xDDE0403A : 0x88902A26);
                 c.drawRoundRect(brakeBtn, 18 * d, 18 * d, paint);
+                // Handbrake: hold it into a corner to swing the back end round.
+                hbBtn.set(brakeBtn.left, brakeBtn.top - 14 * d - 54 * d, brakeBtn.right,
+                        brakeBtn.top - 14 * d);
+                paint.setColor(hbPointer >= 0 ? 0xDDFFB020 : 0x887A5A10);
+                c.drawRoundRect(hbBtn, 16 * d, 16 * d, paint);
+                paint.setColor(0xFFFFFFFF);
+                paint.setTextSize(11 * d);
+                c.drawText("DRIFT", hbBtn.centerX(), hbBtn.centerY() + 4 * d, paint);
                 paint.setColor(0xFFFFFFFF);
                 paint.setTextSize(16 * d);
                 c.drawText("GAS", gasBtn.centerX(), gasBtn.centerY() + 6 * d, paint);
@@ -2276,6 +2316,7 @@ public class CasinoActivity extends Activity {
             }
             gasBtn.setEmpty();
             brakeBtn.setEmpty();
+            hbBtn.setEmpty();
             float pr = (g != null && !g.melee ? 44 : 36) * d;
             boolean armed = g != null;
             // The big button: punch with fists, fire with a weapon.
@@ -2484,18 +2525,25 @@ public class CasinoActivity extends Activity {
         }
 
         /** A round map in the corner that turns with the camera. Call with the world locked. */
+        /** The stick's ring, and how far your thumb moves for full speed (dp). */
+        static final float STICK_RING = 74, STICK_FULL = 40;
+
         private void moveStick(float px, float py) {
             float dx = px - stickCx, dy = py - stickCy;
-            float max = 56 * d;
+            float max = STICK_FULL * d;
             float l = (float) Math.hypot(dx, dy);
             if (l > max) {
                 dx *= max / l;
                 dy *= max / l;
+                l = max;
             }
             stickPx = stickCx + dx;
             stickPy = stickCy + dy;
-            stickX = dx / max;
-            stickY = dy / max;
+            // A small dead zone, then a gentle curve so walking slowly is easy too.
+            float m = l / max;
+            float out = m < 0.08f ? 0 : (float) Math.pow((m - 0.08f) / 0.92f, 0.85f);
+            stickX = l > 0 ? dx / l * out : 0;
+            stickY = l > 0 ? dy / l * out : 0;
         }
 
         private void drawMinimap(Canvas c) {
@@ -2674,6 +2722,10 @@ public class CasinoActivity extends Activity {
                         brakePointer = id;
                         return true;
                     }
+                    if (!hbBtn.isEmpty() && hbBtn.contains(x, y)) {
+                        hbPointer = id;
+                        return true;
+                    }
                     if (fireBtn.contains(x, y)) {
                         synchronized (world) {
                             if (world.weapon == null) world.punch();
@@ -2738,7 +2790,8 @@ public class CasinoActivity extends Activity {
                             return true;
                         }
                     }
-                    if (x < getWidth() * 0.45f && y > miniBtn.bottom + 24 * d && stickId < 0) {
+                    if (x < getWidth() * 0.42f && y > getHeight() * 0.42f
+                            && y > miniBtn.bottom + 24 * d && stickId < 0) {
                         // Grab the fixed stick from anywhere down there.
                         stickId = id;
                         moveStick(x, y);
@@ -2772,7 +2825,7 @@ public class CasinoActivity extends Activity {
                     stickX = stickY = 0;
                     firePointer = -1;
                     blockPointer = -1;
-                    gasPointer = brakePointer = -1;
+                    gasPointer = brakePointer = hbPointer = -1;
                     synchronized (world) {
                         world.triggerHeld = false;
                         world.fight.block(false);
@@ -2786,6 +2839,7 @@ public class CasinoActivity extends Activity {
                         }
                     }
                     if (id == gasPointer) gasPointer = -1;
+                    if (id == hbPointer) hbPointer = -1;
                     if (id == brakePointer) brakePointer = -1;
                     if (id == blockPointer) {
                         blockPointer = -1;

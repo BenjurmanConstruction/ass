@@ -2836,6 +2836,12 @@ final class CasinoWorld {
 
     // ---------------------------------------------------------------- fire and smoke
 
+    /** A little gray puff from a tailpipe. */
+    void exhaust(float x, float z) {
+        if (smokes.size() > 140) return;
+        smokes.add(new float[]{x, 0.35f, z, 0.25f, 0.9f, 0.08f, 0});
+    }
+
     void smoke(float x, float y, float z, boolean fire) {
         if (smokes.size() > 160) return;
         smokes.add(new float[]{x + (rnd.nextFloat() - 0.5f) * 0.6f, y,
@@ -3823,11 +3829,23 @@ final class CasinoWorld {
     /**
      * One car. Its own front is +x; yaw turns it (0 drives east, PI west, -PI/2 faces south).
      */
-    void drawCar(PartSink s, float x, float z, float yaw, int col, int type, float spin,
-                 boolean lights) {
-        Mat.identity(car);
-        Mat.translate(car, x, 0, z);
-        Mat.rotY(car, yaw);
+    private final float[] carBase = new float[16];
+    private static final int BROKEN_GLASS = 0xFF8A9CA8, SHATTERED = 0xFF0C0C0E;
+
+    /**
+     * A car, alive: the body rides on its springs (dive, squat, lean, bounce) while the wheels
+     * stay on the road; front wheels steer; brake, reverse and turn lights work; and every
+     * knock shows: crumpled ends, dented doors, broken lights and glass, lost bumpers.
+     */
+    void drawCar(PartSink s, CasinoTraffic.Car c, int col, int type, boolean lights) {
+        float x = c.x, z = c.z, yaw = PI / 2 - c.h;
+        Mat.identity(carBase);
+        Mat.translate(carBase, x, 0, z);
+        Mat.rotY(carBase, yaw);
+        copy(car, carBase);
+        Mat.translate(car, 0, c.bounce, 0);
+        Mat.rotX(car, -c.roll);
+        Mat.rotZ(car, c.pitch);
         s.shadow(x, z, 2.3f);
         boolean suv = type == SUV, pickup = type == PICKUP;
         float len = suv ? 4.6f : (pickup ? 4.9f : 4.4f);
@@ -3836,73 +3854,172 @@ final class CasinoWorld {
         float y1 = suv ? 1.04f : (pickup ? 0.98f : 0.84f);
         float r = suv || pickup ? 0.4f : 0.34f;
         float wx = suv ? 1.5f : (pickup ? 1.6f : 1.42f);
-        int dark = shade(col, 0.82f);
+        int dark = shade(col, 0.82f), light = shade(col, 1.18f);
+        float[] dent = c.dent;
+        // Crumple: the ends get shorter, the sides cave in.
+        float crushF = dent[CasinoTraffic.FRONT] * 0.55f, crushB = dent[CasinoTraffic.BACK] * 0.45f;
+        float front = hl - crushF, back = -hl + crushB;
+        boolean blinkOn = ((int) (time * 3)) % 2 == 0;
 
-        // Body, bumpers, grille, lights.
-        cp(s, 0, (y0 + y1) / 2, 0, len - 0.2f, y1 - y0, hw * 2, col, 0);
-        cp(s, hl - 0.06f, y0 + 0.12f, 0, 0.14f, 0.26f, hw * 2 - 0.08f, TRIM, 0);
-        cp(s, -hl + 0.06f, y0 + 0.12f, 0, 0.14f, 0.26f, hw * 2 - 0.08f, TRIM, 0);
-        cp(s, hl - 0.1f, y1 - 0.22f, 0, 0.04f, 0.14f, hw * 0.8f, 0xFF0E0E10, 0);
+        // Lower body, split so each end can fold.
+        float mid = (front + back) / 2, blen = front - back - 0.2f;
+        cp(s, mid, (y0 + y1) / 2 - 0.04f, 0, blen, y1 - y0 - 0.08f, hw * 2 - 0.04f, col, 0);
+        // Shoulder line: a slightly narrower lip along the top makes the edges read rounded.
+        cp(s, mid, y1 - 0.06f, 0, blen - 0.1f, 0.1f, hw * 2 - 0.1f, light, 0);
+        // Dark rocker strip along the bottom.
+        cp(s, mid, y0 + 0.04f, 0, blen - 0.3f, 0.08f, hw * 2 + 0.01f, TRIM, 0);
+        // Side panels (they dent in) with door seams and handles.
+        float cf = suv ? 0.75f : 0.95f, cb = suv ? -2.05f : (pickup ? -0.35f : -1.6f);
         for (int side = -1; side <= 1; side += 2) {
-            cp(s, hl - 0.11f, y1 - 0.16f, side * (hw - 0.26f), 0.05f, 0.1f, 0.26f,
-                    lights ? 0xFFFFF8E8 : 0xFF9A9A92, lights ? 1 : 0.1f);
-            cp(s, -hl + 0.11f, y1 - 0.14f, side * (hw - 0.24f), 0.05f, 0.12f, 0.3f,
-                    0xFFE01818, lights ? 1 : 0.15f);
-            // Dark wheel arches cut into the sides.
-            cp(s, wx, y0 + 0.2f, side * (hw + 0.004f), r * 2.6f, 0.4f, 0.01f, 0xFF0C0C0E, 0);
-            cp(s, -wx, y0 + 0.2f, side * (hw + 0.004f), r * 2.6f, 0.4f, 0.01f, 0xFF0C0C0E, 0);
-            // A crease line down the side.
-            cp(s, 0, y1 - 0.1f, side * (hw + 0.003f), len - 0.5f, 0.03f, 0.01f, dark, 0);
+            float dn = dent[side > 0 ? CasinoTraffic.RIGHT : CasinoTraffic.LEFT];
+            float in = dn * 0.2f;
+            float pz = side * (hw - in);
+            // Two halves at slightly different depths once it's dented: buckled metal.
+            cp(s, mid + blen * 0.22f, (y0 + y1) / 2, pz + side * 0.004f - side * dn * 0.05f,
+                    blen * 0.5f, y1 - y0 - 0.12f, 0.02f, dn > 0.3f ? shade(col, 0.7f) : col, 0);
+            cp(s, mid - blen * 0.25f, (y0 + y1) / 2, pz + side * 0.004f,
+                    blen * 0.48f, y1 - y0 - 0.12f, 0.02f, col, 0);
+            if (dn > 0.15f) {
+                // Scrapes: bare metal showing.
+                cp(s, mid, (y0 + y1) / 2 + 0.04f, pz + side * 0.016f, blen * 0.55f * dn, 0.04f,
+                        0.01f, 0xFF9A9AA0, 0);
+                cp(s, mid - 0.4f, (y0 + y1) / 2 - 0.08f, pz + side * 0.016f, blen * 0.35f * dn,
+                        0.03f, 0.01f, 0xFF7A7A80, 0);
+            }
+            for (float seam : new float[]{cf - 0.1f, (cf + cb) / 2 + 0.05f}) {
+                if (seam > front - 0.4f || seam < back + 0.4f) continue;
+                cp(s, seam, (y0 + y1) / 2 + 0.03f, pz + side * 0.016f, 0.02f, y1 - y0 - 0.16f,
+                        0.01f, dark, 0);
+                cp(s, seam - 0.32f, y1 - 0.2f, pz + side * 0.02f, 0.16f, 0.035f, 0.02f, TRIM, 0);
+            }
+            // Wheel arches: a dark rounded cut over each tire.
+            for (float ax : new float[]{wx, -wx}) {
+                if (ax > front || ax < back) continue;
+                cp(s, ax, y0 + 0.18f, side * (hw + 0.006f) - side * in, r * 2.5f, 0.36f, 0.012f,
+                        0xFF0C0C0E, 0);
+                cp(s, ax, y0 + 0.4f, side * (hw + 0.006f) - side * in, r * 1.7f, 0.12f, 0.012f,
+                        0xFF0C0C0E, 0);
+            }
+            // Mirrors (gone once that side's smashed in).
+            if (dn < 0.6f) {
+                cp(s, cf - 0.12f, y1 + 0.12f, side * (hw + 0.07f), 0.12f, 0.1f, 0.14f, col, 0);
+                cp(s, cf - 0.06f, y1 + 0.12f, side * (hw + 0.07f), 0.02f, 0.07f, 0.1f, GLASS, 0.2f);
+            }
         }
-        cp(s, -hl + 0.02f, y0 + 0.16f, 0, 0.02f, 0.12f, 0.34f, 0xFFE8E8E0, 0.3f);
+        // Hood: slopes gently to the nose; buckles up into a peak when the front's crushed.
+        float hoodF = front - 0.12f, hoodY = y1 + 0.02f;
+        if (crushF < 0.12f) {
+            slab(s, cf, hoodY, hoodF, hoodY - 0.06f, hw * 2 - 0.12f, 0.04f, col, 0);
+        } else {
+            float peak = crushF * 0.55f, pm = (cf + hoodF) / 2;
+            slab(s, cf, hoodY, pm, hoodY + peak, hw * 2 - 0.16f, 0.04f, light, 0);
+            slab(s, pm, hoodY + peak, hoodF, hoodY - 0.02f, hw * 2 - 0.16f, 0.04f, col, 0);
+        }
+        // Trunk lid.
+        if (!pickup) {
+            float tb = back + 0.12f, tf = suv ? back + 0.15f : cb - 0.05f;
+            if (tf > tb) {
+                float bump = crushB * 0.4f;
+                slab(s, tf, hoodY, tb, hoodY - 0.04f + bump, hw * 2 - 0.12f, 0.04f, col, 0);
+            }
+        }
+        // Nose: grille, plate, bumper, headlights (dark and broken once smashed).
+        cp(s, front - 0.06f, y1 - 0.2f, 0, 0.04f, 0.16f, hw * 0.9f, 0xFF0E0E10, 0);
+        cp(s, front - 0.06f, y1 - 0.2f, 0, 0.045f, 0.03f, hw * 0.9f, 0xFF3A3A40, 0.1f);
+        if (!c.bumperF) {
+            cp(s, front + 0.02f, y0 + 0.13f, 0, 0.16f, 0.24f, hw * 2 - 0.04f, TRIM, 0);
+            cp(s, front + 0.105f, y0 + 0.14f, 0, 0.01f, 0.1f, 0.34f, 0xFFE8E8E0, 0.15f);
+        }
+        for (int side = -1; side <= 1; side += 2) {
+            boolean broken = side < 0 ? c.lightL : c.lightR;
+            cp(s, front - 0.08f, y1 - 0.14f, side * (hw - 0.26f), 0.06f, 0.11f, 0.3f,
+                    broken ? 0xFF2A2A2A : (lights ? 0xFFFFF8E8 : 0xFF9A9A92),
+                    broken ? 0 : (lights ? 1 : 0.1f));
+            // Turn signals at the corners.
+            boolean sig = c.blink == side && blinkOn;
+            cp(s, front - 0.1f, y1 - 0.26f, side * (hw - 0.08f), 0.06f, 0.06f, 0.1f,
+                    sig ? 0xFFFFA020 : 0xFF8A5A20, sig ? 1 : 0.05f);
+            // Tail: brake lights brighten, reverse lights come on, signals blink.
+            boolean brake = c.brake > 0.1f;
+            cp(s, back + 0.08f, y1 - 0.13f, side * (hw - 0.24f), 0.06f, 0.13f, 0.34f,
+                    brake ? 0xFFFF2020 : 0xFFB01818, brake ? 1 : (lights ? 0.55f : 0.12f));
+            cp(s, back + 0.08f, y1 - 0.27f, side * (hw - 0.24f), 0.06f, 0.07f, 0.14f,
+                    c.reversing ? 0xFFF4F4F0 : 0xFF8A8A88, c.reversing ? 1 : 0.05f);
+            cp(s, back + 0.08f, y1 - 0.13f, side * (hw - 0.05f), 0.06f, 0.1f, 0.08f,
+                    sig ? 0xFFFFA020 : 0xFF8A5A20, sig ? 1 : 0.05f);
+        }
+        if (!c.bumperB) {
+            cp(s, back - 0.02f, y0 + 0.13f, 0, 0.16f, 0.24f, hw * 2 - 0.04f, TRIM, 0);
+        }
+        cp(s, back - 0.03f, y0 + 0.36f, 0, 0.02f, 0.12f, 0.34f, 0xFFE8E8E0, 0.3f);
+        // Tailpipe.
+        cp(s, back - 0.04f, y0 + 0.02f, -hw + 0.35f, 0.14f, 0.07f, 0.07f, 0xFF3A3A3E, 0);
         if (type == TAXI) {
             for (int side = -1; side <= 1; side += 2) {
-                cp(s, 0.1f, y1 - 0.24f, side * (hw + 0.005f), 2.6f, 0.08f, 0.01f,
+                cp(s, 0.1f, y1 - 0.24f, side * (hw + 0.012f), 2.6f, 0.08f, 0.01f,
                         0xFF111111, 0);
             }
         }
 
-        // Cabin: glass, sloped windshield and back glass, roof, pillars, mirrors.
-        float cf, cb, top;
+        // Cabin: glass, sloped windshield and back glass, roof, pillars.
+        float top;
         if (suv) {
-            cf = 0.75f;
-            cb = -2.05f;
             top = 1.62f;
         } else if (pickup) {
-            cf = 0.95f;
-            cb = -0.35f;
             top = 1.62f;
         } else {
-            cf = 0.95f;
-            cb = -1.6f;
             top = 1.38f;
         }
         float slope = suv || pickup ? 0.35f : 0.5f;
         float gw = hw * 2 - 0.26f;
+        float roofSag = Math.max(dent[CasinoTraffic.LEFT], dent[CasinoTraffic.RIGHT]) > 0.7f
+                ? 0.08f : 0;
+        top -= roofSag;
+        // Side glass (black and empty once smashed).
+        for (int side = -1; side <= 1; side += 2) {
+            boolean gone = side < 0 ? c.glassL : c.glassR;
+            float roofF0 = cf - slope, roofB0 = suv || pickup ? cb : cb + slope;
+            cp(s, (roofF0 + roofB0) / 2, (y1 + top) / 2, side * (gw / 2 + 0.005f),
+                    roofF0 - roofB0, top - y1 - 0.06f, 0.02f, gone ? SHATTERED : GLASS,
+                    gone ? 0 : 0.08f);
+        }
         cp(s, (cf - slope + cb + (suv || pickup ? 0 : slope)) / 2, (y1 + top) / 2, 0,
-                (cf - slope) - (cb + (suv || pickup ? 0 : slope)), top - y1, gw, GLASS, 0.06f);
-        slab(s, cf, y1, cf - slope, top, gw, 0.06f, GLASS, 0.06f);
-        if (!suv && !pickup) slab(s, cb + slope, top, cb, y1, gw, 0.06f, GLASS, 0.06f);
+                (cf - slope) - (cb + (suv || pickup ? 0 : slope)), top - y1, gw - 0.02f,
+                0xFF101014, 0);
+        slab(s, cf, y1, cf - slope, top, gw, 0.06f, c.glassF ? BROKEN_GLASS : GLASS,
+                c.glassF ? 0.15f : 0.08f);
+        if (c.glassF) {
+            // Spiderweb cracks.
+            slab(s, cf - 0.02f, y1 + 0.05f, cf - slope + 0.1f, top - 0.05f, 0.03f, 0.07f,
+                    0xFFE8EEF2, 0.3f);
+            slab(s, cf - 0.1f, y1 + 0.02f, cf - slope * 0.6f, top - 0.12f, gw * 0.8f, 0.065f,
+                    0xFFC8D4DC, 0.1f);
+        }
+        if (!suv && !pickup) {
+            slab(s, cb + slope, top, cb, y1, gw, 0.06f, c.glassB ? BROKEN_GLASS : GLASS,
+                    0.06f);
+        }
         float roofF = cf - slope, roofB = suv || pickup ? cb : cb + slope;
         cp(s, (roofF + roofB) / 2, top + 0.04f, 0, roofF - roofB + 0.06f, 0.08f, gw + 0.06f,
                 col, 0);
-        cp(s, (roofF + roofB) / 2 - 0.1f, (y1 + top) / 2, 0, 0.1f, top - y1, gw + 0.04f,
-                dark, 0);
+        cp(s, (roofF + roofB) / 2, top + 0.085f, 0, roofF - roofB - 0.1f, 0.02f, gw - 0.1f,
+                light, 0);
+        // Pillars: front, middle, back.
+        for (int side = -1; side <= 1; side += 2) {
+            cp(s, (roofF + roofB) / 2 - 0.1f, (y1 + top) / 2, side * (gw / 2 + 0.02f), 0.1f,
+                    top - y1, 0.03f, dark, 0);
+        }
         if (suv) {
             cp(s, (roofF + roofB) / 2, top + 0.1f, hw - 0.25f, roofF - roofB - 0.3f, 0.04f,
                     0.05f, TRIM, 0);
             cp(s, (roofF + roofB) / 2, top + 0.1f, -hw + 0.25f, roofF - roofB - 0.3f, 0.04f,
                     0.05f, TRIM, 0);
         }
-        for (int side = -1; side <= 1; side += 2) {
-            cp(s, cf - 0.15f, y1 + 0.1f, side * (hw + 0.06f), 0.1f, 0.08f, 0.12f, col, 0);
-        }
         if (type == TAXI) {
             cp(s, (roofF + roofB) / 2, top + 0.17f, 0, 0.3f, 0.18f, 0.72f, 0xFFFFE28A, 0.9f);
         }
         if (pickup) {
-            // The open bed with low walls and a tailgate.
-            float bf = cb - 0.08f, bb = -hl + 0.1f;
+            float bf = cb - 0.08f, bb = back + 0.1f;
             cp(s, (bf + bb) / 2, y1 + 0.02f, 0, bf - bb, 0.04f, hw * 2 - 0.1f, 0xFF15151A, 0);
             for (int side = -1; side <= 1; side += 2) {
                 cp(s, (bf + bb) / 2, y1 + 0.2f, side * (hw - 0.05f), bf - bb, 0.36f, 0.1f,
@@ -3912,33 +4029,48 @@ final class CasinoWorld {
             cp(s, bf, y1 + 0.2f, 0, 0.1f, 0.36f, hw * 2 - 0.1f, col, 0);
         }
 
-        // Wheels: hexagon tires with a two-spoke rim that turns as the car rolls.
+        // Wheels on the road (not riding the body's lean); fronts steer, smashed corners splay.
+        float[] keep = car.clone();
+        copy(car, carBase);
         for (int i = -1; i <= 1; i += 2) {
             for (int side = -1; side <= 1; side += 2) {
-                wheel(s, i * wx, side * (hw - 0.06f), r, spin, side);
+                float wxi = i * wx;
+                if (i > 0 && wxi > front + 0.2f) wxi = front + 0.2f;
+                float splay = dent[side > 0 ? CasinoTraffic.RIGHT : CasinoTraffic.LEFT] > 0.75f
+                        || (i > 0 ? crushF : crushB) > 0.4f ? 0.18f * side : 0;
+                wheel(s, wxi, side * (hw - 0.06f), r, c.spin, side, i > 0 ? c.steerVis : 0,
+                        splay);
             }
         }
+        System.arraycopy(keep, 0, car, 0, 16);
         // Headlights throw soft pools of light on the road ahead (a negative radius).
-        if (lights) {
-            float c = (float) Math.cos(yaw), sn = (float) Math.sin(yaw);
+        if (lights && !(c.lightL && c.lightR)) {
+            float cc = (float) Math.cos(yaw), sn = (float) Math.sin(yaw);
             for (float k : new float[]{hl + 1.6f, hl + 4.2f}) {
-                s.shadow(x + c * k, z - sn * k, -(k < hl + 2 ? 1.7f : 2.6f));
+                s.shadow(x + cc * k, z - sn * k, -(k < hl + 2 ? 1.7f : 2.6f)
+                        * (c.lightL || c.lightR ? 0.7f : 1));
             }
         }
     }
 
-    private void wheel(PartSink s, float x, float z, float r, float spin, int side) {
+    private void wheel(PartSink s, float x, float z, float r, float spin, int side, float steer,
+                       float splay) {
         float a = r * 0.95f;
         for (int k = 0; k < 3; k++) {
             copy(tmp, car);
             Mat.translate(tmp, x, r, z);
+            if (steer != 0) Mat.rotY(tmp, -steer);
+            if (splay != 0) Mat.rotX(tmp, splay);
             Mat.rotZ(tmp, spin + k * PI / 3);
             Mat.scale(tmp, 2 * a, 2 * a * 0.5774f, 0.26f);
             s.part(tmp, TIRE, 0);
         }
         for (int k = 0; k < 2; k++) {
             copy(tmp, car);
-            Mat.translate(tmp, x, r, z + side * 0.135f);
+            Mat.translate(tmp, x, r, z);
+            if (steer != 0) Mat.rotY(tmp, -steer);
+            if (splay != 0) Mat.rotX(tmp, splay);
+            Mat.translate(tmp, 0, 0, side * 0.135f);
             Mat.rotZ(tmp, spin + k * PI / 2);
             Mat.scale(tmp, a * 1.2f, a * 0.22f, 0.02f);
             s.part(tmp, RIM, 0.05f);
